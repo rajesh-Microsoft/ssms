@@ -121,18 +121,16 @@ async function hashPassword(password, salt){
 function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
 
 function showHome(){
+  hideAllAuthScreens();
   const home = document.getElementById('homeScreen');
-  const login = document.getElementById('loginScreen');
-  if(login) login.style.display = 'none';
   if(home) home.style.display = 'flex';
   const errEl = document.getElementById('loginError');
   if(errEl) errEl.textContent = '';
 }
 
 function showLoginForm(intendedRole){
-  const home = document.getElementById('homeScreen');
+  hideAllAuthScreens();
   const login = document.getElementById('loginScreen');
-  if(home) home.style.display = 'none';
   if(login) login.style.display = 'flex';
   const heading = document.getElementById('loginHeading');
   const sub = document.getElementById('loginSubheading');
@@ -146,6 +144,132 @@ function showLoginForm(intendedRole){
   if(userField) userField.focus();
 }
 
+function hideAllAuthScreens(){
+  ['homeScreen','loginScreen','signupScreen','forgotScreen'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+}
+
+// ── SIGN UP ──
+const SECURITY_QUESTIONS = [
+  'What was the name of your first pet?',
+  'What is your mother\'s maiden name?',
+  'What was the name of your first school?',
+  'What is your favourite city?',
+  'What was your childhood nickname?'
+];
+
+function populateAuthDropdowns(){
+  const floorSel = document.getElementById('su-floor');
+  if(floorSel) floorSel.innerHTML = DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join('');
+  const secqSel = document.getElementById('su-secq');
+  if(secqSel) secqSel.innerHTML = SECURITY_QUESTIONS.map(q=>`<option>${q}</option>`).join('');
+}
+
+function showSignup(){
+  hideAllAuthScreens();
+  populateAuthDropdowns();
+  const signup = document.getElementById('signupScreen');
+  if(signup) signup.style.display = 'flex';
+  const errEl = document.getElementById('signupError');
+  if(errEl) errEl.textContent = '';
+}
+
+async function submitSignup(){
+  const errEl = document.getElementById('signupError');
+  errEl.textContent = '';
+  const name = document.getElementById('su-name').value.trim();
+  const flat = document.getElementById('su-flat').value.trim();
+  const floor = document.getElementById('su-floor').value;
+  const mobile = document.getElementById('su-mobile').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const username = document.getElementById('su-username').value.trim();
+  const pw = document.getElementById('su-password').value;
+  const pw2 = document.getElementById('su-password2').value;
+  const secq = document.getElementById('su-secq').value;
+  const seca = document.getElementById('su-seca').value.trim();
+
+  if(!name || !flat || !username || !pw || !secq || !seca){ errEl.textContent = 'Please fill all required (*) fields.'; return; }
+  if(pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
+  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
+  if(DB.users.some(u => String(u.username||'').toLowerCase() === username.toLowerCase())){ errEl.textContent = 'That username is already taken.'; return; }
+
+  const salt = randomSalt();
+  const password = await hashPassword(pw, salt);
+  const saSalt = randomSalt();
+  const secAnswerHash = await hashPassword(seca.toLowerCase(), saSalt);
+
+  DB.users.push({
+    id: Date.now(), username, password, salt, role: 'Member', email, mobile, flat, floor,
+    status: 'Pending', securityQuestion: secq, saSalt, secAnswerHash
+  });
+  hasUnsavedChanges = true;
+  addAudit('Users', 'Signup', `New member sign-up request: ${username} (${name}, Flat ${flat})`);
+  ['su-name','su-flat','su-mobile','su-email','su-username','su-password','su-password2','su-seca'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  toast('Account request submitted! An Admin will review and activate it.', 'info');
+  showLoginForm('Member');
+}
+
+// ── FORGOT PASSWORD ──
+let forgotUser = null;
+
+function showForgot(){
+  hideAllAuthScreens();
+  const forgot = document.getElementById('forgotScreen');
+  if(forgot) forgot.style.display = 'flex';
+  forgotUser = null;
+  document.getElementById('forgot-step1').style.display = '';
+  document.getElementById('forgot-step2').style.display = 'none';
+  document.getElementById('forgot-step3').style.display = 'none';
+  ['forgot-username','forgot-answer','forgot-newpw','forgot-newpw2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['forgotError1','forgotError2','forgotError3'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=''; });
+}
+
+function findAccountForReset(){
+  const errEl = document.getElementById('forgotError1');
+  errEl.textContent = '';
+  const username = document.getElementById('forgot-username').value.trim();
+  if(!username){ errEl.textContent = 'Enter your username.'; return; }
+  const user = DB.users.find(u => String(u.username||'').toLowerCase() === username.toLowerCase());
+  if(!user || !user.securityQuestion){ errEl.textContent = 'No recovery option is set up for this account. Please contact your Admin.'; return; }
+  forgotUser = user;
+  document.getElementById('forgotQuestionLabel').textContent = user.securityQuestion;
+  document.getElementById('forgot-step1').style.display = 'none';
+  document.getElementById('forgot-step2').style.display = '';
+  document.getElementById('forgot-answer').focus();
+}
+
+async function verifySecurityAnswer(){
+  const errEl = document.getElementById('forgotError2');
+  errEl.textContent = '';
+  if(!forgotUser){ errEl.textContent = 'Something went wrong, please start over.'; return; }
+  const answer = document.getElementById('forgot-answer').value.trim().toLowerCase();
+  if(!answer){ errEl.textContent = 'Enter your answer.'; return; }
+  const hash = await hashPassword(answer, forgotUser.saSalt || '');
+  if(hash !== forgotUser.secAnswerHash){ errEl.textContent = '❌ Incorrect answer.'; return; }
+  document.getElementById('forgot-step2').style.display = 'none';
+  document.getElementById('forgot-step3').style.display = '';
+  document.getElementById('forgot-newpw').focus();
+}
+
+async function resetPasswordViaSecurity(){
+  const errEl = document.getElementById('forgotError3');
+  errEl.textContent = '';
+  if(!forgotUser){ errEl.textContent = 'Something went wrong, please start over.'; return; }
+  const pw = document.getElementById('forgot-newpw').value;
+  const pw2 = document.getElementById('forgot-newpw2').value;
+  if(!pw || pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
+  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
+  forgotUser.saSalt = forgotUser.saSalt || randomSalt();
+  forgotUser.salt = randomSalt();
+  forgotUser.password = await hashPassword(pw, forgotUser.salt);
+  hasUnsavedChanges = true;
+  addAudit('Users', 'Password Reset', `Password self-reset via security question for user: ${forgotUser.username}`);
+  toast('Password reset! You can now log in.', 'success');
+  showLoginForm('Member');
+}
+
 async function attemptLogin(){
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
@@ -155,7 +279,9 @@ async function attemptLogin(){
 
   const user = DB.users.find(u => String(u.username||'').toLowerCase() === username.toLowerCase());
   if(!user || !user.password){ errEl.textContent = '❌ Invalid username or password.'; return; }
-  if(String(user.status||'Active').toLowerCase() !== 'active'){ errEl.textContent = '❌ This account is inactive. Contact your admin.'; return; }
+  const status = String(user.status||'Active').toLowerCase();
+  if(status === 'pending'){ errEl.textContent = '⏳ Your account is awaiting Admin approval.'; return; }
+  if(status !== 'active'){ errEl.textContent = '❌ This account is inactive. Contact your admin.'; return; }
 
   const hash = await hashPassword(password, user.salt || '');
   if(hash !== user.password){ errEl.textContent = '❌ Invalid username or password.'; return; }
@@ -163,8 +289,7 @@ async function attemptLogin(){
   currentUser = {id:user.id, username:user.username, role:user.role};
   document.body.classList.remove('logged-out');
   document.getElementById('login-password').value = '';
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('homeScreen').style.display = 'none';
+  hideAllAuthScreens();
   applyRolePermissions();
   updateSidebarUserInfo();
   populateYearDropdown();
@@ -254,6 +379,7 @@ window.onload = () => {
   populateYearDropdown();
   applySettings();
   renderDashboard();
+  populateAuthDropdowns();
   const homeName = document.getElementById('homeSocietyName');
   if(homeName && DB.settings && DB.settings.societyName) homeName.textContent = DB.settings.societyName;
   showHome();
@@ -906,7 +1032,22 @@ hasUnsavedChanges=true; DB.settings.categories.splice(i,1); renderCatList(); }
 // ADMIN
 // ═══════════════════════════════════════════════
 function renderUsers(){
-  document.getElementById('user-tbody').innerHTML=DB.users.map((u,i)=>`<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${u.email||'-'}</td><td><span class="badge b-${u.status==='Active'?'active':'inactive'}">${u.status}</span></td><td><div class="act-btns"><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`).join('');
+  document.getElementById('user-tbody').innerHTML=DB.users.map((u,i)=>{
+    const st = u.status || 'Active';
+    const badgeClass = st==='Active' ? 'active' : st==='Pending' ? 'pending' : 'inactive';
+    const approveBtn = st==='Pending' ? `<button class="ic-btn" onclick="approveUser(${u.id})" title="Approve account">✅</button>` : '';
+    return `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${u.email||'-'}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
+  }).join('');
+}
+async function approveUser(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const user = DB.users.find(u=>u.id===id);
+  if(!user) return;
+  user.status = 'Active';
+  hasUnsavedChanges = true;
+  addAudit('Users','Approve',`Approved user account: ${user.username}`);
+  renderUsers();
+  toast(`${user.username} approved!`);
 }
 async function saveUser(){
 if(!isAdmin()) return toast('Read-only access — Admin only.','warn');

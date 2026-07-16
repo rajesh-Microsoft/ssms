@@ -36,6 +36,7 @@
         <div class="hl-sub">Full access to manage the society's data</div>
       </div>
     </div>
+    <div class="auth-links" style="margin-top:18px;"><a href="#" onclick="showSignup();return false;">New member? Sign up here</a></div>
   </div>
 </div>
 
@@ -59,7 +60,68 @@
     <div class="setting-row"><label>Password</label><input type="password" id="login-password" placeholder="Password" onkeydown="if(event.key==='Enter')attemptLogin()"></div>
     <div class="login-error" id="loginError"></div>
     <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="attemptLogin()">Login</button>
+    <div class="auth-links">
+      <a href="#" onclick="showForgot();return false;">Forgot password?</a>
+      <span class="auth-link-sep">·</span>
+      <a href="#" onclick="showSignup();return false;">New member? Sign up</a>
+    </div>
     <div style="font-size:10px;color:var(--sub);margin-top:12px;text-align:center;">Default admin login: <strong>Admin</strong> / <strong>admin123</strong> (change this immediately in Admin Panel)</div>
+  </div>
+</div>
+
+<div class="login-screen" id="signupScreen">
+  <div class="login-card wide">
+    <button class="login-back" onclick="showHome()" type="button">← Back</button>
+    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <h2 style="text-align:center;margin-bottom:4px;">Member Sign Up</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Request an account to view your society's collections &amp; expenses</p>
+
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name *</label><input type="text" id="su-name"></div>
+      <div class="form-group"><label>Flat Number *</label><input type="text" id="su-flat"></div>
+      <div class="form-group"><label>Floor *</label><select id="su-floor"></select></div>
+      <div class="form-group"><label>Mobile</label><input type="tel" id="su-mobile"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="su-email"></div>
+      <div class="form-group full"><label>Username *</label><input type="text" id="su-username"></div>
+      <div class="form-group"><label>Password *</label><input type="password" id="su-password" placeholder="Min 4 characters"></div>
+      <div class="form-group"><label>Confirm Password *</label><input type="password" id="su-password2"></div>
+      <div class="form-group full"><label>Security Question *</label><select id="su-secq"></select></div>
+      <div class="form-group full"><label>Security Answer *</label><input type="text" id="su-seca" placeholder="Used to verify you if you forget your password"></div>
+    </div>
+    <div class="login-error" id="signupError"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="submitSignup()">Create Account</button>
+    <div class="auth-links"><a href="#" onclick="showLoginForm('Member');return false;">Already have an account? Login</a></div>
+    <div style="font-size:10px;color:var(--sub);margin-top:10px;text-align:center;">Your account will be reviewed by an Admin before you can log in.</div>
+  </div>
+</div>
+
+<div class="login-screen" id="forgotScreen">
+  <div class="login-card">
+    <button class="login-back" onclick="showHome()" type="button">← Back</button>
+    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <h2 style="text-align:center;margin-bottom:4px;">Forgot Password</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Verify your identity to reset your password</p>
+
+    <div id="forgot-step1">
+      <div class="setting-row"><label>Username</label><input type="text" id="forgot-username" placeholder="Username" onkeydown="if(event.key==='Enter')findAccountForReset()"></div>
+      <div class="login-error" id="forgotError1"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="findAccountForReset()">Continue</button>
+    </div>
+
+    <div id="forgot-step2" style="display:none;">
+      <div class="setting-row"><label id="forgotQuestionLabel">Security Question</label><input type="text" id="forgot-answer" placeholder="Your answer" onkeydown="if(event.key==='Enter')verifySecurityAnswer()"></div>
+      <div class="login-error" id="forgotError2"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="verifySecurityAnswer()">Verify Answer</button>
+    </div>
+
+    <div id="forgot-step3" style="display:none;">
+      <div class="setting-row"><label>New Password</label><input type="password" id="forgot-newpw" placeholder="Min 4 characters"></div>
+      <div class="setting-row"><label>Confirm New Password</label><input type="password" id="forgot-newpw2"></div>
+      <div class="login-error" id="forgotError3"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="resetPasswordViaSecurity()">Reset Password</button>
+    </div>
+
+    <div class="auth-links"><a href="#" onclick="showLoginForm('Member');return false;">Back to Login</a></div>
   </div>
 </div>
 
@@ -78,10 +140,10 @@
     <div class="nav-item" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
     <div class="nav-item" onclick="showTab('reports',this)"><span class="ni">📋</span> Reports</div>
     <div class="nav-sec">System</div>
-    <div class="nav-item" onclick="showTab('importexport',this)"><span class="ni">📥</span> Import / Export</div>
+    <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">📥</span> Import / Export</div>
     <div class="nav-item" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
-    <div class="nav-item" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
-    <div class="nav-item" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
+    <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
+    <div class="nav-item admin-only" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
     <div class="nav-item admin-only" onclick="showTab('admin',this)"><span class="ni">🔐</span> Admin</div>
   </nav>
   <div class="sidebar-foot">

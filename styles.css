@@ -126,8 +126,13 @@ body.logged-out .sidebar,body.logged-out .main{display:none;}
 .home-login-card .hl-sub{font-size:11px;color:var(--sub);}
 .home-login-card.admin{border-color:var(--accent);}
 .login-screen{display:none;position:fixed;inset:0;background:var(--bg);z-index:2000;align-items:center;justify-content:center;}
-.login-card{background:var(--card);border-radius:14px;padding:28px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);border:1px solid var(--border);position:relative;}
+.login-card{background:var(--card);border-radius:14px;padding:28px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);border:1px solid var(--border);position:relative;max-height:92vh;overflow-y:auto;}
+.login-card.wide{width:480px;}
 .login-back{background:none;border:none;color:var(--sub);font-size:12px;cursor:pointer;padding:0;margin-bottom:10px;}
 .login-error{color:var(--danger);font-size:12px;min-height:16px;margin-top:4px;}
+.auth-links{text-align:center;font-size:12px;margin-top:14px;}
+.auth-links a{color:var(--accent);text-decoration:none;}
+.auth-links a:hover{text-decoration:underline;}
+.auth-link-sep{color:var(--sub);margin:0 8px;}
 body.role-member .admin-only{display:none !important;}
 body.role-member .act-btns{display:none !important;}
