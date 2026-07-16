@@ -9,13 +9,13 @@ with no manual re-typing of transactions.
 
 USAGE
 -----
-    python bank_statement_to_smms.py ^
-        --bank OpTransactionHistory24-06-2026.xlsx ^
-        --master SMMS_Master_Data.xlsx ^
-        --output SMMS_Master_Data_Updated.xlsx
+    python tools/bank_statement_to_smms.py ^
+        --bank data/OpTransactionHistory24-06-2026.xlsx ^
+        --master data/SMMS_Master_Data.xlsx ^
+        --output data/SMMS_Master_Data_Updated.xlsx
 
 If --bank / --master / --output are omitted, sensible defaults are used
-(see argparse section below). The bank statement file may be left open in
+(see argparse section below) pointing at the project's data/ folder. The bank statement file may be left open in
 Excel - the script will transparently work off a temp copy if it can't get
 a direct read lock.
 
@@ -66,6 +66,9 @@ import openpyxl
 
 MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July',
           'August', 'September', 'October', 'November', 'December']
+
+# Project root is the parent of this tools/ folder; data files live in data/.
+DATA_DIR = Path(__file__).resolve().parent.parent / 'data'
 
 MONTH_ALIASES = {
     'january': 1, 'jan': 1, 'february': 2, 'feb': 2, 'march': 3, 'mar': 3,
@@ -276,9 +279,9 @@ def detect_payment_mode(remarks):
 # --------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--bank', default='OpTransactionHistory24-06-2026.xlsx',
+    parser.add_argument('--bank', default=str(DATA_DIR / 'OpTransactionHistory24-06-2026.xlsx'),
                          help='Path to the raw bank statement export (xlsx).')
-    parser.add_argument('--master', default='SMMS_Master_Data.xlsx',
+    parser.add_argument('--master', default=str(DATA_DIR / 'SMMS_Master_Data.xlsx'),
                          help='Path to the existing SMMS master workbook.')
     parser.add_argument('--output', default=None,
                          help='Path for the generated workbook (default: <master>_Updated.xlsx).')
