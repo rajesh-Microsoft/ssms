@@ -7,6 +7,11 @@ __pycache__/
 *.xlsx
 !data/.gitkeep
 
+# .NET
+api/**/bin/
+api/**/obj/
+*.user
+
 # OS
 Thumbs.db
 .DS_Store
