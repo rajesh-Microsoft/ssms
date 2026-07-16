@@ -1,0 +1,12 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Data files (contain real financial/personal data - keep out of git)
+*.xlsx
+!data/.gitkeep
+
+# OS
+Thumbs.db
+.DS_Store
