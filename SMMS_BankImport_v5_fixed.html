@@ -11,11 +11,40 @@
 </head>
 <body class="logged-out">
 
+<div class="home-screen" id="homeScreen">
+  <div class="home-hero">
+    <div class="logo-icon" style="margin:0 auto 16px;">🏢</div>
+    <h1 id="homeSocietyName">Society Maintenance Management System</h1>
+    <p class="tagline">Transparent tracking of maintenance collections, expenses, and society finances — for every resident.</p>
+
+    <div class="home-features">
+      <div class="home-feature"><div class="hf-icon">💰</div><div class="hf-title">Collections</div><div class="hf-sub">See who has paid and what's pending</div></div>
+      <div class="home-feature"><div class="hf-icon">🧾</div><div class="hf-title">Expenses</div><div class="hf-sub">View society spending by category</div></div>
+      <div class="home-feature"><div class="hf-icon">📊</div><div class="hf-title">Reports</div><div class="hf-sub">Monthly summaries &amp; annual overview</div></div>
+      <div class="home-feature"><div class="hf-icon">🔔</div><div class="hf-title">Reminders</div><div class="hf-sub">Stay updated on dues &amp; notices</div></div>
+    </div>
+
+    <div class="home-login-row">
+      <div class="home-login-card" onclick="showLoginForm('Member')">
+        <div class="hl-icon">🔑</div>
+        <div class="hl-title">Member Login</div>
+        <div class="hl-sub">View collections, expenses &amp; reports (read-only)</div>
+      </div>
+      <div class="home-login-card admin" onclick="showLoginForm('Admin')">
+        <div class="hl-icon">🔐</div>
+        <div class="hl-title">Admin Login</div>
+        <div class="hl-sub">Full access to manage the society's data</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
+    <button class="login-back" onclick="showHome()" type="button">← Back</button>
     <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
-    <h2 style="text-align:center;margin-bottom:4px;">SMMS Login</h2>
-    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Society Maintenance Management System</p>
+    <h2 style="text-align:center;margin-bottom:4px;" id="loginHeading">SMMS Login</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;" id="loginSubheading">Society Maintenance Management System</p>
 
     <div class="setting-row">
       <label>Society Data File</label>

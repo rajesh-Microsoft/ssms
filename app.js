@@ -120,6 +120,32 @@ async function hashPassword(password, salt){
 }
 function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
 
+function showHome(){
+  const home = document.getElementById('homeScreen');
+  const login = document.getElementById('loginScreen');
+  if(login) login.style.display = 'none';
+  if(home) home.style.display = 'flex';
+  const errEl = document.getElementById('loginError');
+  if(errEl) errEl.textContent = '';
+}
+
+function showLoginForm(intendedRole){
+  const home = document.getElementById('homeScreen');
+  const login = document.getElementById('loginScreen');
+  if(home) home.style.display = 'none';
+  if(login) login.style.display = 'flex';
+  const heading = document.getElementById('loginHeading');
+  const sub = document.getElementById('loginSubheading');
+  // Cosmetic hint only — the actual role always comes from the matched
+  // DB.users record in attemptLogin(), never from which link was clicked.
+  if(heading) heading.textContent = intendedRole === 'Admin' ? 'Admin Login' : 'Member Login';
+  if(sub) sub.textContent = intendedRole === 'Admin'
+    ? 'Sign in with your Admin credentials'
+    : 'Sign in with the credentials shared by your Admin';
+  const userField = document.getElementById('login-username');
+  if(userField) userField.focus();
+}
+
 async function attemptLogin(){
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
@@ -137,6 +163,8 @@ async function attemptLogin(){
   currentUser = {id:user.id, username:user.username, role:user.role};
   document.body.classList.remove('logged-out');
   document.getElementById('login-password').value = '';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('homeScreen').style.display = 'none';
   applyRolePermissions();
   updateSidebarUserInfo();
   populateYearDropdown();
@@ -151,6 +179,7 @@ function logout(){
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
   document.getElementById('loginError').textContent = '';
+  showHome();
 }
 
 function applyRolePermissions(){
@@ -225,6 +254,9 @@ window.onload = () => {
   populateYearDropdown();
   applySettings();
   renderDashboard();
+  const homeName = document.getElementById('homeSocietyName');
+  if(homeName && DB.settings && DB.settings.societyName) homeName.textContent = DB.settings.societyName;
+  showHome();
 };
 
 function populateYearDropdown(){
@@ -856,7 +888,11 @@ hasUnsavedChanges=true;
   addAudit('Settings','Update','Settings updated');
   toast('Settings saved!');
 }
-function applySettings(){ document.getElementById('societyLogoSub').textContent=DB.settings.societyName; }
+function applySettings(){
+  document.getElementById('societyLogoSub').textContent=DB.settings.societyName;
+  const homeName = document.getElementById('homeSocietyName');
+  if(homeName) homeName.textContent = DB.settings.societyName;
+}
 function applyThemeSetting(){ const t=document.getElementById('set-theme').value; document.body.classList.toggle('dark',t==='dark'); DB.settings.theme=t; }
 function renderCatList(){ document.getElementById('cat-list').innerHTML=DB.settings.categories.map((c,i)=>`<span class="badge b-active" style="cursor:pointer" onclick="removeCategory(${i})">${c} ✕</span>`).join(''); }
 function addCategory(){
