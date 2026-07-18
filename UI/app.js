@@ -1,45 +1,3 @@
-let excelFileHandle=null;
-let hasUnsavedChanges=false;
-
-
-async function openExcelFile(){
- try{
-  if(window.showOpenFilePicker){
-   const [fileHandle]=await window.showOpenFilePicker({
-    types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]
-   });
-
-   excelFileHandle=fileHandle;
-
-   const file=await fileHandle.getFile();
-   if(typeof importExcel==='function'){
-     importExcel({target:{files:[file]}});
-   }
-   setSaveStatus('🟢 Synced','green');
-   return;
-  }
-
-  const fileInput=document.getElementById('xlImport');
-  if(fileInput){
-    fileInput.value='';
-    fileInput.click();
-    setSaveStatus('🟡 Choose a file to import','orange');
-    return;
-  }
-
-  throw new Error('No supported file picker is available in this browser.');
- }catch(e){
-   console.error(e);
-   setSaveStatus('🔴 Import Failed','red');
- }
-}
-
-
-function setSaveStatus(txt,color){
- const el=document.getElementById('saveStatus');
- if(el){el.innerHTML=txt;el.style.color=color;}
-}
-
 async function createBackupWorkbook(){
   try{
     const wb = buildWorkbook();
@@ -63,248 +21,156 @@ function buildWorkbook(){
  return wb;
 }
 
-async function autoSaveExcel(){
- if(!isAdmin()) return;
- if(!excelFileHandle) return;
- try{
-   setSaveStatus('🟡 Saving...','orange');
-   const wb=buildWorkbook();
-   const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
-   const writable=await excelFileHandle.createWritable();
-   await writable.write(wbout);
-   await writable.close();
-   hasUnsavedChanges=false;
-   setSaveStatus('🟢 Synced','green');
- }catch(e){
-   setSaveStatus('🔴 Save Failed','red');
-   console.error(e);
- }
-}
-
 // ═══════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════
 const MONTHS     = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTH_NUM  = {January:1,February:2,March:3,April:4,May:5,June:6,July:7,August:8,September:9,October:10,November:11,December:12};
 const PER        = 10;
+const COMPLAINT_CATEGORIES = ['Plumbing','Electrical','Security','Housekeeping','Parking','Noise','Lift','Cleanliness','Common Area','Other'];
 
 // ═══════════════════════════════════════════════
 // DATA STORE
 // ═══════════════════════════════════════════════
 let DB = {
-  members: [], collections: [], expenses: [], auditLog: [],
-  users: [{id:1,username:'Admin',password:'8a20ecbd88068db6045ac597db8f75bffdd945fbd94db618caceac52431ce9ca',salt:'smms',role:'Admin',email:'admin@society.com',status:'Active'}],
+  members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [],
   settings: {
-    societyName:'Our Society', address:'', email:'', phone:'',
+    societyName:'NLC Aadya', address:'', email:'', phone:'',
     maintenanceAmt:2000, floors:['1','2','3','4','5'],
     categories:['Security','Housekeeping','Electricity','Water','Repairs','Lift Maintenance','Gardening','Festival','CCTV','Miscellaneous']
   }
 };
-let editId   = {col:null, exp:null, mem:null};
-let pages    = {col:1, exp:1, mem:1, audit:1};
+let editId   = {col:null, exp:null, mem:null, cmp:null};
+let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
 
 // ═══════════════════════════════════════════════
-// AUTH — client-side login gate (salted SHA-256 password hashes).
-// Note: since this app has no server, this only gates the in-app UI/actions;
-// anyone with direct access to the shared Excel file can still open it in Excel.
+// AUTH — login/signup/forgot-password all happen on home.html against the
+// SQL-backed API (api/SMMS.Api). index.html only ever consumes the JWT +
+// user info handed off via sessionStorage (see api.js: apiGetSession /
+// apiGetToken / apiClearSession).
 // ═══════════════════════════════════════════════
-function randomSalt(){
-  return Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-async function hashPassword(password, salt){
-  const enc = new TextEncoder().encode(`${salt||''}:${password||''}`);
-  const buf = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
 function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
-
-function showHome(){
-  hideAllAuthScreens();
-  const home = document.getElementById('homeScreen');
-  if(home) home.style.display = 'flex';
-  const errEl = document.getElementById('loginError');
-  if(errEl) errEl.textContent = '';
-}
-
-function showLoginForm(intendedRole){
-  hideAllAuthScreens();
-  const login = document.getElementById('loginScreen');
-  if(login) login.style.display = 'flex';
-  const heading = document.getElementById('loginHeading');
-  const sub = document.getElementById('loginSubheading');
-  // Cosmetic hint only — the actual role always comes from the matched
-  // DB.users record in attemptLogin(), never from which link was clicked.
-  if(heading) heading.textContent = intendedRole === 'Admin' ? 'Admin Login' : 'Member Login';
-  if(sub) sub.textContent = intendedRole === 'Admin'
-    ? 'Sign in with your Admin credentials'
-    : 'Sign in with the credentials shared by your Admin';
-  const userField = document.getElementById('login-username');
-  if(userField) userField.focus();
-}
-
-function hideAllAuthScreens(){
-  ['homeScreen','loginScreen','signupScreen','forgotScreen'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.style.display = 'none';
-  });
-}
-
-// ── SIGN UP ──
-const SECURITY_QUESTIONS = [
-  'What was the name of your first pet?',
-  'What is your mother\'s maiden name?',
-  'What was the name of your first school?',
-  'What is your favourite city?',
-  'What was your childhood nickname?'
-];
-
-function populateAuthDropdowns(){
-  const floorSel = document.getElementById('su-floor');
-  if(floorSel) floorSel.innerHTML = DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join('');
-  const secqSel = document.getElementById('su-secq');
-  if(secqSel) secqSel.innerHTML = SECURITY_QUESTIONS.map(q=>`<option>${q}</option>`).join('');
-}
-
-function showSignup(){
-  hideAllAuthScreens();
-  populateAuthDropdowns();
-  const signup = document.getElementById('signupScreen');
-  if(signup) signup.style.display = 'flex';
-  const errEl = document.getElementById('signupError');
-  if(errEl) errEl.textContent = '';
-}
-
-async function submitSignup(){
-  const errEl = document.getElementById('signupError');
-  errEl.textContent = '';
-  const name = document.getElementById('su-name').value.trim();
-  const flat = document.getElementById('su-flat').value.trim();
-  const floor = document.getElementById('su-floor').value;
-  const mobile = document.getElementById('su-mobile').value.trim();
-  const email = document.getElementById('su-email').value.trim();
-  const username = document.getElementById('su-username').value.trim();
-  const pw = document.getElementById('su-password').value;
-  const pw2 = document.getElementById('su-password2').value;
-  const secq = document.getElementById('su-secq').value;
-  const seca = document.getElementById('su-seca').value.trim();
-
-  if(!name || !flat || !username || !pw || !secq || !seca){ errEl.textContent = 'Please fill all required (*) fields.'; return; }
-  if(pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
-  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
-  if(DB.users.some(u => String(u.username||'').toLowerCase() === username.toLowerCase())){ errEl.textContent = 'That username is already taken.'; return; }
-
-  const salt = randomSalt();
-  const password = await hashPassword(pw, salt);
-  const saSalt = randomSalt();
-  const secAnswerHash = await hashPassword(seca.toLowerCase(), saSalt);
-
-  DB.users.push({
-    id: Date.now(), username, password, salt, role: 'Member', email, mobile, flat, floor,
-    status: 'Pending', securityQuestion: secq, saSalt, secAnswerHash
-  });
-  hasUnsavedChanges = true;
-  addAudit('Users', 'Signup', `New member sign-up request: ${username} (${name}, Flat ${flat})`);
-  ['su-name','su-flat','su-mobile','su-email','su-username','su-password','su-password2','su-seca'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  toast('Account request submitted! An Admin will review and activate it.', 'info');
-  showLoginForm('Member');
-}
-
-// ── FORGOT PASSWORD ──
-let forgotUser = null;
-
-function showForgot(){
-  hideAllAuthScreens();
-  const forgot = document.getElementById('forgotScreen');
-  if(forgot) forgot.style.display = 'flex';
-  forgotUser = null;
-  document.getElementById('forgot-step1').style.display = '';
-  document.getElementById('forgot-step2').style.display = 'none';
-  document.getElementById('forgot-step3').style.display = 'none';
-  ['forgot-username','forgot-answer','forgot-newpw','forgot-newpw2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  ['forgotError1','forgotError2','forgotError3'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=''; });
-}
-
-function findAccountForReset(){
-  const errEl = document.getElementById('forgotError1');
-  errEl.textContent = '';
-  const username = document.getElementById('forgot-username').value.trim();
-  if(!username){ errEl.textContent = 'Enter your username.'; return; }
-  const user = DB.users.find(u => String(u.username||'').toLowerCase() === username.toLowerCase());
-  if(!user || !user.securityQuestion){ errEl.textContent = 'No recovery option is set up for this account. Please contact your Admin.'; return; }
-  forgotUser = user;
-  document.getElementById('forgotQuestionLabel').textContent = user.securityQuestion;
-  document.getElementById('forgot-step1').style.display = 'none';
-  document.getElementById('forgot-step2').style.display = '';
-  document.getElementById('forgot-answer').focus();
-}
-
-async function verifySecurityAnswer(){
-  const errEl = document.getElementById('forgotError2');
-  errEl.textContent = '';
-  if(!forgotUser){ errEl.textContent = 'Something went wrong, please start over.'; return; }
-  const answer = document.getElementById('forgot-answer').value.trim().toLowerCase();
-  if(!answer){ errEl.textContent = 'Enter your answer.'; return; }
-  const hash = await hashPassword(answer, forgotUser.saSalt || '');
-  if(hash !== forgotUser.secAnswerHash){ errEl.textContent = '❌ Incorrect answer.'; return; }
-  document.getElementById('forgot-step2').style.display = 'none';
-  document.getElementById('forgot-step3').style.display = '';
-  document.getElementById('forgot-newpw').focus();
-}
-
-async function resetPasswordViaSecurity(){
-  const errEl = document.getElementById('forgotError3');
-  errEl.textContent = '';
-  if(!forgotUser){ errEl.textContent = 'Something went wrong, please start over.'; return; }
-  const pw = document.getElementById('forgot-newpw').value;
-  const pw2 = document.getElementById('forgot-newpw2').value;
-  if(!pw || pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
-  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
-  forgotUser.saSalt = forgotUser.saSalt || randomSalt();
-  forgotUser.salt = randomSalt();
-  forgotUser.password = await hashPassword(pw, forgotUser.salt);
-  hasUnsavedChanges = true;
-  addAudit('Users', 'Password Reset', `Password self-reset via security question for user: ${forgotUser.username}`);
-  toast('Password reset! You can now log in.', 'success');
-  showLoginForm('Member');
-}
-
-async function attemptLogin(){
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errEl = document.getElementById('loginError');
-  errEl.textContent = '';
-  if(!username || !password){ errEl.textContent = 'Enter username and password.'; return; }
-
-  const user = DB.users.find(u => String(u.username||'').toLowerCase() === username.toLowerCase());
-  if(!user || !user.password){ errEl.textContent = '❌ Invalid username or password.'; return; }
-  const status = String(user.status||'Active').toLowerCase();
-  if(status === 'pending'){ errEl.textContent = '⏳ Your account is awaiting Admin approval.'; return; }
-  if(status !== 'active'){ errEl.textContent = '❌ This account is inactive. Contact your admin.'; return; }
-
-  const hash = await hashPassword(password, user.salt || '');
-  if(hash !== user.password){ errEl.textContent = '❌ Invalid username or password.'; return; }
-
-  currentUser = {id:user.id, username:user.username, role:user.role};
-  document.body.classList.remove('logged-out');
-  document.getElementById('login-password').value = '';
-  hideAllAuthScreens();
-  applyRolePermissions();
-  updateSidebarUserInfo();
-  populateYearDropdown();
-  applySettings();
-  renderDashboard();
-  toast(`Welcome, ${user.username}!`);
-}
 
 function logout(){
   currentUser = null;
+  apiClearSession();
   document.body.classList.add('logged-out');
-  document.getElementById('login-username').value = '';
-  document.getElementById('login-password').value = '';
-  document.getElementById('loginError').textContent = '';
-  showHome();
+  window.location.href = 'home.html';
+}
+
+// ═══════════════════════════════════════════════
+// API DATA LOADERS — replace the old Excel-file persistence. Each loader
+// fetches from api/SMMS.Api and reshapes the response into the field
+// names/casing the existing render functions already expect (fld(),
+// getMonth(), getYear(), etc.) so the rest of the app needed minimal changes.
+// ═══════════════════════════════════════════════
+async function loadMembers(){
+  DB.members = await Api.getMembers();
+}
+
+async function loadCollections(){
+  const data = await Api.getCollections();
+  DB.collections = data.map(c => {
+    const mem = DB.members.find(m => String(m.id) === String(c.memberId));
+    return {
+      id: c.id,
+      memberId: String(c.memberId),
+      memberName: c.memberName || '',
+      flat: c.flat || '',
+      floor: mem ? mem.floor : '',
+      amount: c.amount,
+      month: MONTHS[c.month] || '',
+      monthNum: c.month,
+      year: c.year,
+      paymentDate: c.paymentDate ? c.paymentDate.split('T')[0] : '',
+      paymentMode: c.paymentMode || '',
+      status: c.status,
+      remarks: c.remarks || ''
+    };
+  });
+}
+
+async function loadExpenses(){
+  const data = await Api.getExpenses();
+  DB.expenses = data.map(e => ({
+    id: e.id,
+    expenseDate: e.expenseDate ? e.expenseDate.split('T')[0] : '',
+    category: e.category,
+    description: e.description,
+    vendor: e.vendor || '',
+    amount: e.amount,
+    paymentMode: e.paymentMode || '',
+    month: MONTHS[e.month] || '',
+    monthNum: e.month,
+    year: e.year,
+    remarks: e.remarks || ''
+  }));
+}
+
+async function loadSettingsData(){
+  const s = await Api.getSettings();
+  DB.settings = {
+    societyName: s.societyName || 'NLC Aadya',
+    address: s.address || '',
+    email: s.email || '',
+    phone: s.phone || '',
+    maintenanceAmt: s.maintenanceAmt || 2000,
+    floors: (s.floors && s.floors.length) ? s.floors : ['1','2','3','4','5'],
+    categories: (s.categories && s.categories.length) ? s.categories : DB.settings.categories,
+    theme: s.theme || 'light'
+  };
+}
+
+function currentSettingsPayload(overrides = {}){
+  return {
+    societyName: DB.settings.societyName,
+    address: DB.settings.address,
+    email: DB.settings.email,
+    phone: DB.settings.phone,
+    maintenanceAmt: DB.settings.maintenanceAmt,
+    floors: DB.settings.floors,
+    categories: DB.settings.categories,
+    theme: DB.settings.theme || 'light',
+    ...overrides
+  };
+}
+
+async function loadUsers(){
+  DB.users = await Api.getUsers();
+}
+
+async function loadAuditLogData(){
+  DB.auditLog = await Api.getAuditLog();
+}
+
+async function loadComplaints(){
+  const data = await Api.getComplaints();
+  DB.complaints = data.map(c => ({
+    id: c.id,
+    subject: c.subject,
+    description: c.description,
+    category: c.category,
+    priority: c.priority,
+    status: c.status,
+    raisedByUserId: c.raisedByUserId,
+    raisedByUsername: c.raisedByUsername || '',
+    flat: c.flat || '',
+    floor: c.floor || '',
+    createdAt: c.createdAt ? c.createdAt.split('T')[0] : '',
+    resolvedAt: c.resolvedAt ? c.resolvedAt.split('T')[0] : '',
+    resolutionNotes: c.resolutionNotes || '',
+    assignedTo: c.assignedTo || ''
+  }));
+}
+
+async function loadCoreData(){
+  await Promise.all([loadMembers(), loadSettingsData()]);
+  await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
+  if(isAdmin()){
+    await Promise.all([loadUsers(), loadAuditLogData()]);
+  }
 }
 
 function applyRolePermissions(){
@@ -375,39 +241,81 @@ function parseExcelDate(val){
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
-window.onload = () => {
+window.onload = async () => {
+  // Login/sign-up/forgot-password all happen on the public landing page
+  // (home.html) now, against the SQL-backed API. index.html only ever
+  // renders the authenticated dashboard — if there's no valid JWT session
+  // handed off from home.html, send the visitor back there instead of
+  // showing anything here.
+  const session = apiGetSession();
+  if(!session || !apiGetToken()){
+    window.location.href = 'home.html';
+    return;
+  }
+
+  currentUser = {id: session.id, username: session.username, role: session.role};
+  document.body.classList.remove('logged-out');
   populateYearDropdown();
+  syncFilterControls('dashboard'); // dashboard is the initial active tab — defaults to All Years
+  applyRolePermissions();
+  updateSidebarUserInfo();
+
+  try{
+    await loadCoreData();
+  }catch(err){
+    console.error(err);
+    toast('Failed to load data from server: ' + err.message, 'warn');
+  }
+
   applySettings();
   renderDashboard();
-  populateAuthDropdowns();
-  const homeName = document.getElementById('homeSocietyName');
-  if(homeName && DB.settings && DB.settings.societyName) homeName.textContent = DB.settings.societyName;
-  showHome();
 };
 
 function populateYearDropdown(){
   const sel = document.getElementById('topYear');
   const cur = new Date().getFullYear();
-  for(let y = cur+1; y >= cur-5; y--){
+  const allOpt = document.createElement('option');
+  allOpt.value = '0'; allOpt.text = 'All Years';
+  sel.appendChild(allOpt);
+  for(let y = cur; y >= cur-5; y--){
     const o = document.createElement('option');
     o.value = y; o.text = y;
     if(y === cur) o.selected = true;
     sel.appendChild(o);
   }
+  // Dashboard gives the full picture by default (All Years); every other tab
+  // keeps the current-year default that was already selected above.
+  filterState.general.year = cur;
 }
 
 // ═══════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════
-function showTab(t, el){
+async function showTab(t, el){
   if(t==='admin' && !isAdmin()) return toast('Admin access required.','warn');
+  if(t==='auditlog' && !isAdmin()) return toast('Admin access required.','warn');
   document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',reports:'Reports & Analytics',importexport:'Import / Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',admin:'Admin Panel'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',admin:'Admin Panel'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, admin:renderUsers};
+
+  // Sync the shared month/year dropdowns to this tab's own remembered filter —
+  // Dashboard defaults to All Years for the full picture, while every other
+  // tab keeps its own last-used (default: current year) selection.
+  syncFilterControls(t);
+
+  // Audit log & users are admin-only server-side — fetch the latest each
+  // time these tabs are opened instead of relying on the snapshot loaded at login.
+  if(t==='auditlog'){
+    try{ await loadAuditLogData(); }catch(err){ toast('Failed to load audit log: '+err.message,'warn'); }
+  }
+  if(t==='admin'){
+    try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
+  }
+
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, admin:renderUsers};
   if(renders[t]) renders[t]();
 }
 
@@ -415,6 +323,20 @@ function onTopFilterChange(){
   const active = document.querySelector('.tab-content.active');
   if(!active) return;
   const t = active.id.replace('tab-','');
+  // Remember this filter choice against whichever tab is currently active,
+  // so navigating away and back restores it instead of leaking into other tabs.
+  const bucket = filterBucketFor(t);
+  bucket.month = +document.getElementById('topMonth').value;
+  bucket.year  = +document.getElementById('topYear').value;
+
+  // Defensive guard: Collections/Expenses can never filter on "All Years",
+  // even if a value of 0 slips through — fall back to the current year.
+  if(!allYearsAllowed(t) && !bucket.year){
+    bucket.year = new Date().getFullYear();
+    const yrSel = document.getElementById('topYear');
+    if(yrSel) yrSel.value = bucket.year;
+  }
+
   const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, reports:renderReports, notifications:renderNotifications};
   if(renders[t]) renders[t]();
 }
@@ -422,15 +344,48 @@ function onTopFilterChange(){
 // ═══════════════════════════════════════════════
 // FILTER HELPERS
 // ═══════════════════════════════════════════════
+// Dashboard keeps its own filter state defaulting to "All Years" (the full
+// picture); every other tab shares a single default (current year), matching
+// the app's existing behaviour.
+let filterState = {
+  dashboard: { month: 0, year: 0 },
+  general:   { month: 0, year: new Date().getFullYear() }
+};
+
+function filterBucketFor(tab){ return tab === 'dashboard' ? filterState.dashboard : filterState.general; }
+
+// Collections & Expenses always need one concrete year of data to manage —
+// "All Years" is only meaningful as a full-picture view on Dashboard/Reports/Notifications.
+const NO_ALL_YEARS_TABS = ['collections','expenses'];
+function allYearsAllowed(tab){ return !NO_ALL_YEARS_TABS.includes(tab); }
+
+function syncFilterControls(tab){
+  const bucket = filterBucketFor(tab);
+  const moSel = document.getElementById('topMonth');
+  const yrSel = document.getElementById('topYear');
+  const allOpt = yrSel ? yrSel.querySelector('option[value="0"]') : null;
+
+  if(!allYearsAllowed(tab)){
+    if(allOpt) allOpt.disabled = true;
+    // Never let this tab land on "All Years" — coerce to the current year.
+    if(!bucket.year) bucket.year = new Date().getFullYear();
+  } else if(allOpt){
+    allOpt.disabled = false;
+  }
+
+  if(moSel) moSel.value = bucket.month;
+  if(yrSel) yrSel.value = bucket.year;
+}
+
 function topMonth(){ return +document.getElementById('topMonth').value; }
 function topYear() { return +document.getElementById('topYear').value; }
 
 function filteredCollections(){
-  const m = topMonth(), y = topYear();
+  const m = filterState.dashboard.month, y = filterState.dashboard.year;
   return DB.collections.filter(c => (!m || getMonth(c)===m) && (!y || getYear(c)===y));
 }
 function filteredExpenses(){
-  const m = topMonth(), y = topYear();
+  const m = filterState.dashboard.month, y = filterState.dashboard.year;
   return DB.expenses.filter(e => (!m || getMonth(e)===m) && (!y || getYear(e)===y));
 }
 
@@ -449,8 +404,8 @@ function buildPills(containerId, onClickFn){
   el.innerHTML = html;
 }
 
-function setColMonth(mo){ document.getElementById('topMonth').value = mo; renderCollections(); }
-function setExpMonth(mo){ document.getElementById('topMonth').value = mo; renderExpenses(); }
+function setColMonth(mo){ document.getElementById('topMonth').value = mo; filterState.general.month = mo; renderCollections(); }
+function setExpMonth(mo){ document.getElementById('topMonth').value = mo; filterState.general.month = mo; renderExpenses(); }
 
 // ═══════════════════════════════════════════════
 // DASHBOARD
@@ -458,7 +413,9 @@ function setExpMonth(mo){ document.getElementById('topMonth').value = mo; render
 function renderDashboard(){
   const cols = filteredCollections();
   const exps = filteredExpenses();
-  const totalCol = cols.reduce((s,c)=>s+getAmt(c),0);
+  // Total Collection should only reflect money actually received (Paid),
+  // not amounts that are still pending/unpaid.
+  const totalCol = cols.filter(c => getStatus(c).toLowerCase() === 'paid').reduce((s,c)=>s+getAmt(c),0);
   const totalExp = exps.reduce((s,e)=>s+getAmt(e),0);
   const bal      = totalCol - totalExp;
 
@@ -508,7 +465,9 @@ function renderDashboard(){
 function setText(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
 
 function buildTrendChart(){
-  const y = topYear() || new Date().getFullYear();
+  // The 12-month trend chart needs one concrete year to plot; when the
+  // dashboard filter is "All Years" (0), fall back to the current year.
+  const y = filterState.dashboard.year || new Date().getFullYear();
   const labels=[], cArr=[], eArr=[];
   for(let mo=1;mo<=12;mo++){
     const c = DB.collections.filter(x=>getMonth(x)===mo&&getYear(x)===y).reduce((s,x)=>s+getAmt(x),0);
@@ -630,29 +589,30 @@ function renderColRow(c, i){
   </tr>`;
 }
 
-function saveCollection(){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+async function saveCollection(){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const mid = document.getElementById('col-member').value;
   const mem = DB.members.find(m=>String(fld(m,'id','Id'))===String(mid));
   if(!mem) return toast('Select a member','warn');
   const amt = +document.getElementById('col-amount').value;
   if(!amt)  return toast('Enter amount','warn');
   const mo  = +document.getElementById('col-month').value;
-  const obj = {
-    id: editId.col || Date.now(),
-    memberId: String(fld(mem,'id','Id')), memberName: fld(mem,'name','Name'),
-    flat: fld(mem,'flat','Flat'), floor: fld(mem,'floor','Floor'),
-    amount: amt, month: MONTHS[mo], monthNum: mo,
-    year: +document.getElementById('col-year').value,
-    paymentDate: document.getElementById('col-date').value,
-    paymentMode: document.getElementById('col-mode').value,
+  const payload = {
+    memberId: +mid,
+    amount: amt,
     status: document.getElementById('col-status').value,
+    month: mo,
+    year: +document.getElementById('col-year').value,
+    paymentDate: document.getElementById('col-date').value || null,
+    paymentMode: document.getElementById('col-mode').value,
     remarks: document.getElementById('col-remarks').value
   };
-  if(editId.col){ const idx=DB.collections.findIndex(c=>String(c.id||c.Id)===String(editId.col)); if(idx>-1) DB.collections[idx]=obj; addAudit('Collections','Edit','Edited: '+obj.memberName); }
-  else { DB.collections.push(obj); addAudit('Collections','Add','Added: '+obj.memberName+' ₹'+amt); }
-  closeModal('col'); renderCollections(); renderDashboard(); autoSaveExcel(); toast('Collection saved!');
+  try{
+    if(editId.col){ await Api.updateCollection(editId.col, payload); }
+    else { await Api.createCollection(payload); }
+    await loadCollections();
+    closeModal('col'); renderCollections(); renderDashboard(); toast('Collection saved!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 
 function editCollection(id){
@@ -671,13 +631,14 @@ function editCollection(id){
   document.getElementById('modal-col').classList.add('open');
 }
 
-function deleteCollection(id){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+async function deleteCollection(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   if(!confirm('Delete this entry?')) return;
-  DB.collections = DB.collections.filter(x=>String(x.id||x.Id)!==String(id));
-  addAudit('Collections','Delete','Deleted collection id:'+id);
-  renderCollections(); renderDashboard(); autoSaveExcel(); toast('Deleted!','warn');
+  try{
+    await Api.deleteCollection(id);
+    await loadCollections();
+    renderCollections(); renderDashboard(); toast('Deleted!','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -757,28 +718,29 @@ function renderExpRow(e, i){
   </tr>`;
 }
 
-function saveExpense(){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+async function saveExpense(){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const amt  = +document.getElementById('exp-amount').value;
   const desc = document.getElementById('exp-desc').value.trim();
   if(!amt||!desc) return toast('Fill required fields','warn');
   const mo = +document.getElementById('exp-month').value;
-  const obj = {
-    id: editId.exp || Date.now(),
+  const payload = {
     expenseDate: document.getElementById('exp-date').value,
     category: document.getElementById('exp-cat').value,
     description: desc,
     vendor: document.getElementById('exp-vendor').value,
     amount: amt,
     paymentMode: document.getElementById('exp-mode').value,
-    month: MONTHS[mo], monthNum: mo,
+    month: mo,
     year: +document.getElementById('exp-year').value,
     remarks: document.getElementById('exp-remarks').value
   };
-  if(editId.exp){ const idx=DB.expenses.findIndex(x=>String(x.id||x.Id)===String(editId.exp)); if(idx>-1) DB.expenses[idx]=obj; addAudit('Expenses','Edit','Edited: '+desc); }
-  else { DB.expenses.push(obj); addAudit('Expenses','Add','Added: '+desc+' ₹'+amt); }
-  closeModal('exp'); renderExpenses(); renderDashboard(); autoSaveExcel(); toast('Expense saved!');
+  try{
+    if(editId.exp){ await Api.updateExpense(editId.exp, payload); }
+    else { await Api.createExpense(payload); }
+    await loadExpenses();
+    closeModal('exp'); renderExpenses(); renderDashboard(); toast('Expense saved!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 
 function editExpense(id){
@@ -798,13 +760,14 @@ function editExpense(id){
   document.getElementById('modal-exp').classList.add('open');
 }
 
-function deleteExpense(id){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+async function deleteExpense(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   if(!confirm('Delete this expense?')) return;
-  DB.expenses = DB.expenses.filter(x=>String(x.id||x.Id)!==String(id));
-  addAudit('Expenses','Delete','Deleted expense id:'+id);
-  renderExpenses(); renderDashboard(); autoSaveExcel(); toast('Deleted!','warn');
+  try{
+    await Api.deleteExpense(id);
+    await loadExpenses();
+    renderExpenses(); renderDashboard(); toast('Deleted!','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -850,23 +813,24 @@ function renderMemRow(m, i){
   </tr>`;
 }
 
-function saveMember(){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+async function saveMember(){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const name = document.getElementById('mem-name').value.trim();
   const flat = document.getElementById('mem-flat').value.trim();
   if(!name||!flat) return toast('Fill required fields','warn');
-  const obj = {
-    id: editId.mem || Date.now(),
+  const payload = {
     name, flat,
     floor: document.getElementById('mem-floor').value,
     mobile: document.getElementById('mem-mobile').value,
     email:  document.getElementById('mem-email').value,
     status: document.getElementById('mem-status').value
   };
-  if(editId.mem){ const idx=DB.members.findIndex(m=>String(m.id||m.Id)===String(editId.mem)); if(idx>-1) DB.members[idx]=obj; addAudit('Members','Edit','Edited: '+name); }
-  else { DB.members.push(obj); addAudit('Members','Add','Added: '+name+' ('+flat+')'); }
-  closeModal('mem'); renderMembers(); autoSaveExcel(); toast('Member saved!');
+  try{
+    if(editId.mem){ await Api.updateMember(editId.mem, payload); }
+    else { await Api.createMember(payload); }
+    await loadMembers();
+    closeModal('mem'); renderMembers(); toast('Member saved!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 
 function editMember(id){
@@ -883,13 +847,14 @@ function editMember(id){
   document.getElementById('modal-mem').classList.add('open');
 }
 
-function deleteMember(id){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+async function deleteMember(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   if(!confirm('Delete this member?')) return;
-  DB.members = DB.members.filter(x=>String(x.id||x.Id)!==String(id));
-  addAudit('Members','Delete','Deleted member id:'+id);
-  renderMembers(); autoSaveExcel(); toast('Deleted!','warn');
+  try{
+    await Api.deleteMember(id);
+    await loadMembers();
+    renderMembers(); toast('Deleted!','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
 
 // ═══════════════════════════════════════════════
@@ -962,17 +927,44 @@ function renderNotifications(){
   const recent=[...DB.auditLog].reverse().slice(0,5);
   const items=[
     ...pend.map(m=>({color:'#fc8181',text:`⚠️ ${fld(m,'name','Name')} (${fld(m,'flat','Flat')}) – maintenance pending`,time:'Due this period'})),
+    ...complaintNotifItems(),
     ...recent.map(a=>({color:'#6c63ff',text:`📝 ${a.action} in ${a.module}: ${a.details}`,time:a.timestamp}))
   ];
   document.getElementById('notif-list').innerHTML=items.map(n=>`<div class="notif-item"><div class="ndot" style="background:${n.color}"></div><div><div class="ntext">${n.text}</div><div class="ntime">${n.time}</div></div></div>`).join('')||'<div class="empty">No notifications 🎉</div>';
   updateNotifBadge();
 }
 
+// Complaint notifications flow in both directions: Admins get alerted about
+// new/open complaints raised by Members, and Members get alerted whenever an
+// Admin actions (status change / resolution) one of their own complaints.
+function complaintNotifItems(){
+  if(!DB.complaints || !DB.complaints.length) return [];
+  if(isAdmin()){
+    return [...DB.complaints]
+      .filter(c=>c.status==='Open')
+      .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))
+      .map(c=>({
+        color:'#ed8936',
+        text:`🛠️ New complaint from ${c.raisedByUsername||'a member'}${c.flat?' (Flat '+c.flat+')':''}: "${c.subject}" — ${c.priority} priority`,
+        time: c.createdAt || ''
+      }));
+  }
+  return [...DB.complaints]
+    .filter(c=>c.status!=='Open' && String(c.raisedByUserId)===String(currentUser && currentUser.id))
+    .sort((a,b)=>((b.resolvedAt||b.createdAt||'')).localeCompare((a.resolvedAt||a.createdAt||'')))
+    .map(c=>({
+      color: (c.status==='Resolved'||c.status==='Closed') ? '#38a169' : '#3182ce',
+      text:`🛠️ Your complaint "${c.subject}" is now ${c.status}${c.resolutionNotes ? ' — '+c.resolutionNotes : ''}`,
+      time: c.resolvedAt || c.createdAt || ''
+    }));
+}
+
 function updateNotifBadge(){
   const m=topMonth(),y=topYear()||new Date().getFullYear();
   const paidSet=new Set(DB.collections.filter(c=>getStatus(c).toLowerCase()==='paid'&&(!m||getMonth(c)===m)&&(!y||getYear(c)===y)).map(c=>String(fld(c,'memberId','MemberId')).trim()));
-  const cnt=DB.members.filter(m=>!paidSet.has(String(fld(m,'id','Id')).trim())).length;
-  document.getElementById('notifBadge').textContent=cnt;
+  const pendCnt=DB.members.filter(m=>!paidSet.has(String(fld(m,'id','Id')).trim())).length;
+  const cmpCnt=complaintNotifItems().length;
+  document.getElementById('notifBadge').textContent=pendCnt+cmpCnt;
 }
 
 // ═══════════════════════════════════════════════
@@ -1001,32 +993,57 @@ function loadSettingsUI(){
   document.getElementById('set-theme').value=s.theme||'light';
   renderCatList();
 }
-function saveSettings(){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
-  DB.settings.societyName  = document.getElementById('set-sname').value;
-  DB.settings.address      = document.getElementById('set-addr').value;
-  DB.settings.email        = document.getElementById('set-email').value;
-  DB.settings.phone        = document.getElementById('set-phone').value;
-  DB.settings.maintenanceAmt = +document.getElementById('set-mamt').value||2000;
-  DB.settings.floors       = document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean);
-  document.getElementById('societyLogoSub').textContent=DB.settings.societyName;
-  addAudit('Settings','Update','Settings updated');
-  toast('Settings saved!');
+async function saveSettings(){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const payload = currentSettingsPayload({
+    societyName: document.getElementById('set-sname').value,
+    address: document.getElementById('set-addr').value,
+    email: document.getElementById('set-email').value,
+    phone: document.getElementById('set-phone').value,
+    maintenanceAmt: +document.getElementById('set-mamt').value || 2000,
+    floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean)
+  });
+  try{
+    await Api.updateSettings(payload);
+    await loadSettingsData();
+    document.getElementById('societyLogoSub').textContent = DB.settings.societyName;
+    toast('Settings saved!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 function applySettings(){
   document.getElementById('societyLogoSub').textContent=DB.settings.societyName;
   const homeName = document.getElementById('homeSocietyName');
   if(homeName) homeName.textContent = DB.settings.societyName;
 }
-function applyThemeSetting(){ const t=document.getElementById('set-theme').value; document.body.classList.toggle('dark',t==='dark'); DB.settings.theme=t; }
+async function applyThemeSetting(){
+  const t=document.getElementById('set-theme').value;
+  document.body.classList.toggle('dark',t==='dark');
+  DB.settings.theme=t;
+  if(!isAdmin()) return;
+  try{ await Api.updateSettings(currentSettingsPayload({theme:t})); }catch(err){ console.error('Could not save theme', err); }
+}
 function renderCatList(){ document.getElementById('cat-list').innerHTML=DB.settings.categories.map((c,i)=>`<span class="badge b-active" style="cursor:pointer" onclick="removeCategory(${i})">${c} ✕</span>`).join(''); }
-function addCategory(){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true; const v=document.getElementById('new-cat').value.trim(); if(!v)return; DB.settings.categories.push(v); document.getElementById('new-cat').value=''; renderCatList(); }
-function removeCategory(i){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true; DB.settings.categories.splice(i,1); renderCatList(); }
+async function addCategory(){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const v=document.getElementById('new-cat').value.trim();
+  if(!v) return;
+  if(DB.settings.categories.includes(v)) return toast('Category already exists','warn');
+  try{
+    await Api.updateSettings(currentSettingsPayload({categories:[...DB.settings.categories, v]}));
+    await loadSettingsData();
+    document.getElementById('new-cat').value='';
+    renderCatList();
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+async function removeCategory(i){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const categories = DB.settings.categories.filter((_,idx)=>idx!==i);
+  try{
+    await Api.updateSettings(currentSettingsPayload({categories}));
+    await loadSettingsData();
+    renderCatList();
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
 
 // ═══════════════════════════════════════════════
 // ADMIN
@@ -1041,45 +1058,54 @@ function renderUsers(){
 }
 async function approveUser(id){
   if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-  const user = DB.users.find(u=>u.id===id);
-  if(!user) return;
-  user.status = 'Active';
-  hasUnsavedChanges = true;
-  addAudit('Users','Approve',`Approved user account: ${user.username}`);
-  renderUsers();
-  toast(`${user.username} approved!`);
+  try{
+    await Api.approveUser(id);
+    await loadUsers();
+    renderUsers();
+    toast('User approved!');
+  }catch(err){ toast(err.message || 'Approve failed','warn'); }
 }
 async function saveUser(){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-hasUnsavedChanges=true;
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const n=document.getElementById('u-name').value.trim();
   const pw=document.getElementById('u-password').value;
   if(!n)return toast('Enter username','warn');
-  if(DB.users.some(u=>String(u.username||'').toLowerCase()===n.toLowerCase())) return toast('Username already exists','warn');
   if(!pw||pw.length<4)return toast('Password must be at least 4 characters','warn');
-  const salt = randomSalt();
-  const hash = await hashPassword(pw, salt);
-  DB.users.push({id:Date.now(),username:n,password:hash,salt,role:document.getElementById('u-role').value,email:document.getElementById('u-email').value,status:document.getElementById('u-status').value});
-  document.getElementById('u-password').value='';
-  addAudit('Users','Add',`Added user: ${n}`);
-  closeModal('user'); renderUsers(); toast('User added!');
+  const payload = {
+    username: n, password: pw,
+    role: document.getElementById('u-role').value,
+    email: document.getElementById('u-email').value,
+    status: document.getElementById('u-status').value
+  };
+  try{
+    await Api.createUser(payload);
+    document.getElementById('u-password').value='';
+    await loadUsers();
+    closeModal('user'); renderUsers(); toast('User added!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 async function resetUserPassword(id){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const user = DB.users.find(u=>u.id===id);
   if(!user) return;
   const pw = prompt(`Enter a new password for "${user.username}":`);
   if(pw===null) return;
   if(pw.length<4) return toast('Password must be at least 4 characters','warn');
-  user.salt = randomSalt();
-  user.password = await hashPassword(pw, user.salt);
-  hasUnsavedChanges = true;
-  addAudit('Users','Reset Password',`Password reset for user: ${user.username}`);
-  toast('Password updated!');
+  try{
+    await Api.resetUserPassword(id, pw);
+    toast('Password updated!');
+  }catch(err){ toast(err.message || 'Reset failed','warn'); }
 }
-function deleteUser(id){
-if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
-if(DB.users.length<=1)return toast('Cannot delete last user','warn'); if(!confirm('Delete?'))return; DB.users=DB.users.filter(u=>u.id!==id); addAudit('Users','Delete','Deleted user id:'+id); renderUsers(); toast('Deleted','warn'); }
+async function deleteUser(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(DB.users.length<=1)return toast('Cannot delete last user','warn');
+  if(!confirm('Delete?'))return;
+  try{
+    await Api.deleteUser(id);
+    await loadUsers();
+    renderUsers(); toast('Deleted','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
+}
 
 // ═══════════════════════════════════════════════
 // PAGINATION
@@ -1101,7 +1127,7 @@ function renderPage(key, data, rowFn){
 }
 function changePage(k,d){ pages[k]+=d; refreshSection(k); }
 function setPage(k,p)   { pages[k]=p;  refreshSection(k); }
-function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')renderExpenses(); else if(k==='mem')renderMembers(); else if(k==='audit')renderAudit(); }
+function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')renderExpenses(); else if(k==='mem')renderMembers(); else if(k==='audit')renderAudit(); else if(k==='cmp')renderComplaints(); }
 
 // ═══════════════════════════════════════════════
 // MODAL HELPERS
@@ -1112,6 +1138,18 @@ function openModal(type){
   if(type==='col'){ document.getElementById('col-modal-title').textContent='Add Collection'; populateMemberDropdown(); document.getElementById('col-date').value=new Date().toISOString().split('T')[0]; document.getElementById('col-month').value=new Date().getMonth()+1; document.getElementById('col-year').value=new Date().getFullYear(); document.getElementById('col-amount').value=''; document.getElementById('col-remarks').value=''; }
   if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; }
   if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
+  if(type==='cmp'){
+    document.getElementById('cmp-modal-title').textContent='Raise Complaint';
+    populateComplaintCatDropdown();
+    document.getElementById('cmp-subject').value='';
+    document.getElementById('cmp-priority').value='Medium';
+    document.getElementById('cmp-desc').value='';
+    document.getElementById('cmp-status').value='Open';
+    document.getElementById('cmp-assigned').value='';
+    document.getElementById('cmp-notes').value='';
+    const af = document.getElementById('cmp-admin-fields');
+    if(af) af.style.display = 'none';
+  }
   document.getElementById('modal-'+type).classList.add('open');
 }
 function closeModal(type){ document.getElementById('modal-'+type).classList.remove('open'); }
@@ -1121,55 +1159,136 @@ function populateMemberDropdown(){
 }
 function populateCatDropdown(){ document.getElementById('exp-cat').innerHTML=DB.settings.categories.map(c=>`<option>${c}</option>`).join(''); }
 function populateFloorDropdown(id){ document.getElementById(id).innerHTML=DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join(''); }
+function populateComplaintCatDropdown(){ document.getElementById('cmp-category').innerHTML=COMPLAINT_CATEGORIES.map(c=>`<option>${c}</option>`).join(''); }
 
 // ═══════════════════════════════════════════════
-// IMPORT / EXPORT
+// COMPLAINTS
 // ═══════════════════════════════════════════════
-function importExcel(event){
-  const f=event.target.files[0]; if(!f)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:false});
-      let imp=0;
-      if(wb.Sheets['Members'])    { DB.members    =XLSX.utils.sheet_to_json(wb.Sheets['Members']);    imp++; }
-      if(wb.Sheets['Collections']){ DB.collections=XLSX.utils.sheet_to_json(wb.Sheets['Collections']); imp++; }
-      if(wb.Sheets['Expenses'])   { DB.expenses   =XLSX.utils.sheet_to_json(wb.Sheets['Expenses']);    imp++; }
-      if(wb.Sheets['AuditLog'])   { DB.auditLog   =XLSX.utils.sheet_to_json(wb.Sheets['AuditLog']); }
-      if(wb.Sheets['Users']){
-        const loadedUsers = XLSX.utils.sheet_to_json(wb.Sheets['Users']);
-        if(loadedUsers.some(u=>u.password)){
-          DB.users = loadedUsers;
-        } else if(loadedUsers.length){
-          console.warn('Users sheet has no passwords configured yet — keeping the built-in Admin login until an admin adds accounts with passwords.');
-        }
-        imp++;
-      }
-      if(wb.Sheets['Settings']){
-        const settingsRows = XLSX.utils.sheet_to_json(wb.Sheets['Settings']);
-        const s = settingsRows[0];
-        if(s){
-          const toArray = v => Array.isArray(v) ? v : String(v||'').split(',').map(x=>x.trim()).filter(Boolean);
-          DB.settings = {
-            ...DB.settings, ...s,
-            floors: toArray(s.floors ?? DB.settings.floors),
-            categories: toArray(s.categories ?? DB.settings.categories)
-          };
-        }
-        imp++;
-      }
-      const status=`✅ Imported ${imp} sheet(s). Members: ${DB.members.length}, Collections: ${DB.collections.length}, Expenses: ${DB.expenses.length}`;
-      document.getElementById('import-status').textContent=status;
-      const loginFileStatus=document.getElementById('loginFileStatus');
-      if(loginFileStatus) loginFileStatus.textContent=`✅ Loaded: ${f.name}`;
-      if(isAdmin()) addAudit('Import','Import',`Imported: ${f.name}`);
-      setSaveStatus('🟢 Imported','green');
-      applySettings(); renderDashboard(); toast('Excel imported!');
-    }catch(err){ document.getElementById('import-status').textContent='❌ Error: '+err.message; }
-  };
-  reader.readAsBinaryString(f);
+function renderComplaints(){
+  const search  = document.getElementById('cmpSearch') ? document.getElementById('cmpSearch').value.toLowerCase() : '';
+  const statusF = document.getElementById('cmpStatusF') ? document.getElementById('cmpStatusF').value : '';
+
+  const data = DB.complaints.filter(c=>{
+    const subj = (c.subject||'').toLowerCase();
+    const desc = (c.description||'').toLowerCase();
+    return (!statusF||c.status===statusF) && (!search||subj.includes(search)||desc.includes(search));
+  });
+
+  renderPage('cmp', data, renderCmpRow);
+
+  const openCount     = DB.complaints.filter(c=>c.status==='Open').length;
+  const progressCount = DB.complaints.filter(c=>c.status==='In Progress').length;
+  const doneCount     = DB.complaints.filter(c=>c.status==='Resolved'||c.status==='Closed').length;
+  const summaryEl = document.getElementById('cmp-summary');
+  if(summaryEl){
+    summaryEl.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);width:100%;">
+        <div style="text-align:center;padding:6px 16px;background:var(--card);border-radius:8px;border:1px solid var(--border);">
+          <div style="font-size:10px;color:var(--sub);margin-bottom:2px;">Total</div>
+          <div style="font-size:16px;font-weight:800;">${DB.complaints.length}</div>
+        </div>
+        <div style="text-align:center;padding:6px 16px;background:#fed7d7;border-radius:8px;">
+          <div style="font-size:10px;color:#9b2c2c;margin-bottom:2px;">🔴 Open</div>
+          <div style="font-size:16px;font-weight:800;color:#9b2c2c;">${openCount}</div>
+        </div>
+        <div style="text-align:center;padding:6px 16px;background:#feebc8;border-radius:8px;">
+          <div style="font-size:10px;color:#9c4221;margin-bottom:2px;">🟡 In Progress</div>
+          <div style="font-size:16px;font-weight:800;color:#9c4221;">${progressCount}</div>
+        </div>
+        <div style="text-align:center;padding:6px 16px;background:#c6f6d5;border-radius:8px;">
+          <div style="font-size:10px;color:#276749;margin-bottom:2px;">🟢 Resolved</div>
+          <div style="font-size:16px;font-weight:800;color:#276749;">${doneCount}</div>
+        </div>
+      </div>`;
+  }
 }
 
+function renderCmpRow(c, i){
+  const statusColors   = {'Open':'#c53030','In Progress':'#c05621','Resolved':'#276749','Closed':'#4a5568'};
+  const priorityColors = {'High':'#c53030','Medium':'#c05621','Low':'#276749'};
+  const sc = statusColors[c.status] || '#4a5568';
+  const pc = priorityColors[c.priority] || '#4a5568';
+  const canWithdraw = !isAdmin() && String(c.raisedByUserId)===String(currentUser && currentUser.id) && c.status==='Open';
+  const safeDesc = (c.description||'').replace(/"/g,'&quot;');
+  return `<tr>
+    <td>${i+1}</td>
+    <td>${c.createdAt}</td>
+    <td title="${safeDesc}">${c.subject}</td>
+    <td>${c.category}</td>
+    <td><span style="color:${pc};font-weight:700;">${c.priority}</span></td>
+    <td><span style="color:${sc};font-weight:700;">${c.status}</span></td>
+    <td>${c.raisedByUsername || '-'}${c.flat ? ' (Flat '+c.flat+')' : ''}</td>
+    <td><div class="act-btns">
+      ${isAdmin() ? `<button class="ic-btn" onclick="editComplaint('${c.id}')">✏️</button><button class="ic-btn" onclick="deleteComplaint('${c.id}')">🗑️</button>` : ''}
+      ${canWithdraw ? `<button class="ic-btn" onclick="deleteComplaint('${c.id}')">🗑️ Withdraw</button>` : ''}
+    </div></td>
+  </tr>`;
+}
+
+async function saveComplaint(){
+  const subject = document.getElementById('cmp-subject').value.trim();
+  const desc    = document.getElementById('cmp-desc').value.trim();
+  if(!subject||!desc) return toast('Fill required fields','warn');
+
+  try{
+    if(editId.cmp){
+      if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+      const payload = {
+        subject, description: desc,
+        category: document.getElementById('cmp-category').value,
+        priority: document.getElementById('cmp-priority').value,
+        status: document.getElementById('cmp-status').value,
+        resolutionNotes: document.getElementById('cmp-notes').value,
+        assignedTo: document.getElementById('cmp-assigned').value
+      };
+      await Api.updateComplaint(editId.cmp, payload);
+    } else {
+      const payload = {
+        subject, description: desc,
+        category: document.getElementById('cmp-category').value,
+        priority: document.getElementById('cmp-priority').value
+      };
+      await Api.createComplaint(payload);
+    }
+    await loadComplaints();
+    closeModal('cmp'); renderComplaints(); updateNotifBadge();
+    toast(editId.cmp ? 'Complaint updated — member will be notified.' : 'Complaint submitted — admin will be notified.');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+
+function editComplaint(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const c = DB.complaints.find(x=>String(x.id)===String(id)); if(!c) return;
+  editId.cmp = id;
+  document.getElementById('cmp-modal-title').textContent = 'Manage Complaint';
+  populateComplaintCatDropdown();
+  document.getElementById('cmp-subject').value  = c.subject;
+  document.getElementById('cmp-category').value = c.category;
+  document.getElementById('cmp-priority').value  = c.priority;
+  document.getElementById('cmp-desc').value     = c.description;
+  document.getElementById('cmp-status').value    = c.status;
+  document.getElementById('cmp-assigned').value  = c.assignedTo || '';
+  document.getElementById('cmp-notes').value     = c.resolutionNotes || '';
+  const af = document.getElementById('cmp-admin-fields');
+  if(af) af.style.display = 'block';
+  document.getElementById('modal-cmp').classList.add('open');
+}
+
+async function deleteComplaint(id){
+  const c = DB.complaints.find(x=>String(x.id)===String(id));
+  const msg = (c && !isAdmin()) ? 'Withdraw this complaint?' : 'Delete this complaint?';
+  if(!confirm(msg)) return;
+  try{
+    await Api.deleteComplaint(id);
+    await loadComplaints();
+    renderComplaints(); updateNotifBadge();
+    toast('Complaint removed.','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
+}
+
+// ═══════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════
 function saveToExcel(){
 if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const wb=XLSX.utils.book_new();
@@ -1328,557 +1447,4 @@ document.addEventListener('click', function(e){
 
 })();
 
-function analyzeBankStatement(){
-  if(!isAdmin()) return showBankImportStatus('❌ Admin access required.', 'danger');
-  const fileInput = document.getElementById('bankStatementFile');
-  const statusEl = document.getElementById('bankImportStatus');
-  const previewEl = document.getElementById('bankPreview');
-  previewEl.style.display = 'none';
-  window.bankImportData = null;
 
-  if(!fileInput || !fileInput.files.length){
-    return showBankImportStatus('❌ Please select a bank statement file first.', 'danger');
-  }
-
-  const file = fileInput.files[0];
-  const extension = file.name.split('.').pop().toLowerCase();
-  const supported = ['xlsx','xls','csv'];
-  if(!supported.includes(extension)){
-    return showBankImportStatus(`❌ Unsupported file type: .${extension}. Upload .xlsx, .xls or .csv.`, 'danger');
-  }
-
-  showBankImportStatus('⏳ Reading bank statement file...', 'info');
-
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const data = e.target.result;
-      let workbook;
-      if(extension === 'csv'){
-        const text = new TextDecoder('utf-8').decode(data);
-        workbook = XLSX.read(text, {type:'string', raw:false});
-      } else {
-        workbook = XLSX.read(data, {type:'array', cellDates:true, raw:false});
-      }
-      if(!workbook || !workbook.SheetNames.length){
-        throw new Error('No worksheet detected in the bank statement file.');
-      }
-
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
-      if(!rows.length){
-        throw new Error('The selected bank statement contains no rows.');
-      }
-
-      const normalizedRows = normalizeBankRows(rows);
-      if(!normalizedRows.length){
-        throw new Error('No debit or credit transactions were detected in the bank statement.');
-      }
-
-      const options = readBankImportOptions();
-      const {collections, expenses, warnings, flagged} = mapBankRowsToSMMS(normalizedRows, options);
-      window.bankImportData = {rows: normalizedRows, collections, expenses, sourceFile:file.name, sheetName, warnings};
-
-      const html = bankImportPreviewHtml(collections, expenses, warnings, flagged, file.name, sheetName);
-      previewEl.innerHTML = html;
-      previewEl.style.display = 'block';
-
-      showBankImportStatus(`✅ Analysis complete. ${collections.length} collections and ${expenses.length} expenses found${flagged.length ? ` (${flagged.length} need flat verification)` : ''}.`, warnings.length || flagged.length ? 'warning' : 'success');
-    } catch (err) {
-      console.error(err);
-      showBankImportStatus('❌ Analysis failed: ' + (err.message || err), 'danger');
-    }
-  };
-
-  reader.onerror = () => showBankImportStatus('❌ Unable to read the bank statement file.', 'danger');
-  reader.readAsArrayBuffer(file);
-}
-
-function getBankImportOption(id, defaultValue = false){
-  const el = document.getElementById(id);
-  return el ? el.checked : defaultValue;
-}
-
-function readBankImportOptions(){
-  return {
-    autoCreateCollections: getBankImportOption('autoCreateCollections', true),
-    autoCreateExpenses: getBankImportOption('autoCreateExpenses', true),
-    matchByFlat: getBankImportOption('matchByFlat', true),
-    createAuditEntry: getBankImportOption('createAuditEntry', true),
-    backupWorkbook: getBankImportOption('backupWorkbook', true)
-  };
-}
-
-function generateBankImport(){
-  if(!isAdmin()) return showBankImportStatus('❌ Admin access required.', 'danger');
-  if(!window.bankImportData){
-    return showBankImportStatus('❌ No bank statement analysis available. Click Analyze first.', 'danger');
-  }
-
-  const options = readBankImportOptions();
-  const {collections, expenses, warnings, flagged} = mapBankRowsToSMMS(window.bankImportData.rows, options);
-
-  if(!collections.length && !expenses.length){
-    showBankImportStatus('⚠️ Nothing new to add — every transaction was either a duplicate of an existing record or skipped.', 'warning');
-    console.warn('Bank import: no new records.', warnings);
-    return;
-  }
-
-  const sourceFile = window.bankImportData.sourceFile;
-
-  (async () => {
-    if(options.backupWorkbook){
-      showBankImportStatus('⏳ Creating backup of current data...', 'info');
-      await createBackupWorkbook();
-    }
-
-    DB.collections.push(...collections);
-    DB.expenses.push(...expenses);
-    hasUnsavedChanges = true;
-
-    if(options.createAuditEntry){
-      addAudit('Bank Import', 'Import',
-        `Imported ${collections.length} collection(s) and ${expenses.length} expense(s) from ${sourceFile}` +
-        (flagged.length ? ` (${flagged.length} flagged for flat verification).` : '.'));
-    }
-
-    renderCollections();
-    renderExpenses();
-    renderDashboard();
-    if(typeof renderReports === 'function') renderReports();
-    if(typeof renderAudit === 'function') renderAudit();
-
-    let saveNote;
-    if(excelFileHandle){
-      await autoSaveExcel();
-      saveNote = 'Saved to the shared master file — visible to everyone.';
-    } else {
-      saveToExcel();
-      saveNote = 'Downloaded the updated master file — upload/replace it in the shared location so others can see it.';
-    }
-
-    const reviewNote = flagged.length ? ` ⚠️ ${flagged.length} collection(s) need manual flat verification — look for the ⚠ rows in the Collections tab.` : '';
-    const dupNote = warnings.filter(w => w.includes('duplicate')).length ? ' Duplicate rows already in the system were skipped.' : '';
-    showBankImportStatus(`✅ Added ${collections.length} collection(s) and ${expenses.length} expense(s). ${saveNote}${reviewNote}${dupNote}`, flagged.length ? 'warning' : 'success');
-    toast(`Bank import complete: ${collections.length} collections, ${expenses.length} expenses added.`);
-
-    window.bankImportData = null;
-    const previewEl = document.getElementById('bankPreview');
-    if(previewEl) previewEl.style.display = 'none';
-    const fileInput = document.getElementById('bankStatementFile');
-    if(fileInput) fileInput.value = '';
-  })();
-}
-
-function showBankImportStatus(message, type = 'info'){
-  const el = document.getElementById('bankImportStatus');
-  if(!el) return;
-  el.textContent = message;
-  el.style.color = type === 'danger' ? '#e53e3e' : type === 'warning' ? '#d69e2e' : '#276749';
-}
-
-function bankImportPreviewHtml(collections, expenses, warnings, flagged, fileName, sheetName){
-  return `
-    <div style="font-size:13px;line-height:1.5;">
-      <div><strong>File:</strong> ${fileName}</div>
-      <div><strong>Sheet:</strong> ${sheetName}</div>
-      <div><strong>Collections:</strong> ${collections.length}</div>
-      <div><strong>Expenses:</strong> ${expenses.length}</div>
-      ${flagged.length ? `<div style="color:#d69e2e;"><strong>⚠ Needs review:</strong> ${flagged.length} collection(s) could not be matched to a flat/member automatically.</div>` : ''}
-      ${warnings.length ? `<div style="color:#d69e2e;"><strong>Warnings:</strong> ${warnings.length}. Check console for row details.</div>` : ''}
-      <div style="margin-top:10px;max-height:220px;overflow:auto;">
-        <div style="font-weight:700;">Collections Preview</div>
-        ${collections.slice(0,6).map(c => `<div>${c.needsReview ? '⚠️' : '📥'} ${c.paymentDate || c.date} | ${c.memberName || 'Unverified'} | Flat ${c.flat || '-'} | ₹${c.amount}</div>`).join('') || '<div class="empty">No collection records found.</div>'}
-        <div style="margin-top:10px;font-weight:700;">Expenses Preview</div>
-        ${expenses.slice(0,6).map(e => `<div>📤 ${e.expenseDate || e.date} | ${e.category} | ₹${e.amount} | ${e.description || '-'}</div>`).join('') || '<div class="empty">No expense records found.</div>'}
-      </div>
-    </div>`;
-}
-
-function normalizeBankRows(rows){
-  const result = [];
-  rows.forEach((row, index) => {
-    const normalized = normalizeBankRow(row);
-    const isContinuation = !normalized.date && !normalized.credit && !normalized.debit && !normalized.amount && normalized.remarks && result.length;
-    if(isContinuation){
-      // Some bank exports wrap long remarks onto a blank follow-up row — stitch it onto the previous transaction.
-      const prev = result[result.length - 1];
-      prev.remarks = [prev.remarks, normalized.remarks].filter(Boolean).join(' ').trim();
-      return;
-    }
-    if(!normalized.credit && !normalized.debit && !normalized.amount){
-      return;
-    }
-    normalized.rowIndex = index + 2;
-    result.push(normalized);
-  });
-  return result;
-}
-
-function normalizeBankRow(row){
-  const keys = Object.keys(row || {});
-  const map = {};
-  keys.forEach(key => { map[key.toString().trim().toLowerCase()] = key; });
-
-  const find = aliases => {
-    for(const alias of aliases){
-      const normalized = alias.toString().trim().toLowerCase();
-      if(map[normalized] !== undefined) return map[normalized];
-    }
-    return undefined;
-  };
-
-  const findFuzzy = aliases => {
-    for(const alias of aliases){
-      const normalized = alias.toString().trim().toLowerCase();
-      for(const key of keys){
-        const candidate = key.toString().trim().toLowerCase();
-        if(candidate === normalized || candidate.includes(normalized) || normalized.includes(candidate)){
-          return key;
-        }
-      }
-    }
-    return undefined;
-  };
-
-  const dateKey = find(['Transaction Date','Value Date','Date','Txn Date','Posted Date','Post Date']) || findFuzzy(['Transaction Date','Value Date','Date','Txn Date','Posted Date','Post Date']);
-  const descKey = find(['Transaction Remarks','Transaction Description','Description','Details','Narration','Particulars','Remarks','Remark']) || findFuzzy(['Transaction Remarks','Transaction Description','Description','Details','Narration','Particulars','Remarks','Remark']);
-  const typeKey = find(['Transaction Type','Type','CR/DR','Txn Type','Debit/Credit','Credit/Debit','Tran Type']) || findFuzzy(['Transaction Type','Type','CR/DR','Txn Type','Debit/Credit','Credit/Debit','Tran Type']);
-  const creditKey = find(['Deposit Amount(INR)','Amount Credit','Credit Amount','Credit','Cr','Deposit Amount','Amount Deposited','Inward']) || findFuzzy(['Deposit Amount(INR)','Amount Credit','Credit Amount','Credit','Cr','Deposit Amount','Amount Deposited','Inward']);
-  const debitKey = find(['Withdrawal Amount(INR)','Amount Debit','Debit Amount','Debit','Dr','Withdrawal Amount','Amount Withdrawn','Outward']) || findFuzzy(['Withdrawal Amount(INR)','Amount Debit','Debit Amount','Debit','Dr','Withdrawal Amount','Amount Withdrawn','Outward']);
-  const amountKey = find(['Amount','Transaction Amount','Amount (INR)','Txn Amount','Value','Txn Value','Transaction Value']) || findFuzzy(['Amount','Transaction Amount','Amount (INR)','Txn Amount','Value','Txn Value','Transaction Value']);
-
-  const rawDate = row[dateKey] || row[find(['Value Date','Post Date','Date'])] || '';
-  const rawRemarks = String(row[descKey] || '').trim();
-  const rawType = String(row[typeKey] || '').trim().toLowerCase();
-  const rawCredit = toNumber(row[creditKey]);
-  const rawDebit = toNumber(row[debitKey]);
-  const rawAmount = toNumber(row[amountKey]);
-
-  let credit = rawCredit;
-  let debit = rawDebit;
-
-  const rowText = Object.values(row || {}).map(v => String(v || '')).join(' ').toLowerCase();
-  const typeHint = rawType || rowText;
-
-  const numericCells = Object.entries(row || {}).map(([key, value]) => ({
-    key,
-    value,
-    amount: toNumber(value),
-    text: String(value || '').trim()
-  })).filter(x => x.amount !== 0);
-
-  const looksLikeDate = text => {
-    const normalized = String(text || '').replace(/[.\s\-/]/g, '');
-    return /^\d{6,8}$/.test(normalized);
-  };
-
-  const amountCellByHeader = numericCells.find(cell => {
-    const key = String(cell.key || '').toLowerCase();
-    return /(^|\b)(amount|amt|credit|debit|dr|cr|deposit|withdrawal|withdrawn|paid|payment|value)(\b|$)/i.test(key);
-  });
-
-  const candidateAmount = numericCells.find(cell => cell.key === amountKey) ||
-    amountCellByHeader ||
-    numericCells.find(cell => !/(date|txn|transaction|value|posted|payment date|post date|value date|reference|ref|cheque|vouch|voucher|id|no|number|remarks|remark|description|narration|particulars)/i.test(String(cell.key).toLowerCase()) && !looksLikeDate(cell.text)) ||
-    numericCells[0] || {amount:0};
-
-  const fallbackAmount = candidateAmount.amount;
-
-  if(!credit && !debit && fallbackAmount){
-    if(/\b(dr|debit|out|withdrawal|payment)\b/.test(typeHint)){
-      debit = Math.abs(fallbackAmount);
-    } else if(/\b(cr|credit|in|deposit)\b/.test(typeHint)){
-      credit = Math.abs(fallbackAmount);
-    } else if(fallbackAmount < 0) {
-      debit = Math.abs(fallbackAmount);
-    } else {
-      credit = Math.abs(fallbackAmount);
-    }
-  }
-
-  const amount = credit || debit || Math.abs(fallbackAmount) || 0;
-
-  return {
-    date: formatDateValue(rawDate),
-    remarks: rawRemarks,
-    credit,
-    debit,
-    amount
-  };
-}
-
-function toNumber(value){
-  if(value === undefined || value === null || value === '') return 0;
-  let text = String(value).trim();
-  if(!text) return 0;
-  text = text.replace(/[,₹\s]/g, '');
-  const negative = /^\(?-?\d+(\.\d+)?\)?$/.test(text) && /\(|\-/.test(text) && !/CR|Cr|cr|INR/.test(value);
-  text = text.replace(/[()]/g, '');
-  const num = Number(text.replace(/[^0-9.\-]/g, ''));
-  if(Number.isFinite(num)) return negative ? Math.abs(num) * -1 : num;
-  return 0;
-}
-
-function formatDateValue(value){
-  if(value === undefined || value === null || value === '') return '';
-  if(value instanceof Date){
-    return value.toISOString().slice(0,10);
-  }
-  const text = String(value).trim();
-  if(!text) return '';
-  const parsed = new Date(text);
-  if(!Number.isNaN(parsed.getTime())){
-    return parsed.toISOString().slice(0,10);
-  }
-  const parts = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
-  if(parts){
-    let [_, d, m, y] = parts;
-    if(y.length === 2){ y = Number(y) > 50 ? '19' + y : '20' + y; }
-    return `${y.padStart(4,'0')}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-  }
-  return text;
-}
-
-function detectExpenseCategory(remarks){
-  const text = String(remarks || '').toLowerCase();
-  if(!text) return 'Miscellaneous';
-  const categories = (DB.settings?.categories || []).map(c => String(c||'').toLowerCase()).filter(Boolean);
-  const matched = categories.find(cat => cat && text.includes(cat));
-  if(matched) return matched.replace(/(^|\s)([a-z])/g, (_,p,ch) => p + ch.toUpperCase());
-  if(/electric|power|bill|\beb\b/.test(text)) return 'Electricity';
-  if(/water|bore\s*well|borewell|tanker|softener/.test(text)) return 'Water';
-  if(/watchman|security\s*guard|guard\s*salary|\bsecurity\b/.test(text)) return 'Security';
-  if(/housekeep|clean|maid|sweep|garbage|scavenger/.test(text)) return 'Housekeeping';
-  if(/repair|plumb|electrician|carpenter|painter|bore\s*work|labour|labor|fix/.test(text)) return 'Repairs';
-  if(/garden|landscape|plant/.test(text)) return 'Gardening';
-  if(/lift|elevator/.test(text)) return 'Lift Maintenance';
-  if(/cctv|camera/.test(text)) return 'CCTV';
-  if(/festival|diwali|holi|celebration|puja|navratri|ganesh/.test(text)) return 'Festival';
-  return 'Miscellaneous';
-}
-
-function detectPaymentMode(remarks){
-  const text = String(remarks || '').toUpperCase();
-  if(text.includes('UPI')) return 'UPI';
-  if(text.includes('CHEQUE') || text.includes('CHQ')) return 'Cheque';
-  if(text.includes('CASH')) return 'Cash';
-  return 'NEFT';
-}
-
-function extractPayerName(remarks){
-  const parts = String(remarks || '').split('/').map(s => s.trim()).filter(Boolean);
-  if(parts.length < 2) return '';
-  const raw = parts[1];
-  if(!raw || /^\d+$/.test(raw)) return '';
-  return raw.toLowerCase().replace(/(^|\s)([a-z])/g, (_,p,ch) => p + ch.toUpperCase());
-}
-
-const MONTH_OVERRIDE_RE = /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\s*mont/i;
-const MONTH_ALIAS_NUM = {jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,sept:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
-
-function extractMonthOverride(remarks, txnDateStr){
-  const text = String(remarks || '').toLowerCase();
-  const m = text.match(MONTH_OVERRIDE_RE);
-  if(!m) return null;
-  const monthNum = MONTH_ALIAS_NUM[m[1]];
-  if(!monthNum) return null;
-  const txnDate = new Date(txnDateStr);
-  let year = Number.isNaN(txnDate.getTime()) ? new Date().getFullYear() : txnDate.getFullYear();
-  if(!Number.isNaN(txnDate.getTime()) && monthNum > (txnDate.getMonth() + 1)) year -= 1;
-  return {month: MONTHS[monthNum], monthNum, year};
-}
-
-function extractFlatFromRemarks(remarks, knownFlats){
-  const text = String(remarks || '');
-  // Keyword-anchored patterns are tried first (highest confidence) — tolerant of missing
-  // spaces/punctuation (e.g. "Flat203", "Flat-203", "Flat No.203", "F203", "#203").
-  const keywordPatterns = [
-    /\bflat\s*(?:no\.?|number|#|:|-)?\s*(\d{3})\b/i,
-    /\bfl\s*(?:no\.?|#|:|-)?\s*(\d{3})\b/i,
-    /\bunit\s*(?:no\.?|#|:|-)?\s*(\d{3})\b/i,
-    /\bapt\s*(?:no\.?|#|:|-)?\s*(\d{3})\b/i,
-    /\broom\s*(?:no\.?|#|:|-)?\s*(\d{3})\b/i,
-    /\bhouse\s*(?:no\.?|#|:|-)?\s*(\d{3})\b/i,
-    /#\s*(\d{3})\b/,
-    /\b(\d{3})\s*(?:no\.?)?\s*flat\b/i
-  ];
-  for(const pattern of keywordPatterns){
-    const m = text.match(pattern);
-    if(m && m[1]) return m[1];
-  }
-  // Fallback: no keyword found — scan any standalone 3-digit number and accept it only if
-  // it's a real flat number in the Members sheet (avoids false positives from phone/UTR digits).
-  const numberMatches = text.match(/(?<!\d)(\d{3})(?!\d)/g) || [];
-  for(const num of numberMatches){
-    if(knownFlats.has(num)) return num;
-  }
-  return '';
-}
-
-function normalizeBankRemarksForDedupe(text){
-  return String(text || '').trim().toLowerCase()
-    .replace(/^⚠\s*verify flat\s*-\s*bank import:\s*/, '')
-    .replace(/^bank import:\s*/, '');
-}
-
-function bankDedupeKey(dateStr, amount, remarks){
-  const roundedAmount = Math.round((Number(amount) || 0) * 100) / 100;
-  return `${String(dateStr || '').trim()}|${roundedAmount}|${normalizeBankRemarksForDedupe(remarks)}`;
-}
-
-function findMemberByFlat(flat){
-  const normalizeFlat = value => String(value || '').trim().replace(/^0+/, '').toLowerCase();
-  const target = normalizeFlat(flat);
-  if(!target) return null;
-  return DB.members.find(member => normalizeFlat(fld(member,'flat','Flat','flatNo','FlatNo','flatNumber','FlatNumber')) === target);
-}
-
-function mapBankRowsToSMMS(rows, options = {}){
-  const collections = [];
-  const expenses = [];
-  const warnings = [];
-  const flagged = [];
-
-  const existingCollectionKeys = new Set(DB.collections.map(c =>
-    bankDedupeKey(fld(c,'paymentDate','PaymentDate'), fld(c,'amount','Amount'), fld(c,'remarks','Remarks'))
-  ));
-  const existingExpenseKeys = new Set(DB.expenses.map(e =>
-    bankDedupeKey(fld(e,'expenseDate','ExpenseDate'), fld(e,'amount','Amount'), fld(e,'remarks','Remarks'))
-  ));
-  const seenCollectionKeys = new Set();
-  const seenExpenseKeys = new Set();
-
-  rows.forEach(row => {
-    if(row.credit && !row.debit){
-      if(!options.autoCreateCollections){
-        warnings.push(`Row ${row.rowIndex}: collection creation disabled by settings.`);
-        return;
-      }
-
-      const key = bankDedupeKey(row.date, row.credit, row.remarks);
-      if(existingCollectionKeys.has(key) || seenCollectionKeys.has(key)){
-        warnings.push(`Row ${row.rowIndex}: duplicate of an existing collection, skipped.`);
-        return;
-      }
-      seenCollectionKeys.add(key);
-
-      const match = matchBankRowToMember(row, options.matchByFlat !== false);
-      const monthOverride = extractMonthOverride(row.remarks, row.date);
-      const monthNum = monthOverride ? monthOverride.monthNum : getMonthFromDate(row.date, true);
-      const year = monthOverride ? monthOverride.year : getYearFromDate(row.date);
-      const isMatched = !!match.memberId;
-
-      const collection = {
-        id: `${Date.now()}_${collections.length}_${Math.random().toString(36).slice(2,6)}`,
-        memberId: match.memberId || '',
-        memberName: isMatched ? match.memberName : (match.memberName || 'Unverified'),
-        flat: match.flat || '',
-        floor: match.floor || '',
-        amount: row.credit,
-        month: MONTHS[monthNum] || '',
-        monthNum,
-        year,
-        paymentDate: row.date,
-        paymentMode: detectPaymentMode(row.remarks),
-        status: 'Paid',
-        remarks: (isMatched ? 'Bank Import: ' : '⚠ VERIFY FLAT - Bank Import: ') + row.remarks,
-        needsReview: !isMatched
-      };
-
-      collections.push(collection);
-      if(!isMatched) flagged.push(collection);
-    } else if(row.debit && !row.credit){
-      if(!options.autoCreateExpenses){
-        warnings.push(`Row ${row.rowIndex}: expense creation disabled by settings.`);
-        return;
-      }
-
-      const key = bankDedupeKey(row.date, row.debit, row.remarks);
-      if(existingExpenseKeys.has(key) || seenExpenseKeys.has(key)){
-        warnings.push(`Row ${row.rowIndex}: duplicate of an existing expense, skipped.`);
-        return;
-      }
-      seenExpenseKeys.add(key);
-
-      const monthNum = getMonthFromDate(row.date, true);
-      expenses.push({
-        id: `${Date.now()}_${expenses.length}_${Math.random().toString(36).slice(2,6)}`,
-        expenseDate: row.date,
-        category: detectExpenseCategory(row.remarks),
-        description: row.remarks || 'Expense from bank statement',
-        vendor: extractPayerName(row.remarks),
-        amount: row.debit,
-        paymentMode: detectPaymentMode(row.remarks),
-        month: MONTHS[monthNum] || '',
-        monthNum,
-        year: getYearFromDate(row.date),
-        remarks: 'Bank Import: ' + row.remarks
-      });
-    } else if(row.debit && row.credit){
-      warnings.push(`Row ${row.rowIndex}: both debit and credit values found. Skipping record.`);
-    } else {
-      warnings.push(`Row ${row.rowIndex}: no debit or credit detected. Skipping record.`);
-    }
-  });
-
-  return {collections, expenses, warnings, flagged};
-}
-
-function matchBankRowToMember(row, matchByFlat = true){
-  const remarks = String(row.remarks || '').trim();
-  const result = {memberId:'', memberName:'', flat:'', floor:''};
-
-  if(matchByFlat){
-    const knownFlats = new Set(DB.members.map(m => String(fld(m,'flat','Flat') || '').trim()).filter(Boolean));
-    const flat = extractFlatFromRemarks(remarks, knownFlats);
-    if(flat){
-      result.flat = flat;
-      const member = findMemberByFlat(flat);
-      if(member){
-        result.memberName = fld(member,'name','Name','memberName','MemberName') || '';
-        result.memberId = fld(member,'id','Id','memberId','MemberId') || '';
-        result.floor = fld(member,'floor','Floor') || '';
-        return result;
-      }
-    }
-  }
-
-  // Fallback: try to match the payer's UPI display name against a known member's name.
-  const payerName = extractPayerName(remarks);
-  if(payerName){
-    const target = payerName.toLowerCase();
-    const member = DB.members.find(mem => String(fld(mem,'name','Name','memberName','MemberName') || '').toLowerCase() === target);
-    if(member){
-      result.memberName = fld(member,'name','Name','memberName','MemberName') || '';
-      result.memberId = fld(member,'id','Id','memberId','MemberId') || '';
-      result.flat = fld(member,'flat','Flat') || '';
-      result.floor = fld(member,'floor','Floor') || '';
-      return result;
-    }
-    result.memberName = payerName;
-  }
-
-  return result;
-}
-
-function getMonthFromDate(dateValue, numeric = false){
-  if(!dateValue) return numeric ? 0 : '';
-  const date = new Date(dateValue);
-  if(Number.isNaN(date.getTime())) return numeric ? 0 : '';
-  return numeric ? date.getMonth() + 1 : MONTHS[date.getMonth() + 1];
-}
-
-function getYearFromDate(dateValue){
-  if(!dateValue) return '';
-  const date = new Date(dateValue);
-  return Number.isNaN(date.getTime()) ? '' : date.getFullYear();
-}
-
-function clearBankImportState(){
-  window.bankImportData = null;
-  const previewEl = document.getElementById('bankPreview');
-  if(previewEl) previewEl.style.display = 'none';
-  showBankImportStatus('', 'info');
-}

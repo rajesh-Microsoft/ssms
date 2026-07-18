@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>NLC Aadya Society | Maintenance Portal</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="lp">
+
+<!-- ============ NAV ============ -->
+<header class="lp-nav">
+  <div class="lp-nav-inner">
+    <a href="#top" class="lp-logo">
+      <div class="logo-icon">🏢</div>
+      <div>
+        SMMS
+        <span class="lp-logo-sub">NLC Aadya Society</span>
+      </div>
+    </a>
+    <nav class="lp-links" id="lpLinks">
+      <a href="#top">Home</a>
+      <a href="#about">About Society</a>
+      <a href="#features">Features</a>
+      <a href="#how">How It Works</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <div class="lp-nav-actions">
+      <a class="btn btn-ghost" href="#" onclick="showLoginForm('Member');return false;">Member Login</a>
+      <a class="btn btn-primary" href="#" onclick="showLoginForm('Admin');return false;">Admin Login</a>
+      <button class="lp-menu-toggle" id="lpMenuToggle" type="button" aria-label="Toggle menu">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============ AUTH OVERLAYS (Member/Admin login, sign-up, forgot password) ============ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <button class="login-back" onclick="closeAuthOverlay()" type="button">← Back</button>
+    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <h2 style="text-align:center;margin-bottom:4px;" id="loginHeading">SMMS Login</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;" id="loginSubheading">NLC Aadya Society Maintenance Portal</p>
+
+    <div class="setting-row"><label>Username</label><input type="text" id="login-username" placeholder="Username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"></div>
+    <div class="setting-row"><label>Password</label><input type="password" id="login-password" placeholder="Password" onkeydown="if(event.key==='Enter')attemptLogin()"></div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="attemptLogin()">Login</button>
+    <div class="auth-links">
+      <a href="#" onclick="showForgot();return false;">Forgot password?</a>
+      <span class="auth-link-sep">·</span>
+      <a href="#" onclick="showSignup();return false;">New member? Sign up</a>
+    </div>
+  </div>
+</div>
+
+<div class="login-screen" id="signupScreen">
+  <div class="login-card wide">
+    <button class="login-back" onclick="closeAuthOverlay()" type="button">← Back</button>
+    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <h2 style="text-align:center;margin-bottom:4px;">Member Sign Up</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Request an account to view your society's collections &amp; expenses</p>
+
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name *</label><input type="text" id="su-name"></div>
+      <div class="form-group"><label>Flat Number *</label><input type="text" id="su-flat"></div>
+      <div class="form-group"><label>Floor *</label><select id="su-floor"></select></div>
+      <div class="form-group"><label>Mobile</label><input type="tel" id="su-mobile"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="su-email"></div>
+      <div class="form-group full"><label>Username *</label><input type="text" id="su-username"></div>
+      <div class="form-group"><label>Password *</label><input type="password" id="su-password" placeholder="Min 4 characters"></div>
+      <div class="form-group"><label>Confirm Password *</label><input type="password" id="su-password2"></div>
+      <div class="form-group full"><label>Security Question *</label><select id="su-secq"></select></div>
+      <div class="form-group full"><label>Security Answer *</label><input type="text" id="su-seca" placeholder="Used to verify you if you forget your password"></div>
+    </div>
+    <div class="login-error" id="signupError"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="submitSignup()">Create Account</button>
+    <div class="auth-links"><a href="#" onclick="showLoginForm('Member');return false;">Already have an account? Login</a></div>
+    <div style="font-size:10px;color:var(--sub);margin-top:10px;text-align:center;">Your account will be reviewed by an Admin before you can log in.</div>
+  </div>
+</div>
+
+<div class="login-screen" id="forgotScreen">
+  <div class="login-card">
+    <button class="login-back" onclick="closeAuthOverlay()" type="button">← Back</button>
+    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <h2 style="text-align:center;margin-bottom:4px;">Forgot Password</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Verify your identity to reset your password</p>
+
+    <div id="forgot-step1">
+      <div class="setting-row"><label>Username</label><input type="text" id="forgot-username" placeholder="Username" onkeydown="if(event.key==='Enter')findAccountForReset()"></div>
+      <div class="login-error" id="forgotError1"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="findAccountForReset()">Continue</button>
+    </div>
+
+    <div id="forgot-step2" style="display:none;">
+      <div class="setting-row"><label id="forgotQuestionLabel">Security Question</label><input type="text" id="forgot-answer" placeholder="Your answer" onkeydown="if(event.key==='Enter')verifySecurityAnswer()"></div>
+      <div class="login-error" id="forgotError2"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="verifySecurityAnswer()">Verify Answer</button>
+    </div>
+
+    <div id="forgot-step3" style="display:none;">
+      <div class="setting-row"><label>New Password</label><input type="password" id="forgot-newpw" placeholder="Min 4 characters"></div>
+      <div class="setting-row"><label>Confirm New Password</label><input type="password" id="forgot-newpw2"></div>
+      <div class="login-error" id="forgotError3"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="resetPasswordViaSecurity()">Reset Password</button>
+    </div>
+
+    <div class="auth-links"><a href="#" onclick="showLoginForm('Member');return false;">Back to Login</a></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ============ HERO ============ -->
+<section class="lp-hero" id="top">
+  <div class="lp-hero-inner">
+    <div class="lp-hero-text">
+      <h1>Welcome to NLC Aadya Society Maintenance Portal</h1>
+      <p>Manage maintenance, payments, notices, and community updates — all in one secure, easy-to-use portal designed for NLC Aadya residents.</p>
+      <div class="lp-hero-ctas">
+        <a class="btn btn-light btn-lg" href="#" onclick="showSignup();return false;">Become a Society Member</a>
+        <a class="btn btn-outline-light btn-lg" href="#" onclick="showLoginForm('Member');return false;">Member Login</a>
+      </div>
+      <div class="lp-badges">
+        <span>✅ Transparent maintenance billing</span>
+        <span>📢 Real-time notices &amp; updates</span>
+      </div>
+    </div>
+    <div class="lp-snapshot">
+      <h3>Society Snapshot</h3>
+      <div class="lp-snap-sub">At a glance overview for members</div>
+      <div class="lp-snap-row">
+        <div><span class="lp-snap-label">Status</span><span class="lp-snap-val">Live &amp; Secure</span></div>
+        <span>🟢</span>
+      </div>
+      <div class="lp-snap-row">
+        <div><span class="lp-snap-label">Residents</span><span class="lp-snap-val">Verified members only</span></div>
+        <span>✔️</span>
+      </div>
+      <div class="lp-snap-row">
+        <div><span class="lp-snap-label">Payments</span><span class="lp-snap-val">Tracked &amp; transparent</span></div>
+        <span>💳</span>
+      </div>
+      <div class="lp-snap-row">
+        <div><span class="lp-snap-label">Reminders</span><span class="lp-snap-val">Automatic due alerts</span></div>
+        <span>⏰</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section class="lp-section" id="about">
+  <div class="lp-section-inner">
+    <div class="lp-eyebrow">About Society</div>
+    <div class="lp-about-grid">
+      <div>
+        <h2>About NLC Aadya Society</h2>
+        <p class="lp-lead" style="margin-bottom:8px;">NLC Aadya is a well-planned residential community focused on safety, transparency, and a strong sense of togetherness among residents.</p>
+        <p class="lp-lead">The NLC Aadya Society brings residents together under a thoughtfully designed, secure campus, with clear and transparent management of maintenance and everyday operations. The Maintenance Portal helps residents stay informed, engaged, and in control of their payments and requests.</p>
+        <div class="lp-about-points">
+          <div>✓ <span>Well-planned residential society with modern amenities.</span></div>
+          <div>🔒 <span>Secure, community-driven environment for families.</span></div>
+          <div>📊 <span>Transparent maintenance charges &amp; billing history.</span></div>
+          <div>📢 <span>Central place for notices, updates, and reports.</span></div>
+        </div>
+      </div>
+      <div class="lp-glance">
+        <h4>Resident Focused</h4>
+        <div class="lp-glance-row"><span>Location</span><span>NLC Aadya Residential Society</span></div>
+        <div class="lp-glance-row"><span>Blocks / Towers</span><span>Multiple wings</span></div>
+        <div class="lp-glance-row"><span>Security</span><span>24x7 security &amp; access control</span></div>
+        <div class="lp-glance-row"><span>Maintenance</span><span>Online management through portal</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section class="lp-section lp-alt" id="features">
+  <div class="lp-section-inner">
+    <div class="lp-eyebrow">Features</div>
+    <h2>Everything your society needs, in one place</h2>
+    <p class="lp-lead">Simple tools that help residents stay updated, track payments, and view society finances — all from a secure member dashboard.</p>
+    <div class="lp-feature-grid">
+      <div class="lp-feature-card">
+        <div class="lp-fi">💰</div>
+        <h3>Maintenance Collections</h3>
+        <p>View who has paid, track due dates, and stay on top of monthly or quarterly maintenance with complete transparency.</p>
+      </div>
+      <div class="lp-feature-card">
+        <div class="lp-fi">🧾</div>
+        <h3>Expense Transparency</h3>
+        <p>See society spending broken down by category — security, housekeeping, repairs, and more.</p>
+      </div>
+      <div class="lp-feature-card">
+        <div class="lp-fi">📊</div>
+        <h3>Reports &amp; Insights</h3>
+        <p>Monthly summaries and annual overviews so residents always know where the society finances stand.</p>
+      </div>
+      <div class="lp-feature-card">
+        <div class="lp-fi">🔔</div>
+        <h3>Notices &amp; Reminders</h3>
+        <p>Stay updated on dues, circulars, and important society announcements without chasing anyone.</p>
+      </div>
+      <div class="lp-feature-card">
+        <div class="lp-fi">🔐</div>
+        <h3>Secure Member Dashboard</h3>
+        <p>Each member gets a secured, role-based login to access payments, records, and reports.</p>
+      </div>
+      <div class="lp-feature-card">
+        <div class="lp-fi">⏱</div>
+        <h3>Time-Saving &amp; Organized</h3>
+        <p>Reduce paperwork and manual follow-ups by managing everything digitally, with records available anytime.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="lp-section" id="how">
+  <div class="lp-section-inner">
+    <div class="lp-eyebrow">How It Works</div>
+    <h2>Getting started is simple</h2>
+    <p class="lp-lead">In just a few quick steps, you can get full access to your maintenance details, reports, and community updates.</p>
+    <div class="lp-steps">
+      <div class="lp-step">
+        <div class="lp-step-num">1</div>
+        <h3>Register as a Society Member</h3>
+        <p>Click "Become a Society Member" and complete a short registration form with your flat details and contact information.</p>
+      </div>
+      <div class="lp-step">
+        <div class="lp-step-num">2</div>
+        <h3>Login to your Dashboard</h3>
+        <p>Once approved by an Admin, use your username and password to securely log in to your Member Dashboard.</p>
+      </div>
+      <div class="lp-step">
+        <div class="lp-step-num">3</div>
+        <h3>View collections, expenses &amp; reports</h3>
+        <p>Track maintenance payments, review society expenses, and stay updated with reports — all from one place.</p>
+      </div>
+    </div>
+    <div class="lp-cta-row">
+      <div class="lp-cta-card">
+        <strong>New member?</strong>
+        <a href="#" onclick="showSignup();return false;">Register now →</a>
+      </div>
+      <div class="lp-cta-card">
+        <strong>Existing member?</strong>
+        Use your username &amp; password to <a href="#" onclick="showLoginForm('Member');return false;">log in</a>.
+      </div>
+      <div class="lp-cta-card">
+        <strong>Support</strong>
+        Society office during working hours.
+      </div>
+      <div class="lp-cta-card">
+        <strong>Access</strong>
+        Protected by secure login and role-based access.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CONTACT ============ -->
+<section class="lp-section lp-alt" id="contact">
+  <div class="lp-section-inner">
+    <div class="lp-eyebrow">Contact</div>
+    <h2>Get in touch with the society office</h2>
+    <p class="lp-lead">For registration support, payment queries, or general assistance, feel free to connect using the details below.</p>
+    <div class="lp-contact-grid">
+      <div class="lp-contact-card">
+        <div class="lp-fi">✉️</div>
+        <h4>Email</h4>
+        <div class="lp-contact-val">office@nlcaadya-society.in</div>
+      </div>
+      <div class="lp-contact-card">
+        <div class="lp-fi">📞</div>
+        <h4>Phone</h4>
+        <div class="lp-contact-val">+91-XXXXX-XXXXX</div>
+      </div>
+      <div class="lp-contact-card">
+        <div class="lp-fi">🕒</div>
+        <h4>Office Hours</h4>
+        <div class="lp-contact-val">Mon–Sat, 10:00 AM – 6:00 PM</div>
+      </div>
+      <div class="lp-contact-card">
+        <div class="lp-fi">📍</div>
+        <h4>Address</h4>
+        <div class="lp-contact-val">NLC Aadya Residential Society<br>(Full address to be added here)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="lp-footer">
+  <div><strong>NLC Aadya Society Maintenance Portal</strong></div>
+  <div>© <span id="lpYear"></span> NLC Aadya Society. All rights reserved.</div>
+</footer>
+
+<script src="api.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════
+// AUTH — Member/Admin login, sign-up, forgot-password.
+// This is the ONLY place authentication happens now; index.html (the
+// dashboard) trusts a session handed off via sessionStorage after a
+// successful login here, and never shows any login UI itself.
+// All accounts now live in the SQL database behind api/SMMS.Api —
+// every call below goes through api.js (Api.*) instead of any
+// client-side user list.
+// ════════════════════════════════════════════════════════════
+let DB = { settings: { floors:['1','2','3','4','5'] } };
+
+function toast(msg,type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=type==='warn'?'#c53030':type==='info'?'#2b6cb0':'#276749';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',2800);
+}
+
+const SECURITY_QUESTIONS = [
+  'What was the name of your first pet?',
+  'What is your mother\'s maiden name?',
+  'What was the name of your first school?',
+  'What is your favourite city?',
+  'What was your childhood nickname?'
+];
+
+function closeAuthOverlay(){
+  ['loginScreen','signupScreen','forgotScreen'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+}
+
+function showLoginForm(intendedRole){
+  closeAuthOverlay();
+  document.getElementById('loginScreen').style.display = 'flex';
+  const heading = document.getElementById('loginHeading');
+  const sub = document.getElementById('loginSubheading');
+  // Cosmetic hint only — the actual role always comes from the API's
+  // login response in attemptLogin(), never from which link was clicked.
+  heading.textContent = intendedRole === 'Admin' ? 'Admin Login' : 'Member Login';
+  sub.textContent = intendedRole === 'Admin'
+    ? 'Sign in with your Admin credentials'
+    : 'Sign in with the credentials shared by your Admin';
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('login-username').focus();
+}
+
+function populateAuthDropdowns(){
+  const floorSel = document.getElementById('su-floor');
+  if(floorSel) floorSel.innerHTML = DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join('');
+  const secqSel = document.getElementById('su-secq');
+  if(secqSel) secqSel.innerHTML = SECURITY_QUESTIONS.map(q=>`<option>${q}</option>`).join('');
+}
+
+function showSignup(){
+  closeAuthOverlay();
+  populateAuthDropdowns();
+  document.getElementById('signupScreen').style.display = 'flex';
+  document.getElementById('signupError').textContent = '';
+}
+
+async function submitSignup(){
+  const errEl = document.getElementById('signupError');
+  errEl.textContent = '';
+  const name = document.getElementById('su-name').value.trim();
+  const flat = document.getElementById('su-flat').value.trim();
+  const floor = document.getElementById('su-floor').value;
+  const mobile = document.getElementById('su-mobile').value.trim();
+  const email = document.getElementById('su-email').value.trim();
+  const username = document.getElementById('su-username').value.trim();
+  const pw = document.getElementById('su-password').value;
+  const pw2 = document.getElementById('su-password2').value;
+  const secq = document.getElementById('su-secq').value;
+  const seca = document.getElementById('su-seca').value.trim();
+
+  if(!name || !flat || !username || !pw || !secq || !seca){ errEl.textContent = 'Please fill all required (*) fields.'; return; }
+  if(pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
+  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
+
+  try{
+    await Api.signup({
+      name, flat, floor, mobile, email, username,
+      password: pw, securityQuestion: secq, securityAnswer: seca
+    });
+    ['su-name','su-flat','su-mobile','su-email','su-username','su-password','su-password2','su-seca'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    toast('Account request submitted! An Admin will review and activate it.', 'info');
+    showLoginForm('Member');
+  }catch(err){
+    errEl.textContent = err.message || 'Sign up failed.';
+  }
+}
+
+// ── FORGOT PASSWORD ──
+// The API's reset endpoint is stateless (username + security answer + new
+// password all in one call), so the security-answer "verification" step
+// below is just a UX gate — the real check happens when the reset is
+// submitted; a wrong answer sends the user back to re-enter it.
+let forgotState = { username: '', answer: '' };
+
+function showForgot(){
+  closeAuthOverlay();
+  document.getElementById('forgotScreen').style.display = 'flex';
+  forgotState = { username: '', answer: '' };
+  document.getElementById('forgot-step1').style.display = '';
+  document.getElementById('forgot-step2').style.display = 'none';
+  document.getElementById('forgot-step3').style.display = 'none';
+  ['forgot-username','forgot-answer','forgot-newpw','forgot-newpw2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  ['forgotError1','forgotError2','forgotError3'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=''; });
+}
+
+async function findAccountForReset(){
+  const errEl = document.getElementById('forgotError1');
+  errEl.textContent = '';
+  const username = document.getElementById('forgot-username').value.trim();
+  if(!username){ errEl.textContent = 'Enter your username.'; return; }
+  try{
+    const res = await Api.securityQuestion(username);
+    forgotState.username = username;
+    document.getElementById('forgotQuestionLabel').textContent = res.securityQuestion;
+    document.getElementById('forgot-step1').style.display = 'none';
+    document.getElementById('forgot-step2').style.display = '';
+    document.getElementById('forgot-answer').focus();
+  }catch(err){
+    errEl.textContent = err.message || 'No recovery option is set up for this account. Please contact your Admin.';
+  }
+}
+
+function verifySecurityAnswer(){
+  const errEl = document.getElementById('forgotError2');
+  errEl.textContent = '';
+  const answer = document.getElementById('forgot-answer').value.trim();
+  if(!answer){ errEl.textContent = 'Enter your answer.'; return; }
+  forgotState.answer = answer;
+  document.getElementById('forgot-step2').style.display = 'none';
+  document.getElementById('forgot-step3').style.display = '';
+  document.getElementById('forgot-newpw').focus();
+}
+
+async function resetPasswordViaSecurity(){
+  const errEl = document.getElementById('forgotError3');
+  errEl.textContent = '';
+  const pw = document.getElementById('forgot-newpw').value;
+  const pw2 = document.getElementById('forgot-newpw2').value;
+  if(!pw || pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
+  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
+
+  try{
+    await Api.resetPassword({ username: forgotState.username, securityAnswer: forgotState.answer, newPassword: pw });
+    toast('Password reset! You can now log in.', 'success');
+    showLoginForm('Member');
+  }catch(err){
+    // Most likely cause is a wrong security answer — send the user back to re-enter it.
+    document.getElementById('forgot-step3').style.display = 'none';
+    document.getElementById('forgot-step2').style.display = '';
+    document.getElementById('forgotError2').textContent = err.message || 'Incorrect answer.';
+  }
+}
+
+async function attemptLogin(){
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if(!username || !password){ errEl.textContent = 'Enter username and password.'; return; }
+
+  try{
+    const res = await Api.login(username, password);
+    // Hand the authenticated session (JWT + user info) off to index.html
+    // (the dashboard) — we only ever navigate away from home.html after a
+    // successful login.
+    apiSetSession(res.token, res.userId, res.username, res.role);
+    window.location.href = 'index.html';
+  }catch(err){
+    errEl.textContent = '❌ ' + (err.message || 'Invalid username or password.');
+  }
+}
+</script>
+<script>
+  document.getElementById('lpYear').textContent = new Date().getFullYear();
+  const menuToggle = document.getElementById('lpMenuToggle');
+  const links = document.getElementById('lpLinks');
+  menuToggle.addEventListener('click', () => links.classList.toggle('open'));
+  links.querySelectorAll('a').forEach(a => a.addEventListener('click', () => links.classList.remove('open')));
+</script>
+</body>
+</html>

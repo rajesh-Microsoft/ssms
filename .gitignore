@@ -12,6 +12,9 @@ api/**/bin/
 api/**/obj/
 *.user
 
+# IDE cache (Visual Studio)
+api/**/.vs/
+
 # OS
 Thumbs.db
 .DS_Store

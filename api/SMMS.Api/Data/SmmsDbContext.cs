@@ -11,6 +11,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
     public DbSet<SocietySettings> Settings => Set<SocietySettings>();
+    public DbSet<Complaint> Complaints => Set<Complaint>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,6 +25,12 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .HasOne(c => c.Member)
             .WithMany(m => m.Collections)
             .HasForeignKey(c => c.MemberId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Complaint>()
+            .HasOne(c => c.RaisedByUser)
+            .WithMany()
+            .HasForeignKey(c => c.RaisedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

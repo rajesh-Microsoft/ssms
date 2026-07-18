@@ -9,7 +9,7 @@ public class SocietySettings
     public int Id { get; set; }
 
     [Required, MaxLength(150)]
-    public string SocietyName { get; set; } = "Our Society";
+    public string SocietyName { get; set; } = "NLC Aadya";
 
     [MaxLength(300)]
     public string? Address { get; set; }

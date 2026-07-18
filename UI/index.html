@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>SMMS – Society Maintenance</title>
+<title>NLC Aadya – Society Maintenance Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="styles.css">
@@ -11,124 +11,10 @@
 </head>
 <body class="logged-out">
 
-<div class="home-screen" id="homeScreen">
-  <div class="home-hero">
-    <div class="logo-icon" style="margin:0 auto 16px;">🏢</div>
-    <h1 id="homeSocietyName">Society Maintenance Management System</h1>
-    <p class="tagline">Transparent tracking of maintenance collections, expenses, and society finances — for every resident.</p>
-
-    <div class="home-features">
-      <div class="home-feature"><div class="hf-icon">💰</div><div class="hf-title">Collections</div><div class="hf-sub">See who has paid and what's pending</div></div>
-      <div class="home-feature"><div class="hf-icon">🧾</div><div class="hf-title">Expenses</div><div class="hf-sub">View society spending by category</div></div>
-      <div class="home-feature"><div class="hf-icon">📊</div><div class="hf-title">Reports</div><div class="hf-sub">Monthly summaries &amp; annual overview</div></div>
-      <div class="home-feature"><div class="hf-icon">🔔</div><div class="hf-title">Reminders</div><div class="hf-sub">Stay updated on dues &amp; notices</div></div>
-    </div>
-
-    <div class="home-login-row">
-      <div class="home-login-card" onclick="showLoginForm('Member')">
-        <div class="hl-icon">🔑</div>
-        <div class="hl-title">Member Login</div>
-        <div class="hl-sub">View collections, expenses &amp; reports (read-only)</div>
-      </div>
-      <div class="home-login-card admin" onclick="showLoginForm('Admin')">
-        <div class="hl-icon">🔐</div>
-        <div class="hl-title">Admin Login</div>
-        <div class="hl-sub">Full access to manage the society's data</div>
-      </div>
-    </div>
-    <div class="auth-links" style="margin-top:18px;"><a href="#" onclick="showSignup();return false;">New member? Sign up here</a></div>
-  </div>
-</div>
-
-<div class="login-screen" id="loginScreen">
-  <div class="login-card">
-    <button class="login-back" onclick="showHome()" type="button">← Back</button>
-    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
-    <h2 style="text-align:center;margin-bottom:4px;" id="loginHeading">SMMS Login</h2>
-    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;" id="loginSubheading">Society Maintenance Management System</p>
-
-    <div class="setting-row">
-      <label>Society Data File</label>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-ghost" onclick="openExcelFile()" type="button">📂 Load Data File</button>
-        <span id="loginFileStatus" style="font-size:11px;color:var(--sub);">Not loaded</span>
-      </div>
-      <div style="font-size:10px;color:var(--sub);margin-top:2px;">First time using this app? Admin can log in below without loading a file, then load/save the shared file from Import / Export.</div>
-    </div>
-
-    <div class="setting-row"><label>Username</label><input type="text" id="login-username" placeholder="Username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"></div>
-    <div class="setting-row"><label>Password</label><input type="password" id="login-password" placeholder="Password" onkeydown="if(event.key==='Enter')attemptLogin()"></div>
-    <div class="login-error" id="loginError"></div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="attemptLogin()">Login</button>
-    <div class="auth-links">
-      <a href="#" onclick="showForgot();return false;">Forgot password?</a>
-      <span class="auth-link-sep">·</span>
-      <a href="#" onclick="showSignup();return false;">New member? Sign up</a>
-    </div>
-    <div style="font-size:10px;color:var(--sub);margin-top:12px;text-align:center;">Default admin login: <strong>Admin</strong> / <strong>admin123</strong> (change this immediately in Admin Panel)</div>
-  </div>
-</div>
-
-<div class="login-screen" id="signupScreen">
-  <div class="login-card wide">
-    <button class="login-back" onclick="showHome()" type="button">← Back</button>
-    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
-    <h2 style="text-align:center;margin-bottom:4px;">Member Sign Up</h2>
-    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Request an account to view your society's collections &amp; expenses</p>
-
-    <div class="form-grid">
-      <div class="form-group full"><label>Full Name *</label><input type="text" id="su-name"></div>
-      <div class="form-group"><label>Flat Number *</label><input type="text" id="su-flat"></div>
-      <div class="form-group"><label>Floor *</label><select id="su-floor"></select></div>
-      <div class="form-group"><label>Mobile</label><input type="tel" id="su-mobile"></div>
-      <div class="form-group"><label>Email</label><input type="email" id="su-email"></div>
-      <div class="form-group full"><label>Username *</label><input type="text" id="su-username"></div>
-      <div class="form-group"><label>Password *</label><input type="password" id="su-password" placeholder="Min 4 characters"></div>
-      <div class="form-group"><label>Confirm Password *</label><input type="password" id="su-password2"></div>
-      <div class="form-group full"><label>Security Question *</label><select id="su-secq"></select></div>
-      <div class="form-group full"><label>Security Answer *</label><input type="text" id="su-seca" placeholder="Used to verify you if you forget your password"></div>
-    </div>
-    <div class="login-error" id="signupError"></div>
-    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="submitSignup()">Create Account</button>
-    <div class="auth-links"><a href="#" onclick="showLoginForm('Member');return false;">Already have an account? Login</a></div>
-    <div style="font-size:10px;color:var(--sub);margin-top:10px;text-align:center;">Your account will be reviewed by an Admin before you can log in.</div>
-  </div>
-</div>
-
-<div class="login-screen" id="forgotScreen">
-  <div class="login-card">
-    <button class="login-back" onclick="showHome()" type="button">← Back</button>
-    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
-    <h2 style="text-align:center;margin-bottom:4px;">Forgot Password</h2>
-    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Verify your identity to reset your password</p>
-
-    <div id="forgot-step1">
-      <div class="setting-row"><label>Username</label><input type="text" id="forgot-username" placeholder="Username" onkeydown="if(event.key==='Enter')findAccountForReset()"></div>
-      <div class="login-error" id="forgotError1"></div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="findAccountForReset()">Continue</button>
-    </div>
-
-    <div id="forgot-step2" style="display:none;">
-      <div class="setting-row"><label id="forgotQuestionLabel">Security Question</label><input type="text" id="forgot-answer" placeholder="Your answer" onkeydown="if(event.key==='Enter')verifySecurityAnswer()"></div>
-      <div class="login-error" id="forgotError2"></div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="verifySecurityAnswer()">Verify Answer</button>
-    </div>
-
-    <div id="forgot-step3" style="display:none;">
-      <div class="setting-row"><label>New Password</label><input type="password" id="forgot-newpw" placeholder="Min 4 characters"></div>
-      <div class="setting-row"><label>Confirm New Password</label><input type="password" id="forgot-newpw2"></div>
-      <div class="login-error" id="forgotError3"></div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="resetPasswordViaSecurity()">Reset Password</button>
-    </div>
-
-    <div class="auth-links"><a href="#" onclick="showLoginForm('Member');return false;">Back to Login</a></div>
-  </div>
-</div>
-
 <div class="sidebar">
   <div class="logo">
     <div class="logo-icon">🏢</div>
-    <div class="logo-text">SMMS<span id="societyLogoSub">Yuvaan and Vihaa Society</span></div>
+    <div class="logo-text">SMMS<span id="societyLogoSub">NLC Aadya</span></div>
   </div>
   <nav>
     <div class="nav-sec">Main</div>
@@ -138,9 +24,10 @@
     <div class="nav-item" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
     <div class="nav-sec">Management</div>
     <div class="nav-item" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
+    <div class="nav-item" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
     <div class="nav-item" onclick="showTab('reports',this)"><span class="ni">📋</span> Reports</div>
     <div class="nav-sec">System</div>
-    <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">📥</span> Import / Export</div>
+    <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">�</span> Export</div>
     <div class="nav-item" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
     <div class="nav-item admin-only" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
@@ -167,7 +54,7 @@
         <option value="10">October</option><option value="11">November</option><option value="12">December</option>
       </select>
       <select id="topYear" onchange="onTopFilterChange()" style="width:auto;"></select>
-      <span id="saveStatus" style="font-size:12px;color:green;font-weight:600;">🟢 Synced</span><button class="btn btn-success" onclick="openExcelFile()">📂 Open Excel</button><button class="btn btn-success admin-only" onclick="saveToExcel()">💾 Save Excel</button>
+      <span id="saveStatus" style="font-size:12px;color:green;font-weight:600;">🟢 Synced</span><button class="btn btn-success admin-only" onclick="saveToExcel()">💾 Save Excel</button>
       <button class="theme-btn" onclick="toggleTheme()">🌙</button>
     </div>
   </div>
@@ -262,6 +149,32 @@
       </div>
     </div>
 
+    <!-- COMPLAINTS -->
+    <div id="tab-complaints" class="tab-content">
+      <div class="card">
+        <div class="card-hdr">
+          <h3>Complaints</h3>
+          <div class="search-row">
+            <input type="text" id="cmpSearch" placeholder="🔍 Search..." oninput="renderComplaints()" style="width:160px;">
+            <select id="cmpStatusF" onchange="renderComplaints()" style="width:auto;">
+              <option value="">All Statuses</option>
+              <option>Open</option>
+              <option>In Progress</option>
+              <option>Resolved</option>
+              <option>Closed</option>
+            </select>
+            <button class="btn btn-primary" onclick="openModal('cmp')">＋ Raise Complaint</button>
+          </div>
+        </div>
+        <div id="cmp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+        <div class="tbl-wrap">
+          <table><thead><tr><th>#</th><th>Date</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Raised By</th><th>Actions</th></tr></thead>
+          <tbody id="cmp-tbody"></tbody></table>
+        </div>
+        <div class="pagination" id="cmp-pagination"></div>
+      </div>
+    </div>
+
     <!-- REPORTS -->
     <div id="tab-reports" class="tab-content">
       <div class="report-grid">
@@ -286,19 +199,9 @@
       </div>
     </div>
 
-    <!-- IMPORT/EXPORT -->
+    <!-- EXPORT -->
     <div id="tab-importexport" class="tab-content">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-        <div class="card">
-          <h3 style="margin-bottom:14px;">📥 Import Excel</h3>
-          <div class="file-zone" onclick="openExcelFile()">
-            <div style="font-size:32px;">📂</div>
-            <p>Click to select your Excel file (.xlsx)</p>
-            <p style="font-size:11px;margin-top:4px;">Sheets: Members, Collections, Expenses</p>
-          </div>
-          <input type="file" id="xlImport" accept=".xlsx,.xls" style="display:none" onchange="importExcel(event)">
-          <div id="import-status" style="margin-top:12px;font-size:12px;color:var(--sub);"></div>
-        </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:14px;max-width:480px;">
         <div class="card">
           <h3 style="margin-bottom:14px;">📤 Export Options</h3>
           <div style="display:flex;flex-direction:column;gap:10px;">
@@ -360,39 +263,6 @@
           <div class="admin-only" style="display:flex;gap:6px;"><input type="text" id="new-cat" placeholder="New category..."><button class="btn btn-primary" onclick="addCategory()">＋</button></div>
         </div>
       </div>
-      
-<div class="settings-section admin-only">
-  <h4>🏦 Monthly Bank Statement Import (Admin Only)</h4>
-  <div style="font-size:11px;color:var(--sub);margin-bottom:10px;">1. Download this month's statement from your bank's app/site. 2. Upload it below. 3. Click Analyze to preview, then Generate to add it to Collections &amp; Expenses and save — everyone opening the shared file will see the update.</div>
-  <div style="font-size:11px;color:var(--warn);margin-bottom:10px;">💡 Tip: ask residents to start the UPI remark/note with their flat number, e.g. "Flat 203 Maintenance" — put it <strong>first</strong>, since some bank apps truncate long notes. This lets the import auto-match the payment to the right flat.</div>
-  <div class="setting-row">
-    <label>Bank</label>
-    <select id="bankType">
-      <option>ICICI</option>
-      <option>HDFC (Future)</option>
-      <option>SBI (Future)</option>
-      <option>Axis (Future)</option>
-    </select>
-  </div>
-  <div class="setting-row">
-    <label>Bank Statement</label>
-    <input type="file" id="bankStatementFile" accept=".xlsx,.xls,.csv">
-  </div>
-  <div class="setting-row">
-    <label><input type="checkbox" id="autoCreateCollections" checked> Auto-create Collections</label>
-    <label><input type="checkbox" id="autoCreateExpenses" checked> Auto-create Expenses</label>
-    <label><input type="checkbox" id="matchByFlat" checked> Match by Flat Number First</label>
-    <label><input type="checkbox" id="createAuditEntry" checked> Create Audit Log Entry</label>
-    <label><input type="checkbox" id="backupWorkbook" checked> Backup Workbook Before Import</label>
-  </div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
-    <button class="btn btn-primary" onclick="analyzeBankStatement()">🔍 Analyze Statement</button>
-    <button class="btn btn-success" onclick="generateBankImport()">⚡ Import &amp; Publish to Society</button>
-  </div>
-  <div id="bankImportStatus" style="margin-top:10px;font-size:12px;"></div>
-<div id="bankPreview" style="margin-top:12px;border:1px solid var(--border);padding:10px;border-radius:10px;display:none;"></div>
-
-</div>
 
 <div style="margin-top:14px;display:flex;gap:8px;" class="admin-only">
         <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
@@ -483,6 +353,29 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-cmp">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="cmp-modal-title">Raise Complaint</h3><button class="modal-close" onclick="closeModal('cmp')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Subject *</label><input type="text" id="cmp-subject"></div>
+      <div class="form-group"><label>Category *</label><select id="cmp-category"></select></div>
+      <div class="form-group"><label>Priority</label><select id="cmp-priority"><option>Low</option><option selected>Medium</option><option>High</option></select></div>
+      <div class="form-group full"><label>Description *</label><textarea id="cmp-desc"></textarea></div>
+      <div id="cmp-admin-fields" class="form-group full" style="display:none;padding:0;">
+        <div class="form-grid" style="padding:0;">
+          <div class="form-group"><label>Status</label><select id="cmp-status"><option>Open</option><option>In Progress</option><option>Resolved</option><option>Closed</option></select></div>
+          <div class="form-group"><label>Assigned To</label><input type="text" id="cmp-assigned"></div>
+          <div class="form-group full"><label>Resolution Notes</label><textarea id="cmp-notes"></textarea></div>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('cmp')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveComplaint()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-user">
   <div class="modal">
     <div class="modal-hdr"><h3>Add User</h3><button class="modal-close" onclick="closeModal('user')">✕</button></div>
@@ -513,6 +406,7 @@
   </div>
 </div>
 
+<script src="api.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
