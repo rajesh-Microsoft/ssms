@@ -1,6 +1,10 @@
-@SMMS.Api_HostAddress = http://localhost:5265
+@SMMS.Api_HostAddress = https://localhost:7253
 
-GET {{SMMS.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Login
+POST {{SMMS.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
 
-###
+{
+  "username": "",
+  "password": ""
+}
