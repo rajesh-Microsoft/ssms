@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: YourStrong@Passw0rd
+
+    ports:
+      - "1433:1433"
+
+    volumes:
+      - sql_data:/var/opt/mssql
+
+  smms-api:
+
+    build:
+      context: ./api/SMMS.Api
+
+    container_name: smms-api
+
+    depends_on:
+      - sqlserver
+
+    environment:
+
+      ASPNETCORE_ENVIRONMENT: Development
+
+      Tenants__aadya__DisplayName: NLC Aadya
+
+      Tenants__aadya__ConnectionString: Server=sqlserver;Database=SmmsDb_Aadya;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True
+
+      Tenants__aaradya__DisplayName: NLC Aaradya
+
+      Tenants__aaradya__ConnectionString: Server=sqlserver;Database=SmmsDb_Aaradya;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True
+
+      Jwt__Key: ThisIsAVeryLongDevelopmentSecretKey123456789
+
+      Jwt__Issuer: SMMS.Api
+
+      Jwt__Audience: SMMS.Client
+
+    ports:
+      - "7253:8080"
+
+  smms-ui:
+    image: nginx:alpine
+    container_name: smms-ui
+
+    ports:
+      - "8080:80"
+
+    volumes:
+      - ./UI:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+    depends_on:
+      - smms-api
+
+    
+volumes:
+
+  sql_data:

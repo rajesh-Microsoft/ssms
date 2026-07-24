@@ -5,6 +5,10 @@ body{display:flex;min-height:100vh;background:var(--bg);color:var(--text);transi
 .sidebar{width:210px;min-height:100vh;background:var(--sidebar);position:fixed;top:0;left:0;z-index:200;display:flex;flex-direction:column;}
 .logo{padding:16px 14px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px;}
 .logo-icon{width:34px;height:34px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+.sidebar-logo-img{width:100%;height:auto;background:#fff;border-radius:8px;padding:8px;display:block;}
+.lp-logo-img{height:40px;width:auto;display:block;}
+.auth-logo{display:flex;justify-content:center;margin-bottom:12px;}
+.auth-logo-img{max-height:56px;max-width:220px;width:auto;height:auto;display:block;}
 .logo-text{color:#fff;font-size:13px;font-weight:700;line-height:1.2;}
 .logo-text span{display:block;font-size:10px;color:#718096;font-weight:400;}
 nav{flex:1;padding:10px 0;overflow-y:auto;}
@@ -135,7 +139,10 @@ body.logged-out .sidebar,body.logged-out .main{display:none;}
 .auth-links a:hover{text-decoration:underline;}
 .auth-link-sep{color:var(--sub);margin:0 8px;}
 body.role-member .admin-only{display:none !important;}
-body.role-member .act-btns{display:none !important;}
+/* Per-row action buttons (edit/delete) are now conditionally rendered per-module
+   based on granular permissions (see app.js canEdit()) instead of a blanket
+   Admin-only CSS rule, so a Member granted "Edit" on a specific module still
+   sees their action buttons there. */
 
 /* ============================================================
    PUBLIC LANDING PAGE (home.html) — first page every resident
@@ -220,4 +227,31 @@ body.lp{display:block;min-height:auto;}
   .lp-menu-toggle{display:block;}
   .lp-about-grid{grid-template-columns:1fr;}
   .lp-hero-text h1{font-size:26px;}
+}
+
+/* ============================================================
+   MOBILE / RESPONSIVE — dashboard app shell (index.html)
+   ============================================================ */
+.menu-toggle{display:none;background:none;border:none;font-size:20px;cursor:pointer;color:var(--text);padding:2px 6px;line-height:1;}
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;}
+
+@media (max-width:768px){
+  .sidebar{transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.45);}
+  .sidebar.mobile-open{transform:translateX(0);}
+  .sidebar-backdrop.show{display:block;}
+  .main{margin-left:0;}
+  .menu-toggle{display:inline-flex;}
+  .content{padding:14px 12px;}
+  .topbar{padding:10px 12px;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+  .chart-row{grid-template-columns:1fr;}
+  .settings-grid{grid-template-columns:1fr;}
+  .report-grid{grid-template-columns:1fr;}
+  .form-grid{grid-template-columns:1fr;}
+}
+@media (max-width:480px){
+  .kpi-grid{grid-template-columns:1fr;}
+  .page-title{font-size:14px;}
+  .modal{padding:16px;}
+  .card{padding:12px;}
 }

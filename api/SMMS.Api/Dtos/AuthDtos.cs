@@ -10,7 +10,8 @@ public record LoginResponse(
     string Token,
     int UserId,
     string Username,
-    string Role);
+    string Role,
+    Dictionary<string, string> Permissions);
 
 public record SignupRequest(
     [Required, MaxLength(150)] string Name,

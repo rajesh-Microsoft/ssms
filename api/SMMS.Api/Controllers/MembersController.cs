@@ -18,6 +18,7 @@ public class MembersController(SmmsDbContext db, AuditService audit) : Controlle
     [HttpGet]
     public async Task<ActionResult<IEnumerable<MemberDto>>> GetAll()
     {
+        if (!User.CanView(PermissionModules.Members)) return Forbid();
         var members = await db.Members.OrderBy(m => m.Name).ToListAsync();
         return Ok(members.Select(ToDto));
     }
@@ -25,14 +26,15 @@ public class MembersController(SmmsDbContext db, AuditService audit) : Controlle
     [HttpGet("{id:int}")]
     public async Task<ActionResult<MemberDto>> GetById(int id)
     {
+        if (!User.CanView(PermissionModules.Members)) return Forbid();
         var member = await db.Members.FindAsync(id);
         return member is null ? NotFound() : Ok(ToDto(member));
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<MemberDto>> Create(MemberUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Members)) return Forbid();
         var member = new Member
         {
             Name = request.Name,
@@ -49,9 +51,9 @@ public class MembersController(SmmsDbContext db, AuditService audit) : Controlle
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, MemberUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Members)) return Forbid();
         var member = await db.Members.FindAsync(id);
         if (member is null) return NotFound();
 
@@ -67,9 +69,9 @@ public class MembersController(SmmsDbContext db, AuditService audit) : Controlle
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!User.CanEdit(PermissionModules.Members)) return Forbid();
         var member = await db.Members.FindAsync(id);
         if (member is null) return NotFound();
 

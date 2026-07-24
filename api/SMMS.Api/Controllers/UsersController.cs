@@ -16,7 +16,8 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
 {
     private static readonly PasswordHasher<User> Hasher = new();
 
-    private static UserDto ToDto(User u) => new(u.Id, u.Username, u.Role, u.Email, u.Status);
+    private static UserDto ToDto(User u) => new(
+        u.Id, u.Username, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status, PermissionHelper.Parse(u.Permissions));
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
@@ -36,7 +37,11 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
             Username = request.Username,
             Role = request.Role,
             Status = request.Status,
-            Email = request.Email
+            Email = request.Email,
+            Mobile = request.Mobile,
+            Flat = request.Flat,
+            Floor = request.Floor,
+            Permissions = request.Permissions is null ? null : PermissionHelper.Serialize(request.Permissions)
         };
         user.PasswordHash = Hasher.HashPassword(user, request.Password);
 
@@ -44,6 +49,33 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
         await db.SaveChangesAsync();
         await audit.LogAsync("Users", "Add", $"Added user: {user.Username}");
         return CreatedAtAction(nameof(GetAll), new { }, ToDto(user));
+    }
+
+    [HttpPut("{id:int}")]
+    public async Task<IActionResult> Update(int id, UserUpdateRequest request)
+    {
+        var user = await db.Users.FindAsync(id);
+        if (user is null) return NotFound();
+
+        var usernameTaken = await db.Users.AnyAsync(u => u.Id != id && u.Username.ToLower() == request.Username.ToLower());
+        if (usernameTaken) return Conflict(new { message = "Username already exists." });
+
+        if (user.Role == "Admin" && request.Role != "Admin" && await db.Users.CountAsync(u => u.Role == "Admin") <= 1)
+            return BadRequest(new { message = "Cannot demote the last remaining Admin." });
+
+        user.Username = request.Username;
+        user.Role = request.Role;
+        user.Status = request.Status;
+        user.Email = request.Email;
+        user.Mobile = request.Mobile;
+        user.Flat = request.Flat;
+        user.Floor = request.Floor;
+        if (request.Permissions is not null)
+            user.Permissions = PermissionHelper.Serialize(request.Permissions);
+
+        await db.SaveChangesAsync();
+        await audit.LogAsync("Users", "Update", $"Updated user: {user.Username}");
+        return Ok(ToDto(user));
     }
 
     [HttpPost("{id:int}/approve")]

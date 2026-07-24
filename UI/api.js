@@ -4,13 +4,14 @@
 // app.js (dashboard data). The JWT issued at login is stored in
 // sessionStorage and sent as a Bearer token on every request.
 // ════════════════════════════════════════════════════════════
-const API_BASE = 'https://localhost:7253/api';
+// const API_BASE = 'https://localhost:7253/api';
+const API_BASE = '/api';
 
 function apiGetToken(){ return sessionStorage.getItem('smms_token'); }
 
-function apiSetSession(token, id, username, role){
+function apiSetSession(token, id, username, role, permissions){
   sessionStorage.setItem('smms_token', token);
-  sessionStorage.setItem('smms_session', JSON.stringify({ id, username, role }));
+  sessionStorage.setItem('smms_session', JSON.stringify({ id, username, role, permissions: permissions || {} }));
 }
 
 function apiClearSession(){
@@ -89,6 +90,7 @@ const Api = {
   // Users (Admin panel)
   getUsers: () => apiFetch('/users'),
   createUser: (payload) => apiFetch('/users', { method: 'POST', body: JSON.stringify(payload) }),
+  updateUser: (id, payload) => apiFetch(`/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   approveUser: (id) => apiFetch(`/users/${id}/approve`, { method: 'POST' }),
   resetUserPassword: (id, newPassword) => apiFetch(`/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) }),
   deleteUser: (id) => apiFetch(`/users/${id}`, { method: 'DELETE' }),
@@ -102,3 +104,24 @@ const Api = {
   updateComplaint: (id, payload) => apiFetch(`/complaints/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteComplaint: (id) => apiFetch(`/complaints/${id}`, { method: 'DELETE' })
 };
+
+/* ---- Tenant logo: shows /logo/<subdomain>.png, falls back to emoji+text ---- */
+function smmsTenantKey(){
+  const h = (location.hostname || '').split('.')[0].toLowerCase();
+  if(!h || h === 'www' || h === 'localhost' || /^\d+$/.test(h)) return '';
+  return h;
+}
+function applyTenantLogo(){
+  const key = smmsTenantKey();
+  if(!key) return;                       // no subdomain -> keep placeholder
+  const src = 'logo/' + key + '.png';
+  [['sidebarLogo','logoFallback'], ['lpLogo','lpLogoFallback']].forEach(function(pair){
+    const img = document.getElementById(pair[0]);
+    const fb  = document.getElementById(pair[1]);
+    if(!img) return;                     // element only exists on the relevant page
+    img.onload  = function(){ img.style.display = 'block'; if(fb) fb.style.display = 'none'; };
+    img.onerror = function(){ /* no file for this tenant -> keep fallback */ };
+    img.src = src;
+  });
+}
+document.addEventListener('DOMContentLoaded', applyTenantLogo);

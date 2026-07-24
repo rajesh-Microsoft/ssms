@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>NLC Aadya Society | Maintenance Portal</title>
+<title id="pageTitle">SMMS | Society Maintenance Portal</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body class="lp">
@@ -12,11 +12,14 @@
 <header class="lp-nav">
   <div class="lp-nav-inner">
     <a href="#top" class="lp-logo">
-      <div class="logo-icon">🏢</div>
-      <div>
-        SMMS
-        <span class="lp-logo-sub">NLC Aadya Society</span>
-      </div>
+      <img id="lpLogo" class="lp-logo-img" alt="Society logo" style="display:none;">
+      <span class="lp-logo-fallback" id="lpLogoFallback" style="display:flex;align-items:center;gap:10px;">
+        <span class="logo-icon">🏢</span>
+        <span>
+          SMMS
+          <span class="lp-logo-sub" id="navSocietyName">Society Maintenance Portal</span>
+        </span>
+      </span>
     </a>
     <nav class="lp-links" id="lpLinks">
       <a href="#top">Home</a>
@@ -37,9 +40,9 @@
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
     <button class="login-back" onclick="closeAuthOverlay()" type="button">← Back</button>
-    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <div class="auth-logo" id="loginLogo"><div class="logo-icon">🏢</div></div>
     <h2 style="text-align:center;margin-bottom:4px;" id="loginHeading">SMMS Login</h2>
-    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;" id="loginSubheading">NLC Aadya Society Maintenance Portal</p>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;" id="loginSubheading">Society Maintenance Portal</p>
 
     <div class="setting-row"><label>Username</label><input type="text" id="login-username" placeholder="Username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()"></div>
     <div class="setting-row"><label>Password</label><input type="password" id="login-password" placeholder="Password" onkeydown="if(event.key==='Enter')attemptLogin()"></div>
@@ -56,7 +59,7 @@
 <div class="login-screen" id="signupScreen">
   <div class="login-card wide">
     <button class="login-back" onclick="closeAuthOverlay()" type="button">← Back</button>
-    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <div class="auth-logo" id="signupLogo"><div class="logo-icon">🏢</div></div>
     <h2 style="text-align:center;margin-bottom:4px;">Member Sign Up</h2>
     <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Request an account to view your society's collections &amp; expenses</p>
 
@@ -82,7 +85,7 @@
 <div class="login-screen" id="forgotScreen">
   <div class="login-card">
     <button class="login-back" onclick="closeAuthOverlay()" type="button">← Back</button>
-    <div class="logo-icon" style="margin:0 auto 12px;">🏢</div>
+    <div class="auth-logo" id="forgotLogo"><div class="logo-icon">🏢</div></div>
     <h2 style="text-align:center;margin-bottom:4px;">Forgot Password</h2>
     <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">Verify your identity to reset your password</p>
 
@@ -115,8 +118,8 @@
 <section class="lp-hero" id="top">
   <div class="lp-hero-inner">
     <div class="lp-hero-text">
-      <h1>Welcome to NLC Aadya Society Maintenance Portal</h1>
-      <p>Manage maintenance, payments, notices, and community updates — all in one secure, easy-to-use portal designed for NLC Aadya residents.</p>
+      <h1 id="heroHeading">Welcome to Your Society Maintenance Portal</h1>
+      <p id="heroSubtext">Manage maintenance, payments, notices, and community updates — all in one secure, easy-to-use portal designed for your residents.</p>
       <div class="lp-hero-ctas">
         <a class="btn btn-light btn-lg" href="#" onclick="showSignup();return false;">Become a Society Member</a>
         <a class="btn btn-outline-light btn-lg" href="#" onclick="showLoginForm('Member');return false;">Member Login</a>
@@ -155,9 +158,9 @@
     <div class="lp-eyebrow">About Society</div>
     <div class="lp-about-grid">
       <div>
-        <h2>About NLC Aadya Society</h2>
-        <p class="lp-lead" style="margin-bottom:8px;">NLC Aadya is a well-planned residential community focused on safety, transparency, and a strong sense of togetherness among residents.</p>
-        <p class="lp-lead">The NLC Aadya Society brings residents together under a thoughtfully designed, secure campus, with clear and transparent management of maintenance and everyday operations. The Maintenance Portal helps residents stay informed, engaged, and in control of their payments and requests.</p>
+        <h2 id="aboutHeading">About Your Society</h2>
+        <p class="lp-lead" style="margin-bottom:8px;" id="aboutLead1">Your society is a well-planned residential community focused on safety, transparency, and a strong sense of togetherness among residents.</p>
+        <p class="lp-lead" id="aboutLead2">The society brings residents together under a thoughtfully designed, secure campus, with clear and transparent management of maintenance and everyday operations. The Maintenance Portal helps residents stay informed, engaged, and in control of their payments and requests.</p>
         <div class="lp-about-points">
           <div>✓ <span>Well-planned residential society with modern amenities.</span></div>
           <div>🔒 <span>Secure, community-driven environment for families.</span></div>
@@ -167,7 +170,7 @@
       </div>
       <div class="lp-glance">
         <h4>Resident Focused</h4>
-        <div class="lp-glance-row"><span>Location</span><span>NLC Aadya Residential Society</span></div>
+        <div class="lp-glance-row"><span>Location</span><span id="glanceLocation">Residential Society</span></div>
         <div class="lp-glance-row"><span>Blocks / Towers</span><span>Multiple wings</span></div>
         <div class="lp-glance-row"><span>Security</span><span>24x7 security &amp; access control</span></div>
         <div class="lp-glance-row"><span>Maintenance</span><span>Online management through portal</span></div>
@@ -271,12 +274,12 @@
       <div class="lp-contact-card">
         <div class="lp-fi">✉️</div>
         <h4>Email</h4>
-        <div class="lp-contact-val">office@nlcaadya-society.in</div>
+        <div class="lp-contact-val" id="contactEmail">Contact your society office</div>
       </div>
       <div class="lp-contact-card">
         <div class="lp-fi">📞</div>
         <h4>Phone</h4>
-        <div class="lp-contact-val">+91-XXXXX-XXXXX</div>
+        <div class="lp-contact-val" id="contactPhone">Not yet configured</div>
       </div>
       <div class="lp-contact-card">
         <div class="lp-fi">🕒</div>
@@ -286,7 +289,7 @@
       <div class="lp-contact-card">
         <div class="lp-fi">📍</div>
         <h4>Address</h4>
-        <div class="lp-contact-val">NLC Aadya Residential Society<br>(Full address to be added here)</div>
+        <div class="lp-contact-val" id="contactAddress">Not yet configured</div>
       </div>
     </div>
   </div>
@@ -294,8 +297,8 @@
 
 <!-- ============ FOOTER ============ -->
 <footer class="lp-footer">
-  <div><strong>NLC Aadya Society Maintenance Portal</strong></div>
-  <div>© <span id="lpYear"></span> NLC Aadya Society. All rights reserved.</div>
+  <div><strong id="footerBrand">Society Maintenance Portal</strong></div>
+  <div>© <span id="lpYear"></span> <span id="footerSocietyName">Your Society</span>. All rights reserved.</div>
 </footer>
 
 <script src="api.js"></script>
@@ -355,6 +358,47 @@ function populateAuthDropdowns(){
   const secqSel = document.getElementById('su-secq');
   if(secqSel) secqSel.innerHTML = SECURITY_QUESTIONS.map(q=>`<option>${q}</option>`).join('');
 }
+
+// Fetches this tenant's public branding (name/address/contact/floors) so the landing page
+// shows the correct society for whichever subdomain the visitor is on. Runs before login —
+// GET /api/settings is [AllowAnonymous] and already scoped to the right tenant DB by the
+// API's TenantResolutionMiddleware (resolved from the Host header), so no auth is needed here.
+// If the API is unreachable, the generic placeholder text already in the HTML is left as-is.
+async function loadPublicBranding(){
+  let settings;
+  try{
+    settings = await Api.getSettings();
+  }catch(e){
+    return;
+  }
+
+  const name = settings.societyName || 'Your Society';
+  if(settings.floors && settings.floors.length) DB.settings.floors = settings.floors;
+
+  if(settings.logoBase64){
+    const logoImg = `<img src="${settings.logoBase64}" class="auth-logo-img" alt="${name} logo">`;
+    ['loginLogo','signupLogo','forgotLogo'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.innerHTML = logoImg;
+    });
+  }
+
+  document.getElementById('pageTitle').textContent = `${name} Society | Maintenance Portal`;
+  document.getElementById('navSocietyName').textContent = `${name} Society`;
+  document.getElementById('loginSubheading').textContent = `${name} Society Maintenance Portal`;
+  document.getElementById('heroHeading').textContent = `Welcome to ${name} Society Maintenance Portal`;
+  document.getElementById('heroSubtext').textContent = `Manage maintenance, payments, notices, and community updates — all in one secure, easy-to-use portal designed for ${name} residents.`;
+  document.getElementById('aboutHeading').textContent = `About ${name} Society`;
+  document.getElementById('aboutLead1').textContent = `${name} is a well-planned residential community focused on safety, transparency, and a strong sense of togetherness among residents.`;
+  document.getElementById('aboutLead2').textContent = `The ${name} Society brings residents together under a thoughtfully designed, secure campus, with clear and transparent management of maintenance and everyday operations. The Maintenance Portal helps residents stay informed, engaged, and in control of their payments and requests.`;
+  document.getElementById('glanceLocation').textContent = settings.address || `${name} Residential Society`;
+  document.getElementById('contactEmail').textContent = settings.email || 'Contact your society office';
+  document.getElementById('contactPhone').textContent = settings.phone || 'Not yet configured';
+  document.getElementById('contactAddress').textContent = settings.address || 'Not yet configured';
+  document.getElementById('footerBrand').textContent = `${name} Society Maintenance Portal`;
+  document.getElementById('footerSocietyName').textContent = `${name} Society`;
+}
+loadPublicBranding();
 
 function showSignup(){
   closeAuthOverlay();
@@ -472,7 +516,7 @@ async function attemptLogin(){
     // Hand the authenticated session (JWT + user info) off to index.html
     // (the dashboard) — we only ever navigate away from home.html after a
     // successful login.
-    apiSetSession(res.token, res.userId, res.username, res.role);
+    apiSetSession(res.token, res.userId, res.username, res.role, res.permissions);
     window.location.href = 'index.html';
   }catch(err){
     errEl.textContent = '❌ ' + (err.message || 'Invalid username or password.');

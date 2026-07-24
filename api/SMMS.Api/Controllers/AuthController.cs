@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SMMS.Api.Data;
+using SMMS.Api.Data.Tenancy;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
@@ -11,7 +12,7 @@ namespace SMMS.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(SmmsDbContext db, TokenService tokenService, AuditService audit) : ControllerBase
+public class AuthController(SmmsDbContext db, TokenService tokenService, AuditService audit, ITenantContext tenantContext) : ControllerBase
 {
     private static readonly PasswordHasher<User> Hasher = new();
 
@@ -33,8 +34,8 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
         if (verify == PasswordVerificationResult.Failed)
             return Unauthorized(new { message = "Invalid username or password." });
 
-        var token = tokenService.CreateToken(user);
-        return Ok(new LoginResponse(token, user.Id, user.Username, user.Role));
+        var token = tokenService.CreateToken(user, tenantContext.Current!.Key);
+        return Ok(new LoginResponse(token, user.Id, user.Username, user.Role, PermissionHelper.Parse(user.Permissions)));
     }
 
     [HttpPost("signup")]

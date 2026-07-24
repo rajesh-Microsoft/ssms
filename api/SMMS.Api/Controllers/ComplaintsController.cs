@@ -20,13 +20,14 @@ public class ComplaintsController(SmmsDbContext db, AuditService audit) : Contro
         c.CreatedAt, c.ResolvedAt, c.ResolutionNotes, c.AssignedTo);
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-    private bool IsAdmin => User.IsInRole("Admin");
+    // Admins, or anyone explicitly granted "Edit" on the Complaints module, can see/manage all complaints.
+    private bool CanManageAll => User.CanEdit(PermissionModules.Complaints);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ComplaintDto>>> GetAll([FromQuery] string? status)
     {
         var query = db.Complaints.Include(c => c.RaisedByUser).AsQueryable();
-        if (!IsAdmin)
+        if (!CanManageAll)
             query = query.Where(c => c.RaisedByUserId == CurrentUserId);
         if (!string.IsNullOrWhiteSpace(status))
             query = query.Where(c => c.Status == status);
@@ -40,7 +41,7 @@ public class ComplaintsController(SmmsDbContext db, AuditService audit) : Contro
     {
         var complaint = await db.Complaints.Include(c => c.RaisedByUser).FirstOrDefaultAsync(c => c.Id == id);
         if (complaint is null) return NotFound();
-        if (!IsAdmin && complaint.RaisedByUserId != CurrentUserId) return Forbid();
+        if (!CanManageAll && complaint.RaisedByUserId != CurrentUserId) return Forbid();
 
         return Ok(ToDto(complaint));
     }
@@ -72,9 +73,9 @@ public class ComplaintsController(SmmsDbContext db, AuditService audit) : Contro
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, ComplaintUpdateRequest request)
     {
+        if (!CanManageAll) return Forbid();
         var complaint = await db.Complaints.FindAsync(id);
         if (complaint is null) return NotFound();
 
@@ -102,7 +103,7 @@ public class ComplaintsController(SmmsDbContext db, AuditService audit) : Contro
         var complaint = await db.Complaints.FindAsync(id);
         if (complaint is null) return NotFound();
 
-        if (!IsAdmin)
+        if (!CanManageAll)
         {
             if (complaint.RaisedByUserId != CurrentUserId) return Forbid();
             if (complaint.Status != "Open") return BadRequest(new { message = "Only open complaints can be withdrawn." });

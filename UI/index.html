@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>NLC Aadya – Society Maintenance Portal</title>
+<title>SMMS – Society Maintenance Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="styles.css">
@@ -13,8 +13,11 @@
 
 <div class="sidebar">
   <div class="logo">
-    <div class="logo-icon">🏢</div>
-    <div class="logo-text">SMMS<span id="societyLogoSub">NLC Aadya</span></div>
+    <img id="sidebarLogo" class="sidebar-logo-img" alt="Society logo" style="display:none;">
+    <div class="logo-fallback" id="logoFallback">
+      <div class="logo-icon" id="logoIcon">🏢</div>
+      <div class="logo-text">SMMS<span id="societyLogoSub">NLC Aadya</span></div>
+    </div>
   </div>
   <nav>
     <div class="nav-sec">Main</div>
@@ -30,7 +33,7 @@
     <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">�</span> Export</div>
     <div class="nav-item" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
-    <div class="nav-item admin-only" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
+    <div class="nav-item" data-perm-view="Settings" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
     <div class="nav-item admin-only" onclick="showTab('admin',this)"><span class="ni">🔐</span> Admin</div>
   </nav>
   <div class="sidebar-foot">
@@ -42,8 +45,11 @@
   </div>
 </div>
 
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
 <div class="main">
   <div class="topbar">
+    <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <select id="topMonth" onchange="onTopFilterChange()" style="width:auto;">
@@ -95,7 +101,7 @@
             <input type="text" id="colSearch" placeholder="🔍 Search..." oninput="renderCollections()" style="width:160px;">
             <select id="colFloorF" onchange="renderCollections()" style="width:auto;"><option value="">All Floors</option></select>
             <select id="colStatusF" onchange="renderCollections()" style="width:auto;"><option value="">All Status</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
-            <button class="btn btn-primary admin-only" onclick="openModal('col')">＋ Add</button>
+            <button class="btn btn-primary" data-perm="Collections" onclick="openModal('col')">＋ Add</button>
           </div>
         </div>
         <div class="pills" id="colMonthPills"></div>
@@ -116,7 +122,7 @@
           <div class="search-row">
             <input type="text" id="expSearch" placeholder="🔍 Search..." oninput="renderExpenses()" style="width:160px;">
             <select id="expCatF" onchange="renderExpenses()" style="width:auto;"><option value="">All Categories</option></select>
-            <button class="btn btn-primary admin-only" onclick="openModal('exp')">＋ Add</button>
+            <button class="btn btn-primary" data-perm="Expenses" onclick="openModal('exp')">＋ Add</button>
           </div>
         </div>
         <div class="pills" id="expMonthPills"></div>
@@ -138,7 +144,7 @@
             <input type="text" id="memSearch" placeholder="🔍 Search..." oninput="renderMembers()" style="width:160px;">
             <select id="memFloorF" onchange="renderMembers()" style="width:auto;"><option value="">All Floors</option></select>
             <select id="memStatusF" onchange="renderMembers()" style="width:auto;"><option value="">All</option><option>Active</option><option>Inactive</option></select>
-            <button class="btn btn-primary admin-only" onclick="openModal('mem')">＋ Add Member</button>
+            <button class="btn btn-primary" data-perm="Members" onclick="openModal('mem')">＋ Add Member</button>
           </div>
         </div>
         <div class="tbl-wrap">
@@ -242,39 +248,52 @@
     <div id="tab-settings" class="tab-content">
       <div class="settings-grid">
         <div class="settings-section">
-          <h4>🏢 Society Info</h4>
+          <h4>🏢 Society Profile</h4>
           <div class="setting-row"><label>Society Name</label><input type="text" id="set-sname" value="Our Society"></div>
+          <div class="setting-row"><label>Society Logo</label><input type="file" id="set-logo" accept="image/*" onchange="handleLogoUpload(event)"></div>
+          <div id="set-logo-preview" style="margin:4px 0 8px;"></div>
           <div class="setting-row"><label>Address</label><textarea id="set-addr"></textarea></div>
           <div class="setting-row"><label>Contact Email</label><input type="email" id="set-email"></div>
           <div class="setting-row"><label>Contact Phone</label><input type="tel" id="set-phone"></div>
+          <div class="setting-row"><label>Registration Number</label><input type="text" id="set-regno"></div>
+          <div class="setting-row"><label>GST (optional)</label><input type="text" id="set-gst"></div>
+          <div class="setting-row"><label>PAN (optional)</label><input type="text" id="set-pan"></div>
         </div>
         <div class="settings-section">
-          <h4>💰 Maintenance Config</h4>
+          <h4>💰 Maintenance Settings</h4>
           <div class="setting-row"><label>Monthly Maintenance Amount (₹)</label><input type="number" id="set-mamt" value="2000"></div>
+          <div class="setting-row"><label>Due Date (day of month)</label><input type="number" id="set-dueday" min="1" max="31" value="5"></div>
+          <div class="setting-row"><label>Late Fee (₹)</label><input type="number" id="set-latefee" value="100"></div>
+          <div class="setting-row"><label>Grace Days</label><input type="number" id="set-gracedays" value="5"></div>
+          <div class="setting-row"><label>Financial Year</label><input type="text" id="set-fy" placeholder="2026-27"></div>
           <div class="setting-row"><label>Floors (comma separated)</label><input type="text" id="set-wings" value="1,2,3,4,5"></div>
         </div>
         <div class="settings-section">
-          <h4>🎨 Appearance</h4>
+          <h4>🎨 Branding & Theme</h4>
+          <div class="setting-row"><label>Application Title</label><input type="text" id="set-apptitle" placeholder="Society Maintenance Portal"></div>
+          <div class="setting-row"><label>Primary Color</label><input type="color" id="set-primary" value="#6c63ff"></div>
+          <div class="setting-row"><label>Secondary Color</label><input type="color" id="set-secondary" value="#1a1f36"></div>
           <div class="setting-row"><label>Theme</label><select id="set-theme" onchange="applyThemeSetting()"><option value="light">Light</option><option value="dark">Dark</option></select></div>
         </div>
         <div class="settings-section">
           <h4>📂 Expense Categories</h4>
           <div id="cat-list" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
-          <div class="admin-only" style="display:flex;gap:6px;"><input type="text" id="new-cat" placeholder="New category..."><button class="btn btn-primary" onclick="addCategory()">＋</button></div>
+          <div data-perm="Settings" style="display:flex;gap:6px;"><input type="text" id="new-cat" placeholder="New category..."><button class="btn btn-primary" onclick="addCategory()">＋</button></div>
         </div>
       </div>
 
-<div style="margin-top:14px;display:flex;gap:8px;" class="admin-only">
+<div style="margin-top:14px;display:flex;gap:8px;" data-perm="Settings">
         <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
       </div>
     </div>
+
 
     <!-- ADMIN -->
     <div id="tab-admin" class="tab-content">
       <div class="card">
         <div class="card-hdr"><h3>🔐 Admin Panel</h3><button class="btn btn-primary admin-only" onclick="openModal('user')">＋ Add User</button></div>
         <div class="tbl-wrap">
-          <table><thead><tr><th>#</th><th>Username</th><th>Role</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+          <table><thead><tr><th>#</th><th>Username</th><th>Role</th><th>Email</th><th>Permissions</th><th></th>Status</th><th>Actions</th></tr></thead>
           <tbody id="user-tbody"></tbody></table>
         </div>
       </div>
@@ -378,13 +397,21 @@
 
 <div class="modal-overlay" id="modal-user">
   <div class="modal">
-    <div class="modal-hdr"><h3>Add User</h3><button class="modal-close" onclick="closeModal('user')">✕</button></div>
+    <div class="modal-hdr"><h3 id="user-modal-title">Add User</h3><button class="modal-close" onclick="closeModal('user')">✕</button></div>
     <div class="form-grid">
       <div class="form-group"><label>Username *</label><input type="text" id="u-name"></div>
-      <div class="form-group"><label>Password *</label><input type="password" id="u-password" placeholder="Min 4 characters"></div>
-      <div class="form-group"><label>Role *</label><select id="u-role"><option>Admin</option><option>Member</option></select></div>
+      <div class="form-group" id="u-password-row"><label>Password *</label><input type="password" id="u-password" placeholder="Min 4 characters"></div>
+      <div class="form-group"><label>Role *</label><select id="u-role" onchange="toggleUserPermRows()"><option>Admin</option><option>Member</option></select></div>
+      <div class="form-group"><label>Status</label><select id="u-status"><option>Active</option><option>Inactive</option><option>Pending</option></select></div>
       <div class="form-group full"><label>Email</label><input type="email" id="u-email"></div>
-      <div class="form-group"><label>Status</label><select id="u-status"><option>Active</option><option>Inactive</option></select></div>
+      <div class="form-group"><label>Mobile</label><input type="tel" id="u-mobile"></div>
+      <div class="form-group"><label>Flat</label><input type="text" id="u-flat"></div>
+      <div class="form-group"><label>Floor</label><input type="text" id="u-floor"></div>
+    </div>
+    <div id="u-perm-section" style="margin-top:12px;">
+      <h4 style="font-size:13px;margin:0 0 8px;color:var(--sub);">🔑 Module Permissions</h4>
+      <div class="tbl-wrap"><table><thead><tr><th>Module</th><th>None</th><th>View</th><th>Edit</th></tr></thead>
+      <tbody id="u-perm-tbody"></tbody></table></div>
     </div>
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('user')">Cancel</button>

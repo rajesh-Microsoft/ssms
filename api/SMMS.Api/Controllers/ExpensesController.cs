@@ -19,6 +19,7 @@ public class ExpensesController(SmmsDbContext db, AuditService audit) : Controll
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ExpenseDto>>> GetAll([FromQuery] int? year, [FromQuery] int? month)
     {
+        if (!User.CanView(PermissionModules.Expenses)) return Forbid();
         var query = db.Expenses.AsQueryable();
         if (year.HasValue) query = query.Where(e => e.Year == year.Value);
         if (month.HasValue) query = query.Where(e => e.Month == month.Value);
@@ -29,14 +30,15 @@ public class ExpensesController(SmmsDbContext db, AuditService audit) : Controll
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ExpenseDto>> GetById(int id)
     {
+        if (!User.CanView(PermissionModules.Expenses)) return Forbid();
         var e = await db.Expenses.FindAsync(id);
         return e is null ? NotFound() : Ok(ToDto(e));
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<ExpenseDto>> Create(ExpenseUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Expenses)) return Forbid();
         var expense = new Expense
         {
             ExpenseDate = request.ExpenseDate,
@@ -56,9 +58,9 @@ public class ExpensesController(SmmsDbContext db, AuditService audit) : Controll
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, ExpenseUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Expenses)) return Forbid();
         var expense = await db.Expenses.FindAsync(id);
         if (expense is null) return NotFound();
 
@@ -77,9 +79,9 @@ public class ExpensesController(SmmsDbContext db, AuditService audit) : Controll
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!User.CanEdit(PermissionModules.Expenses)) return Forbid();
         var expense = await db.Expenses.FindAsync(id);
         if (expense is null) return NotFound();
 

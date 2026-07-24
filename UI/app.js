@@ -36,11 +36,14 @@ let DB = {
   members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [],
   settings: {
     societyName:'NLC Aadya', address:'', email:'', phone:'',
-    maintenanceAmt:2000, floors:['1','2','3','4','5'],
-    categories:['Security','Housekeeping','Electricity','Water','Repairs','Lift Maintenance','Gardening','Festival','CCTV','Miscellaneous']
+    registrationNumber:'', gst:'', pan:'', logoBase64:'',
+    maintenanceAmt:2000, dueDay:5, lateFee:100, graceDays:5, financialYear:'',
+    floors:['1','2','3','4','5'],
+    categories:['Security','Housekeeping','Electricity','Water','Repairs','Lift Maintenance','Gardening','Festival','CCTV','Miscellaneous'],
+    primaryColor:'#6c63ff', secondaryColor:'#1a1f36', applicationTitle:''
   }
 };
-let editId   = {col:null, exp:null, mem:null, cmp:null};
+let editId   = {col:null, exp:null, mem:null, cmp:null, user:null};
 let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
@@ -52,6 +55,12 @@ let currentUser = null;
 // apiGetToken / apiClearSession).
 // ═══════════════════════════════════════════════
 function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
+
+// Grantable module permission system — mirrors api/SMMS.Api/Services/PermissionService.cs.
+// Users/AuditLog are deliberately NOT grantable (stay Admin-only).
+const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings'];
+function canView(module){ return isAdmin() || (currentUser && currentUser.permissions && ['View','Edit'].includes(currentUser.permissions[module])); }
+function canEdit(module){ return isAdmin() || (currentUser && currentUser.permissions && currentUser.permissions[module]==='Edit'); }
 
 function logout(){
   currentUser = null;
@@ -116,10 +125,21 @@ async function loadSettingsData(){
     address: s.address || '',
     email: s.email || '',
     phone: s.phone || '',
+    registrationNumber: s.registrationNumber || '',
+    gst: s.gst || '',
+    pan: s.pan || '',
+    logoBase64: s.logoBase64 || '',
     maintenanceAmt: s.maintenanceAmt || 2000,
+    dueDay: s.dueDay || 5,
+    lateFee: s.lateFee || 100,
+    graceDays: s.graceDays || 5,
+    financialYear: s.financialYear || '',
     floors: (s.floors && s.floors.length) ? s.floors : ['1','2','3','4','5'],
     categories: (s.categories && s.categories.length) ? s.categories : DB.settings.categories,
-    theme: s.theme || 'light'
+    theme: s.theme || 'light',
+    primaryColor: s.primaryColor || '#6c63ff',
+    secondaryColor: s.secondaryColor || '#1a1f36',
+    applicationTitle: s.applicationTitle || ''
   };
 }
 
@@ -129,10 +149,21 @@ function currentSettingsPayload(overrides = {}){
     address: DB.settings.address,
     email: DB.settings.email,
     phone: DB.settings.phone,
+    registrationNumber: DB.settings.registrationNumber,
+    gst: DB.settings.gst,
+    pan: DB.settings.pan,
+    logoBase64: DB.settings.logoBase64,
     maintenanceAmt: DB.settings.maintenanceAmt,
+    dueDay: DB.settings.dueDay,
+    lateFee: DB.settings.lateFee,
+    graceDays: DB.settings.graceDays,
+    financialYear: DB.settings.financialYear,
     floors: DB.settings.floors,
     categories: DB.settings.categories,
     theme: DB.settings.theme || 'light',
+    primaryColor: DB.settings.primaryColor || '#6c63ff',
+    secondaryColor: DB.settings.secondaryColor,
+    applicationTitle: DB.settings.applicationTitle,
     ...overrides
   };
 }
@@ -176,9 +207,17 @@ async function loadCoreData(){
 function applyRolePermissions(){
   const admin = isAdmin();
   document.body.classList.toggle('role-member', !admin);
+  // Elements tagged data-perm="Module" require Edit on that module to be shown;
+  // data-perm-view="Module" only requires View. Admin always passes both.
+  document.querySelectorAll('[data-perm]').forEach(el=>{
+    el.style.display = canEdit(el.getAttribute('data-perm')) ? '' : 'none';
+  });
+  document.querySelectorAll('[data-perm-view]').forEach(el=>{
+    el.style.display = canView(el.getAttribute('data-perm-view')) ? '' : 'none';
+  });
   ['set-sname','set-addr','set-email','set-phone','set-mamt','set-wings','new-cat'].forEach(id=>{
     const el = document.getElementById(id);
-    if(el) el.disabled = !admin;
+    if(el) el.disabled = !canEdit('Settings');
   });
 }
 
@@ -253,7 +292,7 @@ window.onload = async () => {
     return;
   }
 
-  currentUser = {id: session.id, username: session.username, role: session.role};
+  currentUser = {id: session.id, username: session.username, role: session.role, permissions: session.permissions || {}};
   document.body.classList.remove('logged-out');
   populateYearDropdown();
   syncFilterControls('dashboard'); // dashboard is the initial active tab — defaults to All Years
@@ -270,6 +309,19 @@ window.onload = async () => {
   applySettings();
   renderDashboard();
 };
+
+// Guard against the browser back/forward cache (bfcache) restoring the
+// authenticated dashboard after logout: window.onload does NOT re-run on a
+// bfcache restore, so re-check the session on every pageshow. If the session
+// is gone (e.g. the user logged out then pressed Back), hide the dashboard
+// instantly and replace this entry with the public landing page so the
+// forward button can't bring it back either.
+window.addEventListener('pageshow', () => {
+  if(!apiGetSession() || !apiGetToken()){
+    document.body.classList.add('logged-out');
+    window.location.replace('home.html');
+  }
+});
 
 function populateYearDropdown(){
   const sel = document.getElementById('topYear');
@@ -291,6 +343,17 @@ function populateYearDropdown(){
 // ═══════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════
+/* Mobile off-canvas sidebar toggle (see .menu-toggle / .sidebar-backdrop in styles.css) */
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('mobile-open');
+  const bd = document.getElementById('sidebarBackdrop');
+  if(bd) bd.classList.toggle('show');
+}
+function closeSidebar(){
+  document.querySelector('.sidebar').classList.remove('mobile-open');
+  const bd = document.getElementById('sidebarBackdrop');
+  if(bd) bd.classList.remove('show');
+}
 async function showTab(t, el){
   if(t==='admin' && !isAdmin()) return toast('Admin access required.','warn');
   if(t==='auditlog' && !isAdmin()) return toast('Admin access required.','warn');
@@ -300,6 +363,7 @@ async function showTab(t, el){
   if(el) el.classList.add('active');
   const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',admin:'Admin Panel'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
+  closeSidebar();
 
   // Sync the shared month/year dropdowns to this tab's own remembered filter —
   // Dashboard defaults to All Years for the full picture, while every other
@@ -582,15 +646,15 @@ function renderColRow(c, i){
     <td>${mode}</td>
     <td><span class="badge b-${stk}">${st}</span></td>
     <td>${rem}</td>
-    <td><div class="act-btns">
+    <td>${canEdit('Collections') ? `<div class="act-btns">
       <button class="ic-btn" onclick="editCollection('${id}')">✏️</button>
       <button class="ic-btn" onclick="deleteCollection('${id}')">🗑️</button>
-    </div></td>
+    </div>` : ''}</td>
   </tr>`;
 }
 
 async function saveCollection(){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
   const mid = document.getElementById('col-member').value;
   const mem = DB.members.find(m=>String(fld(m,'id','Id'))===String(mid));
   if(!mem) return toast('Select a member','warn');
@@ -632,7 +696,7 @@ function editCollection(id){
 }
 
 async function deleteCollection(id){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
   if(!confirm('Delete this entry?')) return;
   try{
     await Api.deleteCollection(id);
@@ -711,15 +775,15 @@ function renderExpRow(e, i){
   return `<tr>
     <td>${i+1}</td><td>${dt}</td><td>${cat}</td><td>${desc}</td><td>${ven}</td>
     <td>₹${amt.toLocaleString('en-IN')}</td><td>${mode}</td><td>${moN}</td><td>${yr}</td><td>${rem}</td>
-    <td><div class="act-btns">
+    <td>${canEdit('Expenses') ? `<div class="act-btns">
       <button class="ic-btn" onclick="editExpense('${id}')">✏️</button>
       <button class="ic-btn" onclick="deleteExpense('${id}')">🗑️</button>
-    </div></td>
+    </div>` : ''}</td>
   </tr>`;
 }
 
 async function saveExpense(){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Expenses')) return toast('You do not have edit access to Expenses.','warn');
   const amt  = +document.getElementById('exp-amount').value;
   const desc = document.getElementById('exp-desc').value.trim();
   if(!amt||!desc) return toast('Fill required fields','warn');
@@ -761,7 +825,7 @@ function editExpense(id){
 }
 
 async function deleteExpense(id){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Expenses')) return toast('You do not have edit access to Expenses.','warn');
   if(!confirm('Delete this expense?')) return;
   try{
     await Api.deleteExpense(id);
@@ -806,15 +870,15 @@ function renderMemRow(m, i){
     <td>${fld(m,'mobile','Mobile')}</td>
     <td>${fld(m,'email','Email')}</td>
     <td><span class="badge b-${stk}">${st}</span></td>
-    <td><div class="act-btns">
+    <td>${canEdit('Members') ? `<div class="act-btns">
       <button class="ic-btn" onclick="editMember('${id}')">✏️</button>
       <button class="ic-btn" onclick="deleteMember('${id}')">🗑️</button>
-    </div></td>
+    </div>` : ''}</td>
   </tr>`;
 }
 
 async function saveMember(){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Members')) return toast('You do not have edit access to Members.','warn');
   const name = document.getElementById('mem-name').value.trim();
   const flat = document.getElementById('mem-flat').value.trim();
   if(!name||!flat) return toast('Fill required fields','warn');
@@ -848,7 +912,7 @@ function editMember(id){
 }
 
 async function deleteMember(id){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Members')) return toast('You do not have edit access to Members.','warn');
   if(!confirm('Delete this member?')) return;
   try{
     await Api.deleteMember(id);
@@ -988,32 +1052,80 @@ function loadSettingsUI(){
   document.getElementById('set-addr').value=s.address||'';
   document.getElementById('set-email').value=s.email||'';
   document.getElementById('set-phone').value=s.phone||'';
+  document.getElementById('set-regno').value=s.registrationNumber||'';
+  document.getElementById('set-gst').value=s.gst||'';
+  document.getElementById('set-pan').value=s.pan||'';
   document.getElementById('set-mamt').value=s.maintenanceAmt||2000;
+  document.getElementById('set-dueday').value=s.dueDay||5;
+  document.getElementById('set-latefee').value=s.lateFee||100;
+  document.getElementById('set-gracedays').value=s.graceDays||5;
+  document.getElementById('set-fy').value=s.financialYear||'';
   document.getElementById('set-wings').value=(s.floors||[]).join(',');
   document.getElementById('set-theme').value=s.theme||'light';
+  document.getElementById('set-apptitle').value=s.applicationTitle||'';
+  document.getElementById('set-primary').value=s.primaryColor||'#6c63ff';
+  document.getElementById('set-secondary').value=s.secondaryColor||'#1a1f36';
+  renderLogoPreview();
   renderCatList();
 }
+function renderLogoPreview(){
+  const el = document.getElementById('set-logo-preview');
+  el.innerHTML = DB.settings.logoBase64
+    ? `<img src="${DB.settings.logoBase64}" style="max-height:60px;border-radius:6px;">`
+    : '';
+}
+function handleLogoUpload(evt){
+  const file = evt.target.files && evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    DB.settings.logoBase64 = reader.result;
+    renderLogoPreview();
+  };
+  reader.readAsDataURL(file);
+}
 async function saveSettings(){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Settings')) return toast('You do not have edit access to Settings.','warn');
   const payload = currentSettingsPayload({
     societyName: document.getElementById('set-sname').value,
     address: document.getElementById('set-addr').value,
     email: document.getElementById('set-email').value,
     phone: document.getElementById('set-phone').value,
+    registrationNumber: document.getElementById('set-regno').value,
+    gst: document.getElementById('set-gst').value,
+    pan: document.getElementById('set-pan').value,
+    logoBase64: DB.settings.logoBase64,
     maintenanceAmt: +document.getElementById('set-mamt').value || 2000,
-    floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean)
+    dueDay: +document.getElementById('set-dueday').value || 5,
+    lateFee: +document.getElementById('set-latefee').value || 0,
+    graceDays: +document.getElementById('set-gracedays').value || 0,
+    financialYear: document.getElementById('set-fy').value,
+    floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean),
+    applicationTitle: document.getElementById('set-apptitle').value,
+    primaryColor: document.getElementById('set-primary').value,
+    secondaryColor: document.getElementById('set-secondary').value
   });
   try{
     await Api.updateSettings(payload);
     await loadSettingsData();
     document.getElementById('societyLogoSub').textContent = DB.settings.societyName;
+    applySettings();
     toast('Settings saved!');
   }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 function applySettings(){
   document.getElementById('societyLogoSub').textContent=DB.settings.societyName;
+  document.title = `${DB.settings.applicationTitle || DB.settings.societyName + ' – Society Maintenance Portal'}`;
   const homeName = document.getElementById('homeSocietyName');
   if(homeName) homeName.textContent = DB.settings.societyName;
+  document.documentElement.style.setProperty('--accent', DB.settings.primaryColor || '#6c63ff');
+  if(DB.settings.secondaryColor) document.documentElement.style.setProperty('--sidebar', DB.settings.secondaryColor);
+  const logoIcon = document.getElementById('logoIcon');
+  if(logoIcon){
+    logoIcon.innerHTML = DB.settings.logoBase64
+      ? `<img src="${DB.settings.logoBase64}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`
+      : '🏢';
+  }
 }
 async function applyThemeSetting(){
   const t=document.getElementById('set-theme').value;
@@ -1024,7 +1136,7 @@ async function applyThemeSetting(){
 }
 function renderCatList(){ document.getElementById('cat-list').innerHTML=DB.settings.categories.map((c,i)=>`<span class="badge b-active" style="cursor:pointer" onclick="removeCategory(${i})">${c} ✕</span>`).join(''); }
 async function addCategory(){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Settings')) return toast('You do not have edit access to Settings.','warn');
   const v=document.getElementById('new-cat').value.trim();
   if(!v) return;
   if(DB.settings.categories.includes(v)) return toast('Category already exists','warn');
@@ -1036,7 +1148,7 @@ async function addCategory(){
   }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 async function removeCategory(i){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Settings')) return toast('You do not have edit access to Settings.','warn');
   const categories = DB.settings.categories.filter((_,idx)=>idx!==i);
   try{
     await Api.updateSettings(currentSettingsPayload({categories}));
@@ -1053,8 +1165,29 @@ function renderUsers(){
     const st = u.status || 'Active';
     const badgeClass = st==='Active' ? 'active' : st==='Pending' ? 'pending' : 'inactive';
     const approveBtn = st==='Pending' ? `<button class="ic-btn" onclick="approveUser(${u.id})" title="Approve account">✅</button>` : '';
-    return `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${u.email||'-'}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
+    const permSummary = u.role==='Admin' ? 'Full access' : PERMISSION_MODULES.map(m=>`${m}:${(u.permissions&&u.permissions[m])||'View'}`).join(', ');
+    return `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${u.email||'-'}</td><td title="${permSummary}" style="font-size:11px;color:var(--sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${permSummary}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
   }).join('');
+}
+function renderUserPermMatrix(perms){
+  document.getElementById('u-perm-tbody').innerHTML = PERMISSION_MODULES.map(m=>{
+    const level = (perms && perms[m]) || 'View';
+    const radio = (val,label) => `<td style="text-align:center;"><input type="radio" name="perm-${m}" value="${val}" ${level===val?'checked':''}></td>`;
+    return `<tr><td>${m}</td>${radio('None')}${radio('View')}${radio('Edit')}</tr>`;
+  }).join('');
+}
+function toggleUserPermRows(){
+  const section = document.getElementById('u-perm-section');
+  const isAdminRole = document.getElementById('u-role').value === 'Admin';
+  section.style.display = isAdminRole ? 'none' : '';
+}
+function getUserPermPayload(){
+  const perms = {};
+  PERMISSION_MODULES.forEach(m=>{
+    const checked = document.querySelector(`input[name="perm-${m}"]:checked`);
+    perms[m] = checked ? checked.value : 'View';
+  });
+  return perms;
 }
 async function approveUser(id){
   if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
@@ -1065,17 +1198,60 @@ async function approveUser(id){
     toast('User approved!');
   }catch(err){ toast(err.message || 'Approve failed','warn'); }
 }
+function editUser(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const u = DB.users.find(x=>x.id===id); if(!u) return;
+  editId.user = id;
+  document.getElementById('user-modal-title').textContent = 'Edit User';
+  document.getElementById('u-password-row').style.display = 'none';
+  document.getElementById('u-name').value = u.username;
+  document.getElementById('u-role').value = u.role;
+  document.getElementById('u-status').value = u.status || 'Active';
+  document.getElementById('u-email').value = u.email || '';
+  document.getElementById('u-mobile').value = u.mobile || '';
+  document.getElementById('u-flat').value = u.flat || '';
+  document.getElementById('u-floor').value = u.floor || '';
+  renderUserPermMatrix(u.permissions || {});
+  toggleUserPermRows();
+  document.getElementById('modal-user').classList.add('open');
+}
 async function saveUser(){
   if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const n=document.getElementById('u-name').value.trim();
-  const pw=document.getElementById('u-password').value;
   if(!n)return toast('Enter username','warn');
+  const role = document.getElementById('u-role').value;
+  const permissions = role==='Admin' ? undefined : getUserPermPayload();
+
+  if(editId.user){
+    const payload = {
+      username: n,
+      role,
+      email: document.getElementById('u-email').value,
+      mobile: document.getElementById('u-mobile').value,
+      flat: document.getElementById('u-flat').value,
+      floor: document.getElementById('u-floor').value,
+      status: document.getElementById('u-status').value,
+      permissions
+    };
+    try{
+      await Api.updateUser(editId.user, payload);
+      await loadUsers();
+      closeModal('user'); renderUsers(); toast('User updated!');
+    }catch(err){ toast(err.message || 'Save failed','warn'); }
+    return;
+  }
+
+  const pw=document.getElementById('u-password').value;
   if(!pw||pw.length<4)return toast('Password must be at least 4 characters','warn');
   const payload = {
     username: n, password: pw,
-    role: document.getElementById('u-role').value,
+    role,
     email: document.getElementById('u-email').value,
-    status: document.getElementById('u-status').value
+    mobile: document.getElementById('u-mobile').value,
+    flat: document.getElementById('u-flat').value,
+    floor: document.getElementById('u-floor').value,
+    status: document.getElementById('u-status').value,
+    permissions
   };
   try{
     await Api.createUser(payload);
@@ -1133,7 +1309,9 @@ function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')
 // MODAL HELPERS
 // ═══════════════════════════════════════════════
 function openModal(type){
-  if((type==='col'||type==='exp'||type==='mem'||type==='user') && !isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const moduleMap = {col:'Collections', exp:'Expenses', mem:'Members'};
+  if(moduleMap[type] && !canEdit(moduleMap[type])) return toast('You do not have edit access to '+moduleMap[type]+'.','warn');
+  if(type==='user' && !isAdmin()) return toast('Read-only access — Admin only.','warn');
   editId[type]=null;
   if(type==='col'){ document.getElementById('col-modal-title').textContent='Add Collection'; populateMemberDropdown(); document.getElementById('col-date').value=new Date().toISOString().split('T')[0]; document.getElementById('col-month').value=new Date().getMonth()+1; document.getElementById('col-year').value=new Date().getFullYear(); document.getElementById('col-amount').value=''; document.getElementById('col-remarks').value=''; }
   if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; }
@@ -1149,6 +1327,20 @@ function openModal(type){
     document.getElementById('cmp-notes').value='';
     const af = document.getElementById('cmp-admin-fields');
     if(af) af.style.display = 'none';
+  }
+  if(type==='user'){
+    document.getElementById('user-modal-title').textContent='Add User';
+    document.getElementById('u-password-row').style.display='';
+    document.getElementById('u-name').value='';
+    document.getElementById('u-password').value='';
+    document.getElementById('u-role').value='Member';
+    document.getElementById('u-status').value='Active';
+    document.getElementById('u-email').value='';
+    document.getElementById('u-mobile').value='';
+    document.getElementById('u-flat').value='';
+    document.getElementById('u-floor').value='';
+    renderUserPermMatrix({});
+    toggleUserPermRows();
   }
   document.getElementById('modal-'+type).classList.add('open');
 }
@@ -1208,7 +1400,7 @@ function renderCmpRow(c, i){
   const priorityColors = {'High':'#c53030','Medium':'#c05621','Low':'#276749'};
   const sc = statusColors[c.status] || '#4a5568';
   const pc = priorityColors[c.priority] || '#4a5568';
-  const canWithdraw = !isAdmin() && String(c.raisedByUserId)===String(currentUser && currentUser.id) && c.status==='Open';
+  const canWithdraw = !canEdit('Complaints') && String(c.raisedByUserId)===String(currentUser && currentUser.id) && c.status==='Open';
   const safeDesc = (c.description||'').replace(/"/g,'&quot;');
   return `<tr>
     <td>${i+1}</td>
@@ -1219,7 +1411,7 @@ function renderCmpRow(c, i){
     <td><span style="color:${sc};font-weight:700;">${c.status}</span></td>
     <td>${c.raisedByUsername || '-'}${c.flat ? ' (Flat '+c.flat+')' : ''}</td>
     <td><div class="act-btns">
-      ${isAdmin() ? `<button class="ic-btn" onclick="editComplaint('${c.id}')">✏️</button><button class="ic-btn" onclick="deleteComplaint('${c.id}')">🗑️</button>` : ''}
+      ${canEdit('Complaints') ? `<button class="ic-btn" onclick="editComplaint('${c.id}')">✏️</button><button class="ic-btn" onclick="deleteComplaint('${c.id}')">🗑️</button>` : ''}
       ${canWithdraw ? `<button class="ic-btn" onclick="deleteComplaint('${c.id}')">🗑️ Withdraw</button>` : ''}
     </div></td>
   </tr>`;
@@ -1232,7 +1424,7 @@ async function saveComplaint(){
 
   try{
     if(editId.cmp){
-      if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+      if(!canEdit('Complaints')) return toast('You do not have edit access to Complaints.','warn');
       const payload = {
         subject, description: desc,
         category: document.getElementById('cmp-category').value,
@@ -1257,7 +1449,7 @@ async function saveComplaint(){
 }
 
 function editComplaint(id){
-  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  if(!canEdit('Complaints')) return toast('You do not have edit access to Complaints.','warn');
   const c = DB.complaints.find(x=>String(x.id)===String(id)); if(!c) return;
   editId.cmp = id;
   document.getElementById('cmp-modal-title').textContent = 'Manage Complaint';
@@ -1276,7 +1468,7 @@ function editComplaint(id){
 
 async function deleteComplaint(id){
   const c = DB.complaints.find(x=>String(x.id)===String(id));
-  const msg = (c && !isAdmin()) ? 'Withdraw this complaint?' : 'Delete this complaint?';
+  const msg = (c && !canEdit('Complaints')) ? 'Withdraw this complaint?' : 'Delete this complaint?';
   if(!confirm(msg)) return;
   try{
     await Api.deleteComplaint(id);

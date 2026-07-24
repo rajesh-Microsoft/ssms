@@ -16,16 +16,20 @@ public class JwtSettings
 
 public class TokenService(JwtSettings settings)
 {
-    public string CreateToken(User user)
+    public string CreateToken(User user, string tenantKey)
     {
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, user.Username),
+            new(ClaimTypes.Role, user.Role),
+            new("tenant", tenantKey),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        foreach (var (module, level) in PermissionHelper.Parse(user.Permissions))
+            claims.Add(new Claim($"perm:{module}", level));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

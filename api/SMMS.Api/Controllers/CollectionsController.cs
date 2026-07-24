@@ -19,6 +19,7 @@ public class CollectionsController(SmmsDbContext db, AuditService audit) : Contr
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CollectionDto>>> GetAll([FromQuery] int? year, [FromQuery] int? month)
     {
+        if (!User.CanView(PermissionModules.Collections)) return Forbid();
         var query = db.Collections.Include(c => c.Member).AsQueryable();
         if (year.HasValue) query = query.Where(c => c.Year == year.Value);
         if (month.HasValue) query = query.Where(c => c.Month == month.Value);
@@ -29,14 +30,15 @@ public class CollectionsController(SmmsDbContext db, AuditService audit) : Contr
     [HttpGet("{id:int}")]
     public async Task<ActionResult<CollectionDto>> GetById(int id)
     {
+        if (!User.CanView(PermissionModules.Collections)) return Forbid();
         var c = await db.Collections.Include(x => x.Member).FirstOrDefaultAsync(x => x.Id == id);
         return c is null ? NotFound() : Ok(ToDto(c));
     }
 
     [HttpPost]
-    [Authorize(Roles = "Admin")]
     public async Task<ActionResult<CollectionDto>> Create(CollectionUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Collections)) return Forbid();
         var memberExists = await db.Members.AnyAsync(m => m.Id == request.MemberId);
         if (!memberExists) return BadRequest(new { message = "Member not found." });
 
@@ -59,9 +61,9 @@ public class CollectionsController(SmmsDbContext db, AuditService audit) : Contr
     }
 
     [HttpPut("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, CollectionUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Collections)) return Forbid();
         var collection = await db.Collections.FindAsync(id);
         if (collection is null) return NotFound();
 
@@ -79,9 +81,9 @@ public class CollectionsController(SmmsDbContext db, AuditService audit) : Contr
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!User.CanEdit(PermissionModules.Collections)) return Forbid();
         var collection = await db.Collections.FindAsync(id);
         if (collection is null) return NotFound();
 

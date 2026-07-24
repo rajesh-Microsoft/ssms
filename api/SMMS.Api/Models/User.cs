@@ -37,5 +37,9 @@ public class User
 
     public string? SecurityAnswerHash { get; set; }
 
+    /// <summary>JSON-serialized per-module permission overrides, e.g. {"Collections":"Edit","Settings":"None"}.
+    /// Admin role always has full access regardless of this. Modules not present default to "View".</summary>
+    public string? Permissions { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

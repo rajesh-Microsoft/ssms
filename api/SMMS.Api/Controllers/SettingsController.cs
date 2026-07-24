@@ -13,12 +13,19 @@ namespace SMMS.Api.Controllers;
 public class SettingsController(SmmsDbContext db, AuditService audit) : ControllerBase
 {
     private static SettingsDto ToDto(Models.SocietySettings s) => new(
-        s.SocietyName, s.Address, s.Email, s.Phone, s.MaintenanceAmt,
+        s.SocietyName, s.Address, s.Email, s.Phone,
+        s.RegistrationNumber, s.Gst, s.Pan, s.LogoBase64,
+        s.MaintenanceAmt, s.DueDay, s.LateFee, s.GraceDays, s.FinancialYear,
         s.Floors.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
         s.Categories.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-        s.Theme);
+        s.Theme, s.PrimaryColor, s.SecondaryColor, s.ApplicationTitle);
 
+    // Public society branding (name/address/contact/floors) — needed by the pre-login
+    // landing page (home.html) so it can render the correct society for the current
+    // tenant subdomain before the visitor has any credentials. Not sensitive data, and
+    // already scoped to the correct tenant DB by TenantResolutionMiddleware.
     [HttpGet]
+    [AllowAnonymous]
     public async Task<ActionResult<SettingsDto>> Get()
     {
         var settings = await db.Settings.FirstOrDefaultAsync();
@@ -27,9 +34,9 @@ public class SettingsController(SmmsDbContext db, AuditService audit) : Controll
     }
 
     [HttpPut]
-    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(SettingsUpsertRequest request)
     {
+        if (!User.CanEdit(PermissionModules.Settings)) return Forbid();
         var settings = await db.Settings.FirstOrDefaultAsync();
         if (settings is null)
         {
@@ -41,10 +48,21 @@ public class SettingsController(SmmsDbContext db, AuditService audit) : Controll
         settings.Address = request.Address;
         settings.Email = request.Email;
         settings.Phone = request.Phone;
+        settings.RegistrationNumber = request.RegistrationNumber;
+        settings.Gst = request.Gst;
+        settings.Pan = request.Pan;
+        settings.LogoBase64 = request.LogoBase64;
         settings.MaintenanceAmt = request.MaintenanceAmt;
+        settings.DueDay = request.DueDay;
+        settings.LateFee = request.LateFee;
+        settings.GraceDays = request.GraceDays;
+        settings.FinancialYear = request.FinancialYear;
         settings.Floors = string.Join(',', request.Floors);
         settings.Categories = string.Join(',', request.Categories);
         settings.Theme = request.Theme;
+        settings.PrimaryColor = request.PrimaryColor;
+        settings.SecondaryColor = request.SecondaryColor;
+        settings.ApplicationTitle = request.ApplicationTitle;
 
         await db.SaveChangesAsync();
         await audit.LogAsync("Settings", "Update", "Updated society settings");

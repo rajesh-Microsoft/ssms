@@ -6,11 +6,14 @@ namespace SMMS.Api.Data;
 public static class DbSeeder
 {
     /// <summary>Seeds a default Admin account and default settings row if the database is empty.</summary>
-    public static void Seed(SmmsDbContext db)
+    public static void Seed(SmmsDbContext db, string? societyName = null)
     {
         if (!db.Settings.Any())
         {
-            db.Settings.Add(new SocietySettings());
+            db.Settings.Add(new SocietySettings
+            {
+                SocietyName = societyName ?? "Our Society"
+            });
         }
 
         if (!db.Users.Any())
