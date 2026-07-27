@@ -16,6 +16,9 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
 {
     private static readonly PasswordHasher<User> Hasher = new();
 
+    private static readonly HashSet<string> AllowedRoles =
+        new(StringComparer.Ordinal) { "Admin", "Member", "Treasurer", "Secretary", "Committee Member", "Chairman" };
+
     private static UserDto ToDto(User u) => new(
         u.Id, u.Username, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status, PermissionHelper.Parse(u.Permissions));
 
@@ -29,6 +32,9 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
     [HttpPost]
     public async Task<ActionResult<UserDto>> Create(UserCreateRequest request)
     {
+        if (!AllowedRoles.Contains(request.Role))
+            return BadRequest(new { message = "Invalid role." });
+
         var exists = await db.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower());
         if (exists) return Conflict(new { message = "Username already exists." });
 
@@ -56,6 +62,9 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
     {
         var user = await db.Users.FindAsync(id);
         if (user is null) return NotFound();
+
+        if (!AllowedRoles.Contains(request.Role))
+            return BadRequest(new { message = "Invalid role." });
 
         var usernameTaken = await db.Users.AnyAsync(u => u.Id != id && u.Username.ToLower() == request.Username.ToLower());
         if (usernameTaken) return Conflict(new { message = "Username already exists." });

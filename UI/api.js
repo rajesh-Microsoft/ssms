@@ -58,6 +58,35 @@ async function apiFetch(path, options = {}){
   return text ? JSON.parse(text) : null;
 }
 
+// Authenticated binary fetch → object URL. Used for QR codes and payment
+// screenshots, which sit behind [Authorize] so a plain <img src> (no Bearer
+// header) would 401. Caller is responsible for URL.revokeObjectURL().
+async function apiFetchObjectUrl(path){
+  const headers = {};
+  const token = apiGetToken();
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API_BASE + path, { headers });
+  if(!res.ok) throw new Error(`Could not load image (${res.status})`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+// Authenticated multipart POST (FormData). Do NOT set Content-Type — the
+// browser adds the multipart boundary automatically.
+async function apiPostForm(path, formData){
+  const headers = {};
+  const token = apiGetToken();
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API_BASE + path, { method: 'POST', headers, body: formData });
+  if(!res.ok){
+    let message = `Upload failed (${res.status})`;
+    try{ const b = await res.json(); if(b && b.message) message = b.message; }catch(e){}
+    throw new Error(message);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
 const Api = {
   // Auth
   login: (username, password) => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
@@ -102,8 +131,39 @@ const Api = {
   getComplaints: (status) => apiFetch('/complaints' + (status ? `?status=${encodeURIComponent(status)}` : '')),
   createComplaint: (payload) => apiFetch('/complaints', { method: 'POST', body: JSON.stringify(payload) }),
   updateComplaint: (id, payload) => apiFetch(`/complaints/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
-  deleteComplaint: (id) => apiFetch(`/complaints/${id}`, { method: 'DELETE' })
+  deleteComplaint: (id) => apiFetch(`/complaints/${id}`, { method: 'DELETE' }),
+
+  // Me (resident self-service — works for any authenticated user)
+  getMe: () => apiFetch('/me'),
+  updateMe: (payload) => apiFetch('/me', { method: 'PUT', body: JSON.stringify(payload) }),
+  changeMyPassword: (currentPassword, newPassword) =>
+    apiFetch('/me/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })
 };
+
+// ── Maintenance payments (member self-service) ──────────────────
+Api.getPendingInvoices   = () => apiFetch('/member/pending-invoices');
+Api.getQrPayload         = (collectionId) => apiFetch(`/member/qrcode/${collectionId}/payload`);
+Api.getQrImageUrl        = (collectionId) => apiFetchObjectUrl(`/member/qrcode/${collectionId}`);
+Api.uploadPaymentProof   = (formData) => apiPostForm('/member/upload-payment-proof', formData);
+Api.getMyPaymentHistory  = () => apiFetch('/member/payment-history');
+Api.getMyProofScreenshot = (proofId) => apiFetchObjectUrl(`/member/payment-proof/${proofId}/screenshot`);
+
+// ── Maintenance payments (admin verification) ───────────────────
+Api.getPaymentDashboard  = () => apiFetch('/admin/payment-dashboard');
+Api.getPaymentProofs     = (filters = {}) => {
+  const q = new URLSearchParams();
+  if(filters.status) q.set('status', filters.status);
+  if(filters.month)  q.set('month', filters.month);
+  if(filters.year)   q.set('year', filters.year);
+  if(filters.flat)   q.set('flat', filters.flat);
+  const s = q.toString();
+  return apiFetch('/admin/payment-proofs' + (s ? '?' + s : ''));
+};
+Api.approvePaymentProof  = (id) => apiFetch(`/admin/payment-proofs/${id}/approve`, { method: 'POST' });
+Api.rejectPaymentProof   = (id, remarks) => apiFetch(`/admin/payment-proofs/${id}/reject`, { method: 'POST', body: JSON.stringify({ remarks }) });
+Api.getAdminProofScreenshot = (id) => apiFetchObjectUrl(`/admin/payment-proofs/${id}/screenshot`);
+Api.getUpiSettings       = () => apiFetch('/admin/upi-settings');
+Api.saveUpiSettings      = (payload) => apiFetch('/admin/upi-settings', { method: 'PUT', body: JSON.stringify(payload) });
 
 /* ---- Tenant logo: shows /logo/<subdomain>.png, falls back to emoji+text ---- */
 function smmsTenantKey(){

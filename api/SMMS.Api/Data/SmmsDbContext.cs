@@ -12,6 +12,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
     public DbSet<SocietySettings> Settings => Set<SocietySettings>();
     public DbSet<Complaint> Complaints => Set<Complaint>();
+    public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -32,5 +33,20 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .WithMany()
             .HasForeignKey(c => c.RaisedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PaymentProof>()
+            .HasOne(p => p.Collection)
+            .WithMany()
+            .HasForeignKey(p => p.CollectionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PaymentProof>()
+            .HasOne(p => p.Member)
+            .WithMany()
+            .HasForeignKey(p => p.MemberId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PaymentProof>()
+            .HasIndex(p => new { p.Status, p.SubmittedAt });
     }
 }

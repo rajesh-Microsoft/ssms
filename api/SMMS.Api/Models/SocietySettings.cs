@@ -66,4 +66,26 @@ public class SocietySettings
 
     [MaxLength(150)]
     public string? ApplicationTitle { get; set; }
+
+    // ── UPI / bank collection settings (used to build dynamic payment QR codes) ──
+
+    /// <summary>Society's UPI VPA, e.g. "society@upi". When set, members see a dynamic pay QR.</summary>
+    [MaxLength(100)]
+    public string? UpiId { get; set; }
+
+    /// <summary>Payee name shown in the UPI app (defaults to SocietyName when empty).</summary>
+    [MaxLength(100)]
+    public string? UpiPayeeName { get; set; }
+
+    [MaxLength(100)]
+    public string? BankName { get; set; }
+
+    [MaxLength(150)]
+    public string? BankAccountName { get; set; }
+
+    [MaxLength(30)]
+    public string? BankAccountNumber { get; set; }
+
+    [MaxLength(20)]
+    public string? BankIfsc { get; set; }
 }

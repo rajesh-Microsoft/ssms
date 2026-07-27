@@ -139,6 +139,57 @@ body.logged-out .sidebar,body.logged-out .main{display:none;}
 .auth-links a:hover{text-decoration:underline;}
 .auth-link-sep{color:var(--sub);margin:0 8px;}
 body.role-member .admin-only{display:none !important;}
+/* Member (resident) portal — hidden for admins/logged-out, shown for members */
+.member-only{display:none;}
+body.role-member .member-only{display:block;}
+body.role-member .nav-item.member-only{display:flex;}
+body.role-member .member-only.mwelcome,
+body.role-member .member-only.ph-badges{display:flex;}
+
+/* Welcome banner */
+.mwelcome{background:linear-gradient(120deg,var(--accent),#8b83ff);color:#fff;border-radius:14px;padding:18px 22px;margin-bottom:14px;box-shadow:var(--shadow);}
+.mwelcome h2{margin:0 0 4px;font-size:20px;}
+.mwelcome p{margin:0;opacity:.9;font-size:13px;}
+
+/* Quick-action tiles */
+.qa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;}
+.qa-tile{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s;}
+.qa-tile:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.12);}
+.qa-ic{font-size:26px;margin-bottom:8px;}
+.qa-t{font-weight:700;font-size:14px;}
+.qa-s{font-size:11px;color:var(--sub);margin-top:2px;}
+
+/* Receipt / document tiles */
+.doc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+.doc-tile{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--card);display:flex;flex-direction:column;gap:6px;}
+.doc-tile .doc-ic{font-size:22px;}
+.doc-tile .doc-m{font-weight:700;font-size:13px;}
+.doc-tile .doc-amt{font-size:16px;font-weight:800;color:var(--accent);}
+
+/* Profile hero */
+.profile-hero{display:flex;align-items:center;gap:18px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 22px;box-shadow:var(--shadow);margin-bottom:14px;flex-wrap:wrap;}
+.ph-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b83ff);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;overflow:hidden;background-size:cover;background-position:center;}
+.ph-meta{flex:1;min-width:160px;}
+.ph-name{font-size:20px;font-weight:800;}
+.ph-sub{font-size:13px;color:var(--sub);margin-top:2px;}
+.ph-badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.ph-photo-btn{margin-left:auto;}
+
+.mhome-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;align-items:start;}
+.mhint{font-size:11px;color:var(--sub);}
+.m-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+.m-row input,.m-row select{flex:1;min-width:100px;}
+
+/* Preference toggle switch */
+.pref-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid var(--border);}
+.switch{position:relative;display:inline-block;width:42px;height:24px;}
+.switch input{opacity:0;width:0;height:0;}
+.switch .slider{position:absolute;cursor:pointer;inset:0;background:#cbd5e0;border-radius:24px;transition:.2s;}
+.switch .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s;}
+.switch input:checked+.slider{background:var(--accent);}
+.switch input:checked+.slider:before{transform:translateX(18px);}
+
+@media(max-width:760px){.m-two-col{grid-template-columns:1fr !important;}}
 /* Per-row action buttons (edit/delete) are now conditionally rendered per-module
    based on granular permissions (see app.js canEdit()) instead of a blanket
    Admin-only CSS rule, so a Member granted "Edit" on a specific module still
@@ -255,3 +306,26 @@ body.lp{display:block;min-height:auto;}
   .modal{padding:16px;}
   .card{padding:12px;}
 }
+
+/* ============================================================
+   ONLINE PAYMENTS — invoice cards, QR pay modal, badges
+   ============================================================ */
+.btn-sm{padding:4px 10px;font-size:11px;border-radius:7px;}
+.pay-invoice-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
+.pay-invoice-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;}
+.pay-inv-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.pay-inv-period{font-weight:700;font-size:14px;}
+.pay-inv-amt{font-weight:800;font-size:17px;color:var(--accent);}
+.pay-inv-actions{margin-top:4px;}
+.pay-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;}
+.pay-overdue{background:#fed7d7;color:#9b2c2c;}
+.pay-pending{background:#feebc8;color:#9c4221;}
+
+.pay-modal-body{display:flex;gap:20px;flex-wrap:wrap;}
+.pay-qr-wrap{flex:1 1 200px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.pay-qr-img{width:200px;height:200px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px;object-fit:contain;}
+.pay-amt{font-size:24px;font-weight:800;color:var(--accent);}
+.pay-form{flex:1 1 200px;display:flex;flex-direction:column;gap:10px;}
+#modal-pay .modal{width:620px;}
+#modal-proof .modal{width:520px;}
+

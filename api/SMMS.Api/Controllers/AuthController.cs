@@ -51,6 +51,7 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
             Username = request.Username,
             Role = "Member",
             Status = "Pending",
+            Name = request.Name,
             Email = request.Email,
             Mobile = request.Mobile,
             Flat = request.Flat,

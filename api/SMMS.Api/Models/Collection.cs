@@ -32,4 +32,14 @@ public class Collection
 
     [MaxLength(500)]
     public string? Remarks { get; set; }
+
+    // ── Invoice/UPI-payment fields ──
+
+    /// <summary>Human-friendly invoice number, e.g. "INV000245". Null on legacy rows;
+    /// callers fall back to a derived "INV{Id:D6}" when generating QR/receipts.</summary>
+    [MaxLength(30)]
+    public string? InvoiceNumber { get; set; }
+
+    /// <summary>Due date for this charge. Null on legacy rows; derived from settings when needed.</summary>
+    public DateTime? DueDate { get; set; }
 }

@@ -43,6 +43,12 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddHttpContextAccessor();
 
+// Maintenance-payment module (dynamic UPI QR + proof upload + admin approval).
+builder.Services.AddSingleton<SMMS.Api.Services.QrService>();
+builder.Services.AddSingleton<SMMS.Api.Services.Storage.IFileStorage, SMMS.Api.Services.Storage.LocalFileStorage>();
+builder.Services.AddScoped<SMMS.Api.Services.Payments.IPaymentGateway, SMMS.Api.Services.Payments.ManualUpiPaymentGateway>();
+builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {

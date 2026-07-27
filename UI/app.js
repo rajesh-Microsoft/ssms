@@ -47,6 +47,8 @@ let editId   = {col:null, exp:null, mem:null, cmp:null, user:null};
 let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
+// Resident self-service snapshot from GET /api/me (profile + payments + dues + complaint counts).
+let ME = null;
 
 // ═══════════════════════════════════════════════
 // AUTH — login/signup/forgot-password all happen on home.html against the
@@ -197,11 +199,22 @@ async function loadComplaints(){
 }
 
 async function loadCoreData(){
-  await Promise.all([loadMembers(), loadSettingsData()]);
-  await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
   if(isAdmin()){
+    await Promise.all([loadMembers(), loadSettingsData()]);
+    await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
     await Promise.all([loadUsers(), loadAuditLogData()]);
+  } else {
+    // Residents get their self-service snapshot (/api/me) plus a READ-ONLY view
+    // of society-wide finances (Dashboard/Collections/Expenses). Members hold
+    // default "View" permission on these modules, so the API allows the reads;
+    // edit/add buttons stay hidden because they require "Edit" (see canEdit()).
+    await Promise.all([loadMe(), loadSettingsData(), loadMembers()]);
+    await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
   }
+}
+
+async function loadMe(){
+  ME = await Api.getMe();
 }
 
 function applyRolePermissions(){
@@ -226,9 +239,11 @@ function updateSidebarUserInfo(){
   const av = document.getElementById('sbUav');
   const nm = document.getElementById('sbUname');
   const rl = document.getElementById('sbUrole');
-  if(av) av.textContent = currentUser.username.charAt(0).toUpperCase();
-  if(nm) nm.textContent = currentUser.username;
-  if(rl) rl.textContent = currentUser.role === 'Admin' ? 'Administrator' : 'Member (Read-only)';
+  const displayName = (!isAdmin() && ME && ME.name) ? ME.name : currentUser.username;
+  if(av) av.textContent = displayName.charAt(0).toUpperCase();
+  if(nm) nm.textContent = displayName;
+  const ROLE_LABELS = { Admin:'Administrator', Member:'Resident' };
+  if(rl) rl.textContent = ROLE_LABELS[currentUser.role] || currentUser.role;
 }
 
 // ═══════════════════════════════════════════════
@@ -306,8 +321,16 @@ window.onload = async () => {
     toast('Failed to load data from server: ' + err.message, 'warn');
   }
 
-  applySettings();
-  renderDashboard();
+  if(isAdmin()){
+    applySettings();
+    renderDashboard();
+    refreshPayBadge();
+  } else {
+    // Residents land on their own dashboard instead of the admin overview.
+    applySettings();
+    updateSidebarUserInfo();
+    showTab('mdash', document.getElementById('mnav-dash'));
+  }
 };
 
 // Guard against the browser back/forward cache (bfcache) restoring the
@@ -361,9 +384,16 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',admin:'Admin Panel'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',admin:'Admin Panel',payments:'Payment Verifications',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
+
+  // The shared month/year filter only applies to data-driven tabs; hide it
+  // elsewhere (settings, profile, etc.). Members get the same read-only filter
+  // on the society tabs they can view.
+  const FILTER_TABS = ['dashboard','collections','expenses','reports','notifications'];
+  const tf = document.getElementById('topFilters');
+  if(tf) tf.style.display = FILTER_TABS.includes(t) ? 'flex' : 'none';
 
   // Sync the shared month/year dropdowns to this tab's own remembered filter —
   // Dashboard defaults to All Years for the full picture, while every other
@@ -379,7 +409,7 @@ async function showTab(t, el){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, admin:renderUsers};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, admin:renderUsers, payments:renderPaymentsAdmin, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -1444,6 +1474,7 @@ async function saveComplaint(){
     }
     await loadComplaints();
     closeModal('cmp'); renderComplaints(); updateNotifBadge();
+    if(!isAdmin()) refreshMemberComplaintViews();
     toast(editId.cmp ? 'Complaint updated — member will be notified.' : 'Complaint submitted — admin will be notified.');
   }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
@@ -1474,6 +1505,7 @@ async function deleteComplaint(id){
     await Api.deleteComplaint(id);
     await loadComplaints();
     renderComplaints(); updateNotifBadge();
+    if(!isAdmin()) refreshMemberComplaintViews();
     toast('Complaint removed.','warn');
   }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
@@ -1638,5 +1670,504 @@ document.addEventListener('click', function(e){
    },500);
 
 })();
+
+// ═══════════════════════════════════════════════════════════════
+// MEMBER (RESIDENT) PORTAL — everything below drives the /api/me
+// backed experience shown to non-Admin users. Data lives in the
+// global `ME` snapshot (see loadMe()); complaints reuse DB.complaints
+// which the API already scopes to the signed-in resident.
+// ═══════════════════════════════════════════════════════════════
+let mFamily = [], mVehicles = [], mPhoto = '';
+
+function mMoney(n){ return '₹' + (Number(n)||0).toLocaleString('en-IN'); }
+function mDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d)) return '—';
+  return String(d.getDate()).padStart(2,'0')+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+d.getFullYear();
+}
+function mParse(json){ try{ const v = JSON.parse(json||'[]'); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function mKpi(icon,label,value,sub,tone){
+  return `<div class="kpi"><div class="kpi-icon">${icon}</div><div class="kpi-lbl">${label}</div>`+
+         `<div class="kpi-val">${value}</div><div class="kpi-sub ${tone||''}">${sub||''}</div></div>`;
+}
+function mStatusBadge(st){ const k=(st||'').toLowerCase(); return `<span class="badge b-${k}">${st||'—'}</span>`; }
+
+// ── Dashboard ──
+function renderMemberDashboard(){
+  if(!ME) return;
+  const mnt = ME.maintenance || {}, cmp = ME.complaints || {};
+  const hour = new Date().getHours();
+  const greet = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  const name = ME.name || ME.username;
+  const wel = document.getElementById('m-welcome');
+  if(wel) wel.innerHTML = `<h2>${greet}, ${name} 👋</h2><p>Flat ${ME.flat||'—'}${ME.floor?' · Floor '+ME.floor:''} · ${ME.societyName||''}</p>`;
+
+  const pendTone = (mnt.pendingAmount>0)?'dn':'up';
+  document.getElementById('m-kpi-grid').innerHTML =
+    mKpi('⏳','Pending Maintenance', mMoney(mnt.pendingAmount), (mnt.pendingMonths||0)+' month(s) due', pendTone) +
+    mKpi('✅','Total Paid', mMoney(mnt.totalPaid), (mnt.totalReceipts||0)+' receipts','up') +
+    mKpi('📅','Next Due Date', mDate(mnt.nextDueDate), mMoney(mnt.maintenanceAmt)+' expected') +
+    mKpi('🧾','Last Payment', mDate(mnt.lastPaymentDate), '') +
+    mKpi('🛠️','Open Complaints', (cmp.open||0), (cmp.total||0)+' total');
+
+  const recent = (ME.payments||[]).slice(0,5);
+  document.getElementById('m-recent-pay').innerHTML = recent.map(p=>
+    `<tr><td>${MONTHS[p.month]||p.month} ${p.year}</td><td>${mMoney(p.amount)}</td><td>${mStatusBadge(p.status)}</td></tr>`
+  ).join('') || '<tr><td colspan="3" class="empty">No payment records yet</td></tr>';
+
+  const notices = memberNoticeItems().slice(0,3);
+  document.getElementById('m-recent-notices').innerHTML = notices.map(mNoticeHtml).join('')
+    || '<div class="empty">No notices right now 🎉</div>';
+
+  updateMemberBadge();
+}
+
+// ── My Payments ──
+function renderMemberPayments(){
+  if(!ME) return;
+  const mnt = ME.maintenance || {};
+  document.getElementById('m-pay-kpi').innerHTML =
+    mKpi('✅','Total Paid', mMoney(mnt.totalPaid), (mnt.totalReceipts||0)+' receipts','up') +
+    mKpi('⏳','Pending', mMoney(mnt.pendingAmount), (mnt.pendingMonths||0)+' month(s)', mnt.pendingAmount>0?'dn':'up') +
+    mKpi('📅','Next Due', mDate(mnt.nextDueDate), mMoney(mnt.maintenanceAmt));
+
+  loadMemberPendingInvoices();
+
+  const f = document.getElementById('mPayStatusF').value;
+  const rows = (ME.payments||[]).filter(p=>!f||p.status===f);
+  document.getElementById('m-pay-tbody').innerHTML = rows.map(p=>
+    `<tr>
+      <td>${MONTHS[p.month]||p.month} ${p.year}</td>
+      <td>${mMoney(p.amount)}</td>
+      <td>${mStatusBadge(p.status)}</td>
+      <td>${mDate(p.paymentDate)}</td>
+      <td>${p.paymentMode||'—'}</td>
+      <td>${p.remarks||'—'}</td>
+      <td>${p.status==='Paid' ? `<button class="ic-btn" title="Download receipt" onclick="downloadMemberReceipt(${p.id})">🧾</button>` : ''}</td>
+    </tr>`
+  ).join('') || '<tr><td colspan="7" class="empty">No maintenance records found</td></tr>';
+}
+
+// ── Receipts ──
+function renderMemberReceipts(){
+  if(!ME) return;
+  const paid = (ME.payments||[]).filter(p=>p.status==='Paid');
+  document.getElementById('m-receipt-grid').innerHTML = paid.map(p=>
+    `<div class="doc-tile">
+      <div class="doc-ic">🧾</div>
+      <div class="doc-m">${MONTHS[p.month]||p.month} ${p.year}</div>
+      <div class="doc-amt">${mMoney(p.amount)}</div>
+      <div class="mhint">Paid on ${mDate(p.paymentDate)} · ${p.paymentMode||'—'}</div>
+      <button class="btn btn-ghost" onclick="downloadMemberReceipt(${p.id})">⬇ Download</button>
+    </div>`
+  ).join('') || '<div class="empty">No receipts available yet</div>';
+}
+
+function downloadMemberReceipt(id){
+  const p = (ME.payments||[]).find(x=>String(x.id)===String(id));
+  if(!p) return toast('Receipt not found','warn');
+  const society = ME.societyName || 'Society';
+  const payer = ME.name || ME.username;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt ${id}</title>
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#1a1f36;padding:32px;max-width:640px;margin:auto;}
+      h1{font-size:20px;margin:0;} .muted{color:#718096;font-size:12px;}
+      .hd{border-bottom:2px solid #6c63ff;padding-bottom:12px;margin-bottom:18px;}
+      table{width:100%;border-collapse:collapse;margin-top:12px;}
+      td{padding:8px 6px;border-bottom:1px solid #e2e8f0;font-size:14px;}
+      td.l{color:#718096;width:45%;} .amt{font-size:22px;font-weight:800;color:#276749;}
+      .ft{margin-top:24px;font-size:12px;color:#718096;}
+      .stamp{display:inline-block;margin-top:16px;padding:6px 14px;border:2px solid #276749;color:#276749;border-radius:8px;font-weight:700;transform:rotate(-4deg);}
+    </style></head><body>
+    <div class="hd"><h1>${society}</h1><div class="muted">Maintenance Payment Receipt</div></div>
+    <table>
+      <tr><td class="l">Receipt No.</td><td>SMMS-${p.year}-${String(p.id).padStart(5,'0')}</td></tr>
+      <tr><td class="l">Received From</td><td>${payer}</td></tr>
+      <tr><td class="l">Flat / Floor</td><td>${ME.flat||'—'}${ME.floor?' · Floor '+ME.floor:''}</td></tr>
+      <tr><td class="l">For Month</td><td>${MONTHS[p.month]||p.month} ${p.year}</td></tr>
+      <tr><td class="l">Payment Date</td><td>${mDate(p.paymentDate)}</td></tr>
+      <tr><td class="l">Payment Mode</td><td>${p.paymentMode||'—'}</td></tr>
+      <tr><td class="l">Amount Paid</td><td class="amt">${mMoney(p.amount)}</td></tr>
+    </table>
+    <div class="stamp">PAID</div>
+    <div class="ft">This is a system-generated receipt and does not require a physical signature.<br>Generated on ${mDate(new Date().toISOString())}.</div>
+    <script>window.onload=function(){window.print();}<\/script>
+    </body></html>`;
+  const w = window.open('', '_blank');
+  if(!w) return toast('Please allow pop-ups to download the receipt','warn');
+  w.document.write(html); w.document.close();
+}
+
+// ═══════════════════════════════════════════════
+// ONLINE PAYMENTS  (member: pay + upload proof)
+// ═══════════════════════════════════════════════
+let _payCtx = { collectionId: null, qrUrl: null };
+
+async function loadMemberPendingInvoices(){
+  const box = document.getElementById('m-pay-invoices');
+  if(!box) return;
+  box.innerHTML = '<div class="mhint">Loading…</div>';
+  try{
+    const list = await Api.getPendingInvoices();
+    if(!list.length){ box.innerHTML = '<div class="empty">🎉 No pending dues. You are all settled up!</div>'; return; }
+    box.innerHTML = list.map(inv => {
+      const overdue = inv.isOverdue ? '<span class="pay-badge pay-overdue">Overdue</span>' : '';
+      const action = inv.hasPendingProof
+        ? '<span class="pay-badge pay-pending">⏳ Awaiting verification</span>'
+        : `<button class="btn btn-primary" onclick="openPayModal(${inv.collectionId})">💳 Pay Now</button>`;
+      return `<div class="pay-invoice-card">
+        <div class="pay-inv-top">
+          <div><div class="pay-inv-period">${inv.billingLabel}</div><div class="mhint">${inv.invoiceNumber}</div></div>
+          <div class="pay-inv-amt">${mMoney(inv.amount)}</div>
+        </div>
+        <div class="mhint">Due ${mDate(inv.dueDate)} ${overdue}</div>
+        <div class="pay-inv-actions">${action}</div>
+      </div>`;
+    }).join('');
+  }catch(err){
+    box.innerHTML = `<div class="empty">${err.message}</div>`;
+  }
+}
+
+async function openPayModal(collectionId){
+  try{
+    const payload = await Api.getQrPayload(collectionId);
+    _payCtx.collectionId = collectionId;
+    document.getElementById('pay-modal-title').textContent = `Pay ${payload.invoiceNumber}`;
+    document.getElementById('pay-amt').textContent = mMoney(payload.amount);
+    document.getElementById('pay-payee').textContent = `To: ${payload.payeeName} · ${payload.upiId}`;
+    document.getElementById('pay-upi-link').href = payload.upiUri;
+    document.getElementById('pay-ref').value = '';
+    document.getElementById('pay-file').value = '';
+
+    const img = document.getElementById('pay-qr-img');
+    img.src = '';
+    if(_payCtx.qrUrl){ URL.revokeObjectURL(_payCtx.qrUrl); _payCtx.qrUrl = null; }
+    _payCtx.qrUrl = await Api.getQrImageUrl(collectionId);
+    img.src = _payCtx.qrUrl;
+
+    document.getElementById('modal-pay').classList.add('open');
+  }catch(err){
+    toast(err.message, 'warn');
+  }
+}
+
+async function submitPaymentProof(){
+  if(!_payCtx.collectionId) return;
+  const ref = document.getElementById('pay-ref').value.trim();
+  const file = document.getElementById('pay-file').files[0];
+  if(!ref && !file) return toast('Enter a UPI reference or attach a screenshot.','warn');
+  if(file && file.size > 5 * 1024 * 1024) return toast('Screenshot must be under 5 MB.','warn');
+
+  const btn = document.getElementById('pay-submit-btn');
+  btn.disabled = true;
+  try{
+    const fd = new FormData();
+    fd.append('collectionId', _payCtx.collectionId);
+    if(ref) fd.append('upiReference', ref);
+    if(file) fd.append('screenshot', file);
+    await Api.uploadPaymentProof(fd);
+    toast('Payment submitted for verification ✅');
+    closeModal('pay');
+    await loadMe();
+    renderMemberPayments();
+  }catch(err){
+    toast(err.message, 'warn');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ONLINE PAYMENTS  (admin: verify + configure)
+// ═══════════════════════════════════════════════
+async function renderPaymentsAdmin(){
+  if(!isAdmin()) return;
+  await loadUpiSettingsForm();
+  try{
+    const dash = await Api.getPaymentDashboard();
+    document.getElementById('pay-kpi').innerHTML =
+      mKpi('⏳','Pending Approvals', dash.pendingCount, mMoney(dash.pendingAmount)+' awaiting', dash.pendingCount>0?'dn':'up') +
+      mKpi('📆','Collected Today', mMoney(dash.todayCollections), '','up') +
+      mKpi('🗓️','Collected This Month', mMoney(dash.monthCollections), '','up');
+    updatePayBadge(dash.pendingCount);
+  }catch(err){ toast(err.message,'warn'); }
+
+  const status = document.getElementById('payStatusF').value;
+  const tbody = document.getElementById('pay-tbody');
+  tbody.innerHTML = '<tr><td colspan="10" class="empty">Loading…</td></tr>';
+  try{
+    const rows = await Api.getPaymentProofs({ status });
+    tbody.innerHTML = rows.map(p=>{
+      const proof = p.hasScreenshot
+        ? `<button class="ic-btn" title="View screenshot" onclick="viewProofScreenshot(${p.id},true)">🖼️</button>` : '—';
+      const actions = p.status==='Pending'
+        ? `<button class="btn btn-primary btn-sm" onclick="approveProof(${p.id})">Approve</button>
+           <button class="btn btn-ghost btn-sm" onclick="rejectProof(${p.id})">Reject</button>`
+        : mStatusBadge(p.status) + (p.reviewRemarks ? `<div class="mhint">${p.reviewRemarks}</div>` : '');
+      return `<tr>
+        <td>${mDate(p.submittedAt)}</td>
+        <td>${p.flat||'—'}</td>
+        <td>${p.memberName||'—'}</td>
+        <td>${p.invoiceNumber}</td>
+        <td>${p.billingLabel}</td>
+        <td>${mMoney(p.amount)}</td>
+        <td>${p.upiReference||'—'}</td>
+        <td>${proof}</td>
+        <td>${mStatusBadge(p.status)}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="10" class="empty">No payment records found</td></tr>';
+  }catch(err){
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">${err.message}</td></tr>`;
+  }
+}
+
+async function approveProof(id){
+  if(!confirm('Approve this payment? The invoice will be marked Paid.')) return;
+  try{ await Api.approvePaymentProof(id); toast('Payment approved ✅'); renderPaymentsAdmin(); }
+  catch(err){ toast(err.message,'warn'); }
+}
+
+async function rejectProof(id){
+  const remarks = prompt('Reason for rejection (optional):') ?? null;
+  try{ await Api.rejectPaymentProof(id, remarks); toast('Payment rejected','info'); renderPaymentsAdmin(); }
+  catch(err){ toast(err.message,'warn'); }
+}
+
+async function viewProofScreenshot(id, admin){
+  try{
+    const url = admin ? await Api.getAdminProofScreenshot(id) : await Api.getMyProofScreenshot(id);
+    const img = document.getElementById('proof-img');
+    if(img._url) URL.revokeObjectURL(img._url);
+    img._url = url;
+    img.src = url;
+    document.getElementById('modal-proof').classList.add('open');
+  }catch(err){ toast(err.message,'warn'); }
+}
+function closeProofModal(){
+  const img = document.getElementById('proof-img');
+  if(img._url){ URL.revokeObjectURL(img._url); img._url = null; }
+  img.src = '';
+  document.getElementById('modal-proof').classList.remove('open');
+}
+
+async function loadUpiSettingsForm(){
+  try{
+    const s = await Api.getUpiSettings();
+    document.getElementById('upi-id').value      = s.upiId || '';
+    document.getElementById('upi-payee').value   = s.upiPayeeName || '';
+    document.getElementById('upi-bank').value    = s.bankName || '';
+    document.getElementById('upi-acname').value  = s.bankAccountName || '';
+    document.getElementById('upi-acnum').value   = s.bankAccountNumber || '';
+    document.getElementById('upi-ifsc').value    = s.bankIfsc || '';
+  }catch(err){ /* settings may not be loaded yet */ }
+}
+
+async function saveUpiSettingsForm(){
+  const payload = {
+    upiId:             document.getElementById('upi-id').value.trim(),
+    upiPayeeName:      document.getElementById('upi-payee').value.trim(),
+    bankName:          document.getElementById('upi-bank').value.trim(),
+    bankAccountName:   document.getElementById('upi-acname').value.trim(),
+    bankAccountNumber: document.getElementById('upi-acnum').value.trim(),
+    bankIfsc:          document.getElementById('upi-ifsc').value.trim()
+  };
+  if(!payload.upiId || !payload.upiPayeeName) return toast('UPI ID and Payee Name are required.','warn');
+  try{ await Api.saveUpiSettings(payload); toast('Payment setup saved ✅'); }
+  catch(err){ toast(err.message,'warn'); }
+}
+
+function updatePayBadge(count){
+  const b = document.getElementById('payBadge');
+  if(!b) return;
+  b.textContent = count || 0;
+  b.style.display = count > 0 ? '' : 'none';
+}
+
+async function refreshPayBadge(){
+  if(!isAdmin()) return;
+  try{ const d = await Api.getPaymentDashboard(); updatePayBadge(d.pendingCount); }
+  catch(err){ /* non-critical */ }
+}
+
+// ── My Complaints ──
+function renderMemberComplaints(){
+  const list = DB.complaints || [];
+  const open = list.filter(c=>c.status==='Open').length;
+  const prog = list.filter(c=>c.status==='In Progress').length;
+  const done = list.filter(c=>c.status==='Resolved'||c.status==='Closed').length;
+  const sum = document.getElementById('m-cmp-summary');
+  if(sum) sum.innerHTML =
+    `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);width:100%;">
+      <div style="text-align:center;padding:6px 16px;background:var(--card);border-radius:8px;border:1px solid var(--border);"><div style="font-size:10px;color:var(--sub);">Total</div><div style="font-size:16px;font-weight:800;">${list.length}</div></div>
+      <div style="text-align:center;padding:6px 16px;background:#fed7d7;border-radius:8px;"><div style="font-size:10px;color:#9b2c2c;">🔴 Open</div><div style="font-size:16px;font-weight:800;color:#9b2c2c;">${open}</div></div>
+      <div style="text-align:center;padding:6px 16px;background:#feebc8;border-radius:8px;"><div style="font-size:10px;color:#9c4221;">🟡 In Progress</div><div style="font-size:16px;font-weight:800;color:#9c4221;">${prog}</div></div>
+      <div style="text-align:center;padding:6px 16px;background:#c6f6d5;border-radius:8px;"><div style="font-size:10px;color:#276749;">🟢 Resolved</div><div style="font-size:16px;font-weight:800;color:#276749;">${done}</div></div>
+    </div>`;
+
+  const statusColors = {'Open':'#c53030','In Progress':'#c05621','Resolved':'#276749','Closed':'#4a5568'};
+  const prioColors   = {'High':'#c53030','Medium':'#c05621','Low':'#276749'};
+  document.getElementById('m-cmp-tbody').innerHTML = [...list]
+    .sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''))
+    .map(c=>`<tr>
+      <td>${c.createdAt||'—'}</td>
+      <td title="${(c.description||'').replace(/"/g,'&quot;')}">${c.subject}</td>
+      <td>${c.category}</td>
+      <td><span style="color:${prioColors[c.priority]||'#4a5568'};font-weight:700;">${c.priority}</span></td>
+      <td><span style="color:${statusColors[c.status]||'#4a5568'};font-weight:700;">${c.status}</span></td>
+      <td>${c.resolutionNotes||'—'}</td>
+      <td>${c.status==='Open' ? `<button class="ic-btn" title="Withdraw" onclick="deleteComplaint('${c.id}')">🗑️</button>` : ''}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="empty">You have not raised any complaints yet</td></tr>';
+}
+
+function refreshMemberComplaintViews(){
+  renderMemberComplaints();
+  renderMemberNotices();
+  updateMemberBadge();
+}
+
+// ── Notices ──
+function memberNoticeItems(){
+  const items = [];
+  const mnt = (ME && ME.maintenance) || {};
+  if(mnt.pendingAmount > 0){
+    items.push({color:'#e53e3e', text:`⚠️ Maintenance pending: ${mMoney(mnt.pendingAmount)} across ${mnt.pendingMonths||0} month(s). Please clear at the earliest.`, time:'Payment reminder'});
+  } else if(mnt.nextDueDate){
+    items.push({color:'#3182ce', text:`📅 Next maintenance of ${mMoney(mnt.maintenanceAmt)} is due on ${mDate(mnt.nextDueDate)}.`, time:'Upcoming due'});
+  }
+  // Reuse the shared resident complaint-update feed (own complaints, non-open).
+  return items.concat(complaintNotifItems());
+}
+function mNoticeHtml(n){
+  return `<div class="notif-item"><div class="ndot" style="background:${n.color}"></div><div><div class="ntext">${n.text}</div><div class="ntime">${n.time||''}</div></div></div>`;
+}
+function renderMemberNotices(){
+  const items = memberNoticeItems();
+  document.getElementById('m-notice-list').innerHTML = items.map(mNoticeHtml).join('')
+    || '<div class="empty">No notices right now 🎉</div>';
+  updateMemberBadge();
+}
+function updateMemberBadge(){
+  const el = document.getElementById('mNotifBadge');
+  if(el) el.textContent = memberNoticeItems().length;
+}
+
+// ── My Home (profile) ──
+function renderMemberHome(){
+  if(!ME) return;
+  mPhoto = ME.profilePhoto || '';
+  const av = document.getElementById('m-avatar');
+  if(av){
+    if(mPhoto){ av.style.backgroundImage = `url('${mPhoto}')`; av.textContent = ''; }
+    else { av.style.backgroundImage = ''; av.textContent = (ME.name||ME.username||'R').charAt(0).toUpperCase(); }
+  }
+  document.getElementById('m-hero-name').textContent = ME.name || ME.username;
+  document.getElementById('m-hero-sub').textContent = `Flat ${ME.flat||'—'}${ME.floor?' · Floor '+ME.floor:''}`;
+  const roleLbl = ME.role === 'Member' ? 'Resident' : ME.role;
+  document.getElementById('m-hero-badges').innerHTML =
+    `<span class="badge b-paid">${roleLbl}</span>` + (ME.occupancyType?`<span class="badge b-pending">${ME.occupancyType}</span>`:'');
+
+  document.getElementById('m-name').value      = ME.name || '';
+  document.getElementById('m-email').value     = ME.email || '';
+  document.getElementById('m-mobile').value    = ME.mobile || '';
+  document.getElementById('m-occupancy').value = ME.occupancyType || '';
+  document.getElementById('m-emergency').value = ME.emergencyContact || '';
+  document.getElementById('m-flat').value      = ME.flat || '';
+  document.getElementById('m-floor').value     = ME.floor || '';
+
+  const prefs = (function(){ try{ return JSON.parse(ME.notifyPrefsJson||'{}')||{}; }catch(e){ return {}; } })();
+  document.getElementById('m-pref-sms').checked      = prefs.sms !== false;
+  document.getElementById('m-pref-email').checked    = prefs.email !== false;
+  document.getElementById('m-pref-whatsapp').checked = !!prefs.whatsapp;
+
+  mFamily   = mParse(ME.familyJson);
+  mVehicles = mParse(ME.vehiclesJson);
+  renderFamilyRows();
+  renderVehicleRows();
+
+  ['m-pw-current','m-pw-new','m-pw-confirm'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+}
+
+function renderFamilyRows(){
+  document.getElementById('m-family-list').innerHTML = mFamily.map((f,i)=>
+    `<div class="m-row">
+      <input placeholder="Relationship" value="${(f.relationship||'').replace(/"/g,'&quot;')}" oninput="mFamily[${i}].relationship=this.value">
+      <input placeholder="Name" value="${(f.name||'').replace(/"/g,'&quot;')}" oninput="mFamily[${i}].name=this.value">
+      <input placeholder="Mobile" value="${(f.mobile||'').replace(/"/g,'&quot;')}" oninput="mFamily[${i}].mobile=this.value">
+      <button class="ic-btn" onclick="removeFamilyRow(${i})">🗑️</button>
+    </div>`).join('') || '<div class="mhint">No family members added.</div>';
+}
+function addFamilyRow(){ mFamily.push({relationship:'',name:'',mobile:''}); renderFamilyRows(); }
+function removeFamilyRow(i){ mFamily.splice(i,1); renderFamilyRows(); }
+
+function renderVehicleRows(){
+  document.getElementById('m-vehicle-list').innerHTML = mVehicles.map((v,i)=>
+    `<div class="m-row">
+      <input placeholder="Vehicle No." value="${(v.number||'').replace(/"/g,'&quot;')}" oninput="mVehicles[${i}].number=this.value">
+      <select onchange="mVehicles[${i}].type=this.value">
+        ${['Car','Bike','Scooter','Cycle','Other'].map(t=>`<option${v.type===t?' selected':''}>${t}</option>`).join('')}
+      </select>
+      <input placeholder="Parking slot" value="${(v.slot||'').replace(/"/g,'&quot;')}" oninput="mVehicles[${i}].slot=this.value">
+      <button class="ic-btn" onclick="removeVehicleRow(${i})">🗑️</button>
+    </div>`).join('') || '<div class="mhint">No vehicles added.</div>';
+}
+function addVehicleRow(){ mVehicles.push({number:'',type:'Car',slot:''}); renderVehicleRows(); }
+function removeVehicleRow(i){ mVehicles.splice(i,1); renderVehicleRows(); }
+
+function handleMemberPhoto(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  if(file.size > 1.5*1024*1024) return toast('Please choose an image under 1.5 MB','warn');
+  const reader = new FileReader();
+  reader.onload = e => {
+    mPhoto = e.target.result;
+    const av = document.getElementById('m-avatar');
+    if(av){ av.style.backgroundImage = `url('${mPhoto}')`; av.textContent=''; }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function saveMyProfile(){
+  const name = document.getElementById('m-name').value.trim();
+  if(!name) return toast('Name is required','warn');
+  const payload = {
+    name,
+    email: document.getElementById('m-email').value.trim(),
+    mobile: document.getElementById('m-mobile').value.trim(),
+    occupancyType: document.getElementById('m-occupancy').value,
+    emergencyContact: document.getElementById('m-emergency').value.trim(),
+    profilePhoto: mPhoto || null,
+    familyJson: JSON.stringify(mFamily.filter(f=>f.name||f.relationship||f.mobile)),
+    vehiclesJson: JSON.stringify(mVehicles.filter(v=>v.number)),
+    notifyPrefsJson: JSON.stringify({
+      sms: document.getElementById('m-pref-sms').checked,
+      email: document.getElementById('m-pref-email').checked,
+      whatsapp: document.getElementById('m-pref-whatsapp').checked
+    })
+  };
+  try{
+    await Api.updateMe(payload);
+    await loadMe();
+    renderMemberHome();
+    updateSidebarUserInfo();
+    toast('Profile updated successfully');
+  }catch(err){ toast(err.message || 'Could not save profile','warn'); }
+}
+
+async function changeMyPassword(){
+  const cur = document.getElementById('m-pw-current').value;
+  const nw  = document.getElementById('m-pw-new').value;
+  const cf  = document.getElementById('m-pw-confirm').value;
+  if(!cur || !nw) return toast('Enter your current and new password','warn');
+  if(nw.length < 4) return toast('New password must be at least 4 characters','warn');
+  if(nw !== cf) return toast('New passwords do not match','warn');
+  try{
+    await Api.changeMyPassword(cur, nw);
+    ['m-pw-current','m-pw-new','m-pw-confirm'].forEach(id=>{ document.getElementById(id).value=''; });
+    toast('Password changed successfully');
+  }catch(err){ toast(err.message || 'Could not change password','warn'); }
+}
 
 

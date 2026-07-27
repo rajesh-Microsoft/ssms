@@ -20,21 +20,37 @@
     </div>
   </div>
   <nav>
-    <div class="nav-sec">Main</div>
-    <div class="nav-item active" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Dashboard</div>
-    <div class="nav-sec">Finance</div>
-    <div class="nav-item" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
-    <div class="nav-item" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
-    <div class="nav-sec">Management</div>
-    <div class="nav-item" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
-    <div class="nav-item" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
-    <div class="nav-item" onclick="showTab('reports',this)"><span class="ni">📋</span> Reports</div>
-    <div class="nav-sec">System</div>
+    <div class="nav-sec admin-only">Main</div>
+    <div class="nav-item admin-only active" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Dashboard</div>
+    <div class="nav-sec admin-only">Finance</div>
+    <div class="nav-item admin-only" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
+    <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
+    <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
+    <div class="nav-sec admin-only">Management</div>
+    <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
+    <div class="nav-item admin-only" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
+    <div class="nav-item admin-only" onclick="showTab('reports',this)"><span class="ni">📋</span> Reports</div>
+    <div class="nav-sec admin-only">System</div>
     <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">�</span> Export</div>
-    <div class="nav-item" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
+    <div class="nav-item admin-only" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
-    <div class="nav-item" data-perm-view="Settings" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
+    <div class="nav-item admin-only" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
     <div class="nav-item admin-only" onclick="showTab('admin',this)"><span class="ni">🔐</span> Admin</div>
+
+    <!-- ── MEMBER (resident) navigation ── -->
+    <div class="nav-sec member-only">My Society</div>
+    <div class="nav-item member-only" id="mnav-dash" onclick="showTab('mdash',this)"><span class="ni">📊</span> Dashboard</div>
+    <div class="nav-item member-only" onclick="showTab('mpay',this)"><span class="ni">💰</span> My Payments</div>
+    <div class="nav-item member-only" onclick="showTab('mreceipts',this)"><span class="ni">🧾</span> Receipts</div>
+    <div class="nav-sec member-only">Society (read-only)</div>
+    <div class="nav-item member-only" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Overview</div>
+    <div class="nav-item member-only" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
+    <div class="nav-item member-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
+    <div class="nav-sec member-only">Support</div>
+    <div class="nav-item member-only" onclick="showTab('mcomplaints',this)"><span class="ni">🛠️</span> Complaints</div>
+    <div class="nav-item member-only" onclick="showTab('mnotices',this)"><span class="ni">🔔</span> Notices <span class="nbadge" id="mNotifBadge">0</span></div>
+    <div class="nav-sec member-only">Account</div>
+    <div class="nav-item member-only" onclick="showTab('mhome',this)"><span class="ni">🏠</span> My Home</div>
   </nav>
   <div class="sidebar-foot">
     <div class="uinfo">
@@ -52,6 +68,7 @@
     <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="topFilters" style="display:flex;gap:8px;align-items:center;">
       <select id="topMonth" onchange="onTopFilterChange()" style="width:auto;">
         <option value="0">All Months</option>
         <option value="1">January</option><option value="2">February</option><option value="3">March</option>
@@ -60,7 +77,8 @@
         <option value="10">October</option><option value="11">November</option><option value="12">December</option>
       </select>
       <select id="topYear" onchange="onTopFilterChange()" style="width:auto;"></select>
-      <span id="saveStatus" style="font-size:12px;color:green;font-weight:600;">🟢 Synced</span><button class="btn btn-success admin-only" onclick="saveToExcel()">💾 Save Excel</button>
+      </span>
+      <span id="saveStatus" class="admin-only" style="font-size:12px;color:green;font-weight:600;">🟢 Synced</span><button class="btn btn-success admin-only" onclick="saveToExcel()">💾 Save Excel</button>
       <button class="theme-btn" onclick="toggleTheme()">🌙</button>
     </div>
   </div>
@@ -244,6 +262,40 @@
       </div>
     </div>
 
+    <!-- PAYMENTS (admin verification) -->
+    <div id="tab-payments" class="tab-content">
+      <div class="kpi-grid" id="pay-kpi"></div>
+
+      <div class="card">
+        <div class="card-hdr"><h3>🏦 Payment Setup (UPI &amp; Bank)</h3></div>
+        <p class="mhint">These details drive the QR codes residents scan to pay. UPI ID and Payee Name are required for online payments.</p>
+        <div class="form-grid">
+          <div class="form-group"><label>UPI ID *</label><input type="text" id="upi-id" placeholder="society@okhdfcbank"></div>
+          <div class="form-group"><label>Payee Name *</label><input type="text" id="upi-payee" placeholder="NLC Aadya Society"></div>
+          <div class="form-group"><label>Bank Name</label><input type="text" id="upi-bank"></div>
+          <div class="form-group"><label>Account Name</label><input type="text" id="upi-acname"></div>
+          <div class="form-group"><label>Account Number</label><input type="text" id="upi-acnum"></div>
+          <div class="form-group"><label>IFSC</label><input type="text" id="upi-ifsc"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="saveUpiSettingsForm()">💾 Save Payment Setup</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr">
+          <h3>🧾 Payment Verifications</h3>
+          <select id="payStatusF" onchange="renderPaymentsAdmin()" style="width:auto;">
+            <option value="Pending">Pending</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="">All</option>
+          </select>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Submitted</th><th>Flat</th><th>Member</th><th>Invoice</th><th>Period</th><th>Amount</th><th>UPI Ref</th><th>Proof</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="pay-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
     <!-- SETTINGS -->
     <div id="tab-settings" class="tab-content">
       <div class="settings-grid">
@@ -296,6 +348,135 @@
           <table><thead><tr><th>#</th><th>Username</th><th>Role</th><th>Email</th><th>Permissions</th><th></th>Status</th><th>Actions</th></tr></thead>
           <tbody id="user-tbody"></tbody></table>
         </div>
+      </div>
+    </div>
+
+    <!-- ══════════ MEMBER (resident) EXPERIENCE ══════════ -->
+
+    <!-- MEMBER DASHBOARD -->
+    <div id="tab-mdash" class="tab-content">
+      <div class="mwelcome" id="m-welcome"></div>
+      <div class="kpi-grid" id="m-kpi-grid"></div>
+      <div class="qa-grid">
+        <div class="qa-tile" onclick="showTab('mpay',document.getElementById('mnav-dash'))"><div class="qa-ic">💰</div><div class="qa-t">Pay / View Dues</div><div class="qa-s">See your maintenance</div></div>
+        <div class="qa-tile" onclick="openModal('cmp')"><div class="qa-ic">🛠️</div><div class="qa-t">Raise a Complaint</div><div class="qa-s">Report an issue</div></div>
+        <div class="qa-tile" onclick="showTab('mreceipts')"><div class="qa-ic">🧾</div><div class="qa-t">Download Receipt</div><div class="qa-s">Payment history</div></div>
+        <div class="qa-tile" onclick="showTab('mhome')"><div class="qa-ic">🏠</div><div class="qa-t">Update Profile</div><div class="qa-s">My Home details</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="m-two-col">
+        <div class="card">
+          <div class="card-hdr"><h3>Recent Payments</h3><button class="btn btn-ghost" onclick="showTab('mpay')">View all</button></div>
+          <div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Amount</th><th>Status</th></tr></thead><tbody id="m-recent-pay"></tbody></table></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><h3>Latest Notices</h3><button class="btn btn-ghost" onclick="showTab('mnotices')">View all</button></div>
+          <div id="m-recent-notices"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY PAYMENTS -->
+    <div id="tab-mpay" class="tab-content">
+      <div class="kpi-grid" id="m-pay-kpi"></div>
+      <div class="card">
+        <div class="card-hdr"><h3>💳 Pay Online</h3></div>
+        <p class="mhint">Scan the UPI QR with any UPI app (GPay, PhonePe, Paytm…), pay the exact amount, then tap “I've Paid” to submit your reference for verification.</p>
+        <div class="pay-invoice-grid" id="m-pay-invoices"></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <h3>Maintenance History</h3>
+          <select id="mPayStatusF" onchange="renderMemberPayments()" style="width:auto;"><option value="">All Statuses</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
+        </div>
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Month / Year</th><th>Amount</th><th>Status</th><th>Paid On</th><th>Mode</th><th>Remarks</th><th></th></tr></thead>
+          <tbody id="m-pay-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECEIPTS -->
+    <div id="tab-mreceipts" class="tab-content">
+      <div class="card">
+        <div class="card-hdr"><h3>🧾 Payment Receipts</h3></div>
+        <p class="mhint">Only successfully paid maintenance entries can be downloaded as receipts.</p>
+        <div class="doc-grid" id="m-receipt-grid"></div>
+      </div>
+    </div>
+
+    <!-- MY COMPLAINTS -->
+    <div id="tab-mcomplaints" class="tab-content">
+      <div class="card">
+        <div class="card-hdr">
+          <h3>🛠️ My Complaints</h3>
+          <button class="btn btn-primary" onclick="openModal('cmp')">＋ Raise Complaint</button>
+        </div>
+        <div id="m-cmp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+        <div class="tbl-wrap">
+          <table><thead><tr><th>Date</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Resolution</th><th></th></tr></thead>
+          <tbody id="m-cmp-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- NOTICES -->
+    <div id="tab-mnotices" class="tab-content">
+      <div class="card">
+        <div class="card-hdr"><h3>🔔 Notices & Updates</h3></div>
+        <div id="m-notice-list"></div>
+      </div>
+    </div>
+
+    <!-- MY HOME (profile hub) -->
+    <div id="tab-mhome" class="tab-content">
+      <div class="profile-hero">
+        <div class="ph-avatar" id="m-avatar">A</div>
+        <div class="ph-meta">
+          <div class="ph-name" id="m-hero-name">Resident</div>
+          <div class="ph-sub" id="m-hero-sub">Flat — · —</div>
+          <div class="ph-badges" id="m-hero-badges"></div>
+        </div>
+        <label class="btn btn-ghost ph-photo-btn">📷 Change Photo<input type="file" id="m-photo-input" accept="image/*" onchange="handleMemberPhoto(event)" hidden></label>
+      </div>
+
+      <div class="mhome-grid">
+        <div class="card">
+          <div class="card-hdr"><h3>👤 Personal Information</h3></div>
+          <div class="setting-row"><label>Full Name</label><input type="text" id="m-name"></div>
+          <div class="setting-row"><label>Email</label><input type="email" id="m-email"></div>
+          <div class="setting-row"><label>Mobile</label><input type="tel" id="m-mobile"></div>
+          <div class="setting-row"><label>Occupancy</label><select id="m-occupancy"><option value="">Not specified</option><option>Owner</option><option>Tenant</option></select></div>
+          <div class="setting-row"><label>Emergency Contact</label><input type="text" id="m-emergency" placeholder="Name & phone"></div>
+          <div class="setting-row"><label>Flat</label><input type="text" id="m-flat" disabled><small class="mhint">Contact admin to change</small></div>
+          <div class="setting-row"><label>Floor</label><input type="text" id="m-floor" disabled><small class="mhint">Contact admin to change</small></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><h3>👨‍👩‍👧 Family Members</h3><button class="btn btn-ghost" onclick="addFamilyRow()">＋ Add</button></div>
+          <div id="m-family-list"></div>
+
+          <div class="card-hdr" style="margin-top:16px;"><h3>🚗 Vehicles</h3><button class="btn btn-ghost" onclick="addVehicleRow()">＋ Add</button></div>
+          <div id="m-vehicle-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><h3>🔔 Notification Preferences</h3></div>
+          <div class="pref-row"><span>SMS alerts</span><label class="switch"><input type="checkbox" id="m-pref-sms"><span class="slider"></span></label></div>
+          <div class="pref-row"><span>Email alerts</span><label class="switch"><input type="checkbox" id="m-pref-email"><span class="slider"></span></label></div>
+          <div class="pref-row"><span>WhatsApp alerts</span><label class="switch"><input type="checkbox" id="m-pref-whatsapp"><span class="slider"></span></label></div>
+
+          <div class="card-hdr" style="margin-top:16px;"><h3>🔒 Change Password</h3></div>
+          <div class="setting-row"><label>Current Password</label><input type="password" id="m-pw-current"></div>
+          <div class="setting-row"><label>New Password</label><input type="password" id="m-pw-new"></div>
+          <div class="setting-row"><label>Confirm New Password</label><input type="password" id="m-pw-confirm"></div>
+          <button class="btn btn-ghost" onclick="changeMyPassword()">Update Password</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="saveMyProfile()">💾 Save Profile</button>
+        <button class="btn btn-ghost" onclick="renderMemberHome()">↺ Reset</button>
+        <button class="btn btn-danger" style="margin-left:auto;" onclick="logout()">🚪 Logout</button>
       </div>
     </div>
 
@@ -401,7 +582,7 @@
     <div class="form-grid">
       <div class="form-group"><label>Username *</label><input type="text" id="u-name"></div>
       <div class="form-group" id="u-password-row"><label>Password *</label><input type="password" id="u-password" placeholder="Min 4 characters"></div>
-      <div class="form-group"><label>Role *</label><select id="u-role" onchange="toggleUserPermRows()"><option>Admin</option><option>Member</option></select></div>
+      <div class="form-group"><label>Role *</label><select id="u-role" onchange="toggleUserPermRows()"><option>Admin</option><option>Member</option><option>Treasurer</option><option>Secretary</option><option>Committee Member</option><option>Chairman</option></select></div>
       <div class="form-group"><label>Status</label><select id="u-status"><option>Active</option><option>Inactive</option><option>Pending</option></select></div>
       <div class="form-group full"><label>Email</label><input type="email" id="u-email"></div>
       <div class="form-group"><label>Mobile</label><input type="tel" id="u-mobile"></div>
@@ -421,6 +602,38 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- Pay Online (QR + proof upload) -->
+<div class="modal-overlay" id="modal-pay">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="pay-modal-title">Pay Maintenance</h3><button class="modal-close" onclick="closeModal('pay')">✕</button></div>
+    <div class="pay-modal-body">
+      <div class="pay-qr-wrap">
+        <img id="pay-qr-img" class="pay-qr-img" alt="UPI QR code">
+        <div class="pay-amt" id="pay-amt">₹0</div>
+        <div class="mhint" id="pay-payee"></div>
+        <a id="pay-upi-link" class="btn btn-primary" style="margin-top:8px;" href="#">📱 Open in UPI app</a>
+      </div>
+      <div class="pay-form">
+        <p class="mhint">After paying, enter your UPI reference / UTR number and optionally attach a screenshot, then submit for verification.</p>
+        <div class="form-group full"><label>UPI Reference / UTR No.</label><input type="text" id="pay-ref" placeholder="e.g. 4589XXXX1234"></div>
+        <div class="form-group full"><label>Payment Screenshot (optional, image &lt; 5 MB)</label><input type="file" id="pay-file" accept="image/*"></div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('pay')">Cancel</button>
+      <button class="btn btn-primary" id="pay-submit-btn" onclick="submitPaymentProof()">✅ I've Paid</button>
+    </div>
+  </div>
+</div>
+
+<!-- Proof screenshot viewer -->
+<div class="modal-overlay" id="modal-proof">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Payment Screenshot</h3><button class="modal-close" onclick="closeProofModal()">✕</button></div>
+    <div style="text-align:center;"><img id="proof-img" style="max-width:100%;border-radius:10px;" alt="Payment screenshot"></div>
+  </div>
+</div>
 
 <!-- Pending Details Modal -->
 <div class="modal-overlay" id="modal-pending">
