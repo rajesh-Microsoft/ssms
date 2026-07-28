@@ -16,7 +16,7 @@ public class JwtSettings
 
 public class TokenService(JwtSettings settings)
 {
-    public string CreateToken(User user, string tenantKey)
+    public string CreateToken(User user, string tenantKey, string? impersonatedBy = null, int? expiryMinutesOverride = null)
     {
         var claims = new List<Claim>
         {
@@ -28,6 +28,10 @@ public class TokenService(JwtSettings settings)
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
+        // When a super-admin is impersonating a society admin, record who is behind the session.
+        if (!string.IsNullOrEmpty(impersonatedBy))
+            claims.Add(new Claim("imp", impersonatedBy));
+
         foreach (var (module, level) in PermissionHelper.Parse(user.Permissions))
             claims.Add(new Claim($"perm:{module}", level));
 
@@ -38,7 +42,7 @@ public class TokenService(JwtSettings settings)
             issuer: settings.Issuer,
             audience: settings.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(settings.ExpiryMinutes),
+            expires: DateTime.UtcNow.AddMinutes(expiryMinutesOverride ?? settings.ExpiryMinutes),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

@@ -23,7 +23,9 @@ builder.Services.AddDbContext<ControlDbContext>(options =>
         ?? throw new InvalidOperationException("ControlPlane:ConnectionString is not configured.")));
 
 // Tenant registry now comes from SmmsControlDb (enables runtime provisioning) instead of config.
-builder.Services.AddSingleton<ITenantStore, DbTenantStore>();
+// Registered concretely too so provisioning can call Reload() after adding/suspending a society.
+builder.Services.AddSingleton<DbTenantStore>();
+builder.Services.AddSingleton<ITenantStore>(sp => sp.GetRequiredService<DbTenantStore>());
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 builder.Services.AddDbContext<SmmsDbContext>((sp, options) =>
@@ -49,6 +51,10 @@ builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<PlatformTokenService>();
 builder.Services.AddScoped<AuditService>();
+
+// Platform control-plane services (super-admin surface).
+builder.Services.AddScoped<SMMS.Api.Services.Control.PlatformAuditService>();
+builder.Services.AddScoped<SMMS.Api.Services.Control.TenantProvisioningService>();
 builder.Services.AddHttpContextAccessor();
 
 // Maintenance-payment module (dynamic UPI QR + proof upload + admin approval).

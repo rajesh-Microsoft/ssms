@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMMS — Platform Console</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body class="logged-out">
+
+  <!-- ══════════════ LOGIN OVERLAY ══════════════ -->
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-logo">◆</div>
+        <div>
+          <h1>SMMS Platform</h1>
+          <p>Super-Admin Control Plane</p>
+        </div>
+      </div>
+      <div class="field">
+        <label>Username</label>
+        <input id="login-username" type="text" placeholder="superadmin" autocomplete="username"
+               onkeydown="if(event.key==='Enter')platformLogin()" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="login-password" type="password" placeholder="Password" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter')platformLogin()" />
+      </div>
+      <button class="btn btn-primary btn-block" onclick="platformLogin()">Sign in</button>
+      <p id="loginError" class="login-error"></p>
+    </div>
+  </div>
+
+  <!-- ══════════════ APP SHELL ══════════════ -->
+  <div class="app">
+    <aside class="sidebar">
+      <div class="side-brand">
+        <span class="side-logo">◆</span>
+        <div>
+          <strong>SMMS</strong>
+          <small>Platform Console</small>
+        </div>
+      </div>
+      <nav class="side-nav">
+        <a class="nav-item active" data-view="dashboard" onclick="showView('dashboard', this)">📊 <span>Dashboard</span></a>
+        <a class="nav-item" data-view="societies" onclick="showView('societies', this)">🏢 <span>Societies</span></a>
+        <a class="nav-item" data-view="onboard" onclick="showView('onboard', this)">✨ <span>Onboard Society</span></a>
+        <a class="nav-item" data-view="audit" onclick="showView('audit', this)">📜 <span>Audit Log</span></a>
+      </nav>
+      <div class="side-foot">
+        <div class="side-user">
+          <span class="avatar" id="userAvatar">S</span>
+          <div>
+            <strong id="userName">—</strong>
+            <small>Super Admin</small>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-block" onclick="platformLogout()">Log out</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <h2 id="viewTitle">Dashboard</h2>
+        <button class="btn btn-light" onclick="refreshCurrentView()">↻ Refresh</button>
+      </header>
+
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view active">
+        <div id="kpiGrid" class="kpi-grid"></div>
+        <div class="card">
+          <div class="card-head"><h3>Societies at a glance</h3></div>
+          <div id="dashSocieties" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- SOCIETIES -->
+      <section id="view-societies" class="view">
+        <div class="card">
+          <div class="card-head">
+            <h3>All Societies</h3>
+            <button class="btn btn-primary" onclick="showView('onboard', document.querySelector('[data-view=onboard]'))">✨ Onboard New</button>
+          </div>
+          <div id="societiesTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <!-- ONBOARD -->
+      <section id="view-onboard" class="view">
+        <div class="card card-narrow">
+          <div class="card-head"><h3>Onboard a new society</h3></div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Society key <span class="req">*</span></label>
+              <input id="ob-key" type="text" placeholder="e.g. sunrise" oninput="onKeyInput()" />
+              <small class="hint">Lowercase URL slug. Becomes the subdomain: <code id="ob-preview">key</code>.localhost</small>
+            </div>
+            <div class="field">
+              <label>Display name <span class="req">*</span></label>
+              <input id="ob-name" type="text" placeholder="Sunrise Residency" />
+            </div>
+            <div class="field">
+              <label>Plan</label>
+              <select id="ob-plan">
+                <option value="">— none —</option>
+                <option>Trial</option>
+                <option selected>Standard</option>
+                <option>Premium</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Flat count</label>
+              <input id="ob-flats" type="number" min="0" value="0" />
+            </div>
+            <div class="field">
+              <label>Expiry date</label>
+              <input id="ob-expiry" type="date" />
+            </div>
+            <div class="field">
+              <label>Admin username</label>
+              <input id="ob-adminuser" type="text" placeholder="admin (default)" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label>Admin password</label>
+              <input id="ob-adminpass" type="text" placeholder="admin123 (default)" autocomplete="off" />
+              <small class="hint">Leave blank to use the seeded default (admin / admin123).</small>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="ob-submit" onclick="submitOnboard()">Create society</button>
+            <span id="ob-status" class="form-status"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- AUDIT -->
+      <section id="view-audit" class="view">
+        <div class="card">
+          <div class="card-head"><h3>Platform Audit Log</h3></div>
+          <div id="auditTable" class="table-wrap"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

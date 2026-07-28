@@ -35,7 +35,7 @@ const COMPLAINT_CATEGORIES = ['Plumbing','Electrical','Security','Housekeeping',
 let DB = {
   members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [],
   settings: {
-    societyName:'NLC Aadya', address:'', email:'', phone:'',
+    societyName:'', address:'', email:'', phone:'',
     registrationNumber:'', gst:'', pan:'', logoBase64:'',
     maintenanceAmt:2000, dueDay:5, lateFee:100, graceDays:5, billingDay:1, autoGenerateInvoices:false, financialYear:'',
     floors:['1','2','3','4','5'],
@@ -123,7 +123,7 @@ async function loadExpenses(){
 async function loadSettingsData(){
   const s = await Api.getSettings();
   DB.settings = {
-    societyName: s.societyName || 'NLC Aadya',
+    societyName: s.societyName || 'Society',
     address: s.address || '',
     email: s.email || '',
     phone: s.phone || '',
@@ -299,7 +299,68 @@ function parseExcelDate(val){
 // ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
+
+// Decode a JWT payload (base64url) into a claims object. Client-side only —
+// used to build a UI session from an impersonation token; the API still
+// validates the signature on every request.
+function decodeJwt(token){
+  try{
+    const part = token.split('.')[1];
+    const b64 = part.replace(/-/g,'+').replace(/_/g,'/');
+    const json = decodeURIComponent(escape(atob(b64)));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+
+// If the URL carries `#imp=<token>` (super-admin "Login as society admin"),
+// turn it into a normal tenant session so the dashboard renders as that admin.
+function consumeImpersonationToken(){
+  const hash = window.location.hash || '';
+  if(!hash.startsWith('#imp=')) return;
+  const token = decodeURIComponent(hash.slice(5));
+  const c = decodeJwt(token);
+  if(!c){ return; }
+  const NAME = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name';
+  const ROLE = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
+  const perms = {};
+  Object.keys(c).forEach(k => { if(k.startsWith('perm:')) perms[k.slice(5)] = c[k]; });
+  apiSetSession(token, c.sub, c[NAME] || c.unique_name || 'admin', c[ROLE] || 'Admin', perms);
+  // Remember we're impersonating (and who) so we can show a banner. `imp` is
+  // the super-admin username embedded in the token by the platform API.
+  sessionStorage.setItem('smms_imp', c.imp || '1');
+  // Scrub the token out of the address bar.
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+
+// Show a persistent banner while impersonating, with a quick exit that clears
+// the session and closes the tab (or returns to the platform console).
+function maybeShowImpersonationBanner(){
+  if(!sessionStorage.getItem('smms_imp')) return;
+  if(document.getElementById('impBanner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'impBanner';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#e0952b;color:#231a05;'
+    + 'font:600 13px/1.4 "Segoe UI",sans-serif;padding:8px 16px;display:flex;align-items:center;'
+    + 'justify-content:center;gap:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+  const who = sessionStorage.getItem('smms_imp');
+  bar.innerHTML = `<span>🔓 Impersonating this society (by <b>${who}</b>). Actions are audit-logged.</span>`;
+  const btn = document.createElement('button');
+  btn.textContent = 'Exit impersonation';
+  btn.style.cssText = 'background:#231a05;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:600';
+  btn.onclick = () => { sessionStorage.removeItem('smms_imp'); apiClearSession(); window.close(); window.location.href = 'home.html'; };
+  bar.appendChild(btn);
+  document.body.appendChild(bar);
+  document.body.style.paddingTop = '38px';
+}
+
 window.onload = async () => {
+  // Super-admin impersonation hand-off: the platform console opens this page
+  // as `index.html#imp=<tenant-token>`. Decode the JWT client-side to build a
+  // session, then strip the fragment so a refresh/back-nav can't replay the
+  // token from the URL. This runs BEFORE the normal session check so an
+  // impersonated tab never bounces to home.html.
+  consumeImpersonationToken();
+
   // Login/sign-up/forgot-password all happen on the public landing page
   // (home.html) now, against the SQL-backed API. index.html only ever
   // renders the authenticated dashboard — if there's no valid JWT session
@@ -310,6 +371,8 @@ window.onload = async () => {
     window.location.href = 'home.html';
     return;
   }
+
+  maybeShowImpersonationBanner();
 
   currentUser = {id: session.id, username: session.username, role: session.role, permissions: session.permissions || {}};
   document.body.classList.remove('logged-out');
