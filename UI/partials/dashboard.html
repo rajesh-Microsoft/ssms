@@ -1,0 +1,21 @@
+<div class="kpi-grid">
+  <div class="kpi"><div class="kpi-icon">💰</div><div class="kpi-lbl">Total Collection</div><div class="kpi-val" id="kpi-col">₹0</div><div class="kpi-sub up" id="kpi-col-sub"></div></div>
+  <div class="kpi"><div class="kpi-icon">🧾</div><div class="kpi-lbl">Total Expenses</div><div class="kpi-val" id="kpi-exp">₹0</div><div class="kpi-sub" id="kpi-exp-sub"></div></div>
+  <div class="kpi"><div class="kpi-icon">🏦</div><div class="kpi-lbl">Balance</div><div class="kpi-val" id="kpi-bal">₹0</div><div class="kpi-sub" id="kpi-bal-sub"></div></div>
+  <div class="kpi"><div class="kpi-icon">⏳</div><div class="kpi-lbl">Pending Amount</div><div class="kpi-val" id="kpi-pend">₹0</div><div class="kpi-sub dn" id="kpi-pend-sub"></div></div>
+  <div class="kpi"><div class="kpi-icon">👥</div><div class="kpi-lbl">Members</div><div class="kpi-val" id="kpi-mem">0</div><div class="kpi-sub" id="kpi-mem-sub"></div></div>
+</div>
+<div class="chart-row">
+  <div class="chart-card"><h3>📈 Collection vs Expenses (Monthly)</h3><canvas id="trendChart"></canvas></div>
+  <div class="chart-card"><h3>🍩 Expense Categories</h3><canvas id="pieChart"></canvas></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+  <div class="card">
+    <div class="card-hdr"><h3>Recent Collections</h3></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Flat</th><th>Amount</th><th>Status</th></tr></thead><tbody id="dash-col-tbody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><h3>Pending Members</h3><span class="badge b-pending" id="dash-pend-count">0 pending</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Flat</th><th>Floor</th><th>Pending Months</th><th>Due Amount</th></tr></thead><tbody id="dash-pend-tbody"></tbody></table></div>
+  </div>
+</div>

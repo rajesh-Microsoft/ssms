@@ -85,30 +85,8 @@
 
   <div class="content">
 
-    <!-- DASHBOARD -->
-    <div id="tab-dashboard" class="tab-content active">
-      <div class="kpi-grid">
-        <div class="kpi"><div class="kpi-icon">💰</div><div class="kpi-lbl">Total Collection</div><div class="kpi-val" id="kpi-col">₹0</div><div class="kpi-sub up" id="kpi-col-sub"></div></div>
-        <div class="kpi"><div class="kpi-icon">🧾</div><div class="kpi-lbl">Total Expenses</div><div class="kpi-val" id="kpi-exp">₹0</div><div class="kpi-sub" id="kpi-exp-sub"></div></div>
-        <div class="kpi"><div class="kpi-icon">🏦</div><div class="kpi-lbl">Balance</div><div class="kpi-val" id="kpi-bal">₹0</div><div class="kpi-sub" id="kpi-bal-sub"></div></div>
-        <div class="kpi"><div class="kpi-icon">⏳</div><div class="kpi-lbl">Pending Amount</div><div class="kpi-val" id="kpi-pend">₹0</div><div class="kpi-sub dn" id="kpi-pend-sub"></div></div>
-        <div class="kpi"><div class="kpi-icon">👥</div><div class="kpi-lbl">Members</div><div class="kpi-val" id="kpi-mem">0</div><div class="kpi-sub" id="kpi-mem-sub"></div></div>
-      </div>
-      <div class="chart-row">
-        <div class="chart-card"><h3>📈 Collection vs Expenses (Monthly)</h3><canvas id="trendChart"></canvas></div>
-        <div class="chart-card"><h3>🍩 Expense Categories</h3><canvas id="pieChart"></canvas></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="card">
-          <div class="card-hdr"><h3>Recent Collections</h3></div>
-          <div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Flat</th><th>Amount</th><th>Status</th></tr></thead><tbody id="dash-col-tbody"></tbody></table></div>
-        </div>
-        <div class="card">
-          <div class="card-hdr"><h3>Pending Members</h3><span class="badge b-pending" id="dash-pend-count">0 pending</span></div>
-          <div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Flat</th><th>Floor</th><th>Pending Months</th><th>Due Amount</th></tr></thead><tbody id="dash-pend-tbody"></tbody></table></div>
-        </div>
-      </div>
-    </div>
+    <!-- DASHBOARD (lazy-loaded from partials/dashboard.html) -->
+    <div id="tab-dashboard" class="tab-content active" data-partial="dashboard"></div>
 
     <!-- COLLECTIONS (lazy-loaded from partials/collections.html) -->
     <div id="tab-collections" class="tab-content" data-partial="collections"></div>
@@ -122,29 +100,8 @@
     <!-- COMPLAINTS (lazy-loaded from partials/complaints.html) -->
     <div id="tab-complaints" class="tab-content" data-partial="complaints"></div>
 
-    <!-- REPORTS -->
-    <div id="tab-reports" class="tab-content">
-      <div class="report-grid">
-        <div class="card">
-          <div class="card-hdr"><h3>📅 Monthly Summary</h3><button class="btn btn-ghost" onclick="exportReport('monthly')">⬇ Export</button></div>
-          <div id="report-monthly"></div>
-        </div>
-        <div class="card">
-          <div class="card-hdr"><h3>🗂 Category-wise Expenses</h3></div>
-          <div id="report-category"></div>
-        </div>
-      </div>
-      <div class="report-grid">
-        <div class="card">
-          <div class="card-hdr"><h3>⚠️ Defaulters Report</h3><button class="btn btn-ghost" onclick="exportReport('defaulters')">⬇ Export</button></div>
-          <div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Flat</th><th>Floor</th><th>Status</th></tr></thead><tbody id="report-defaulters"></tbody></table></div>
-        </div>
-        <div class="card">
-          <div class="card-hdr"><h3>📊 Annual Overview</h3></div>
-          <canvas id="annualChart" style="max-height:200px;"></canvas>
-        </div>
-      </div>
-    </div>
+    <!-- REPORTS (lazy-loaded from partials/reports.html) -->
+    <div id="tab-reports" class="tab-content" data-partial="reports"></div>
 
     <!-- EXPORT (lazy-loaded from partials/importexport.html) -->
     <div id="tab-importexport" class="tab-content" data-partial="importexport"></div>

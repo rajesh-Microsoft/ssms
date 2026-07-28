@@ -327,6 +327,7 @@ window.onload = async () => {
 
   if(isAdmin()){
     applySettings();
+    await ensurePartial('dashboard');
     renderDashboard();
     refreshPayBadge();
   } else {
@@ -535,6 +536,7 @@ function setExpMonth(mo){ document.getElementById('topMonth').value = mo; filter
 // DASHBOARD
 // ═══════════════════════════════════════════════
 function renderDashboard(){
+  if(!document.getElementById('kpi-col')) return; // partial not loaded yet
   const cols = filteredCollections();
   const exps = filteredExpenses();
   // Total Collection should only reflect money actually received (Paid),
@@ -988,6 +990,7 @@ async function deleteMember(id){
 // REPORTS
 // ═══════════════════════════════════════════════
 function renderReports(){
+  if(!document.getElementById('report-defaulters')) return; // partial not loaded yet
   const y = topYear() || new Date().getFullYear();
   let html='', tc=0, te=0,tp=0;
   for(let mo=1;mo<=12;mo++){
