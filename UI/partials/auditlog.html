@@ -1,0 +1,13 @@
+<div class="card">
+  <div class="card-hdr"><h3>📜 Audit Log</h3>
+    <div class="search-row">
+      <input type="text" id="auditSearch" placeholder="🔍 Search..." oninput="renderAudit()" style="width:160px;">
+      <select id="auditModF" onchange="renderAudit()" style="width:auto;"><option value="">All Modules</option><option>Collections</option><option>Expenses</option><option>Members</option><option>Settings</option></select>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Timestamp</th><th>User</th><th>Module</th><th>Action</th><th>Details</th></tr></thead>
+    <tbody id="audit-tbody"></tbody></table>
+  </div>
+  <div class="pagination" id="audit-pagination"></div>
+</div>

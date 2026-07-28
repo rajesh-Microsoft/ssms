@@ -110,95 +110,17 @@
       </div>
     </div>
 
-    <!-- COLLECTIONS -->
-    <div id="tab-collections" class="tab-content">
-      <div class="card">
-        <div class="card-hdr">
-          <h3>Collections</h3>
-          <div class="search-row">
-            <input type="text" id="colSearch" placeholder="🔍 Search..." oninput="renderCollections()" style="width:160px;">
-            <select id="colFloorF" onchange="renderCollections()" style="width:auto;"><option value="">All Floors</option></select>
-            <select id="colStatusF" onchange="renderCollections()" style="width:auto;"><option value="">All Status</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
-            <button class="btn btn-ghost" data-perm="Collections" onclick="openGenBill()">🧾 Generate Monthly</button>
-            <button class="btn btn-primary" data-perm="Collections" onclick="openModal('col')">＋ Add</button>
-          </div>
-        </div>
-        <div class="pills" id="colMonthPills"></div>
-        <div id="col-summary" style="display:none;margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>#</th><th>Member</th><th>Flat</th><th>Floor</th><th>Amount</th><th>Month / Year</th><th>Payment Date</th><th>Mode</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
-          <tbody id="col-tbody"></tbody></table>
-        </div>
-        <div class="pagination" id="col-pagination"></div>
-      </div>
-    </div>
+    <!-- COLLECTIONS (lazy-loaded from partials/collections.html) -->
+    <div id="tab-collections" class="tab-content" data-partial="collections"></div>
 
-    <!-- EXPENSES -->
-    <div id="tab-expenses" class="tab-content">
-      <div class="card">
-        <div class="card-hdr">
-          <h3>Expenses</h3>
-          <div class="search-row">
-            <input type="text" id="expSearch" placeholder="🔍 Search..." oninput="renderExpenses()" style="width:160px;">
-            <select id="expCatF" onchange="renderExpenses()" style="width:auto;"><option value="">All Categories</option></select>
-            <button class="btn btn-primary" data-perm="Expenses" onclick="openModal('exp')">＋ Add</button>
-          </div>
-        </div>
-        <div class="pills" id="expMonthPills"></div>
-        <div id="exp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>#</th><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>Amount</th><th>Mode</th><th>Month</th><th>Year</th><th>Remarks</th><th>Actions</th></tr></thead>
-          <tbody id="exp-tbody"></tbody></table>
-        </div>
-        <div class="pagination" id="exp-pagination"></div>
-      </div>
-    </div>
+    <!-- EXPENSES (lazy-loaded from partials/expenses.html) -->
+    <div id="tab-expenses" class="tab-content" data-partial="expenses"></div>
 
-    <!-- MEMBERS -->
-    <div id="tab-members" class="tab-content">
-      <div class="card">
-        <div class="card-hdr">
-          <h3>Members</h3>
-          <div class="search-row">
-            <input type="text" id="memSearch" placeholder="🔍 Search..." oninput="renderMembers()" style="width:160px;">
-            <select id="memFloorF" onchange="renderMembers()" style="width:auto;"><option value="">All Floors</option></select>
-            <select id="memStatusF" onchange="renderMembers()" style="width:auto;"><option value="">All</option><option>Active</option><option>Inactive</option></select>
-            <button class="btn btn-primary" data-perm="Members" onclick="openModal('mem')">＋ Add Member</button>
-          </div>
-        </div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>#</th><th>Name</th><th>Flat</th><th>Floor</th><th>Mobile</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="mem-tbody"></tbody></table>
-        </div>
-        <div class="pagination" id="mem-pagination"></div>
-      </div>
-    </div>
+    <!-- MEMBERS (lazy-loaded from partials/members.html) -->
+    <div id="tab-members" class="tab-content" data-partial="members"></div>
 
-    <!-- COMPLAINTS -->
-    <div id="tab-complaints" class="tab-content">
-      <div class="card">
-        <div class="card-hdr">
-          <h3>Complaints</h3>
-          <div class="search-row">
-            <input type="text" id="cmpSearch" placeholder="🔍 Search..." oninput="renderComplaints()" style="width:160px;">
-            <select id="cmpStatusF" onchange="renderComplaints()" style="width:auto;">
-              <option value="">All Statuses</option>
-              <option>Open</option>
-              <option>In Progress</option>
-              <option>Resolved</option>
-              <option>Closed</option>
-            </select>
-            <button class="btn btn-primary" onclick="openModal('cmp')">＋ Raise Complaint</button>
-          </div>
-        </div>
-        <div id="cmp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>#</th><th>Date</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Raised By</th><th>Actions</th></tr></thead>
-          <tbody id="cmp-tbody"></tbody></table>
-        </div>
-        <div class="pagination" id="cmp-pagination"></div>
-      </div>
-    </div>
+    <!-- COMPLAINTS (lazy-loaded from partials/complaints.html) -->
+    <div id="tab-complaints" class="tab-content" data-partial="complaints"></div>
 
     <!-- REPORTS -->
     <div id="tab-reports" class="tab-content">
@@ -224,264 +146,44 @@
       </div>
     </div>
 
-    <!-- EXPORT -->
-    <div id="tab-importexport" class="tab-content">
-      <div style="display:grid;grid-template-columns:1fr;gap:14px;max-width:480px;">
-        <div class="card">
-          <h3 style="margin-bottom:14px;">📤 Export Options</h3>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <button class="btn btn-primary admin-only" onclick="saveToExcel()">💾 Save All Data to Excel</button>
-            <button class="btn btn-ghost" onclick="exportReport('monthly')">📅 Export Monthly Report</button>
-            <button class="btn btn-ghost" onclick="exportReport('defaulters')">⚠️ Export Defaulters</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- EXPORT (lazy-loaded from partials/importexport.html) -->
+    <div id="tab-importexport" class="tab-content" data-partial="importexport"></div>
 
-    <!-- NOTIFICATIONS -->
-    <div id="tab-notifications" class="tab-content">
-      <div class="card">
-        <div class="card-hdr"><h3>🔔 Notifications</h3><button class="btn btn-ghost" onclick="toast('All marked read')">✓ Mark all read</button></div>
-        <div id="notif-list"></div>
-      </div>
-    </div>
+    <!-- NOTIFICATIONS (lazy-loaded from partials/notifications.html) -->
+    <div id="tab-notifications" class="tab-content" data-partial="notifications"></div>
 
-    <!-- AUDIT LOG -->
-    <div id="tab-auditlog" class="tab-content">
-      <div class="card">
-        <div class="card-hdr"><h3>📜 Audit Log</h3>
-          <div class="search-row">
-            <input type="text" id="auditSearch" placeholder="🔍 Search..." oninput="renderAudit()" style="width:160px;">
-            <select id="auditModF" onchange="renderAudit()" style="width:auto;"><option value="">All Modules</option><option>Collections</option><option>Expenses</option><option>Members</option><option>Settings</option></select>
-          </div>
-        </div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>Timestamp</th><th>User</th><th>Module</th><th>Action</th><th>Details</th></tr></thead>
-          <tbody id="audit-tbody"></tbody></table>
-        </div>
-        <div class="pagination" id="audit-pagination"></div>
-      </div>
-    </div>
+    <!-- AUDIT LOG (lazy-loaded from partials/auditlog.html) -->
+    <div id="tab-auditlog" class="tab-content" data-partial="auditlog"></div>
 
-    <!-- PAYMENTS (admin verification) -->
-    <div id="tab-payments" class="tab-content">
-      <div class="kpi-grid" id="pay-kpi"></div>
+    <!-- PAYMENTS (admin verification) (lazy-loaded from partials/payments.html) -->
+    <div id="tab-payments" class="tab-content" data-partial="payments"></div>
 
-      <div class="card">
-        <div class="card-hdr"><h3>🏦 Payment Setup (UPI &amp; Bank)</h3></div>
-        <p class="mhint">These details drive the QR codes residents scan to pay. UPI ID and Payee Name are required for online payments.</p>
-        <div class="form-grid">
-          <div class="form-group"><label>UPI ID *</label><input type="text" id="upi-id" placeholder="society@okhdfcbank"></div>
-          <div class="form-group"><label>Payee Name *</label><input type="text" id="upi-payee" placeholder="NLC Aadya Society"></div>
-          <div class="form-group"><label>Bank Name</label><input type="text" id="upi-bank"></div>
-          <div class="form-group"><label>Account Name</label><input type="text" id="upi-acname"></div>
-          <div class="form-group"><label>Account Number</label><input type="text" id="upi-acnum"></div>
-          <div class="form-group"><label>IFSC</label><input type="text" id="upi-ifsc"></div>
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-primary" onclick="saveUpiSettingsForm()">💾 Save Payment Setup</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-hdr">
-          <h3>🧾 Payment Verifications</h3>
-          <select id="payStatusF" onchange="renderPaymentsAdmin()" style="width:auto;">
-            <option value="Pending">Pending</option><option value="Approved">Approved</option><option value="Rejected">Rejected</option><option value="">All</option>
-          </select>
-        </div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>Submitted</th><th>Flat</th><th>Member</th><th>Invoice</th><th>Period</th><th>Amount</th><th>UPI Ref</th><th>Proof</th><th>Status</th><th>Action</th></tr></thead>
-          <tbody id="pay-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
-
-    <!-- SETTINGS -->
-    <div id="tab-settings" class="tab-content">
-      <div class="settings-grid">
-        <div class="settings-section">
-          <h4>🏢 Society Profile</h4>
-          <div class="setting-row"><label>Society Name</label><input type="text" id="set-sname" value="Our Society"></div>
-          <div class="setting-row"><label>Society Logo</label><input type="file" id="set-logo" accept="image/*" onchange="handleLogoUpload(event)"></div>
-          <div id="set-logo-preview" style="margin:4px 0 8px;"></div>
-          <div class="setting-row"><label>Address</label><textarea id="set-addr"></textarea></div>
-          <div class="setting-row"><label>Contact Email</label><input type="email" id="set-email"></div>
-          <div class="setting-row"><label>Contact Phone</label><input type="tel" id="set-phone"></div>
-          <div class="setting-row"><label>Registration Number</label><input type="text" id="set-regno"></div>
-          <div class="setting-row"><label>GST (optional)</label><input type="text" id="set-gst"></div>
-          <div class="setting-row"><label>PAN (optional)</label><input type="text" id="set-pan"></div>
-        </div>
-        <div class="settings-section">
-          <h4>💰 Maintenance Settings</h4>
-          <div class="setting-row"><label>Monthly Maintenance Amount (₹)</label><input type="number" id="set-mamt" value="2000"></div>
-          <div class="setting-row"><label>Due Date (day of month)</label><input type="number" id="set-dueday" min="1" max="31" value="5"></div>
-          <div class="setting-row"><label>Late Fee (₹)</label><input type="number" id="set-latefee" value="100"></div>
-          <div class="setting-row"><label>Grace Days</label><input type="number" id="set-gracedays" value="5"></div>
-          <div class="setting-row"><label>Billing Day (day of month)</label><input type="number" id="set-billingday" min="1" max="31" value="1"></div>
-          <div class="setting-row"><label>Auto-generate monthly invoices</label><input type="checkbox" id="set-autogen"></div>
-          <div class="setting-row"><label>Financial Year</label><input type="text" id="set-fy" placeholder="2026-27"></div>
-          <div class="setting-row"><label>Floors (comma separated)</label><input type="text" id="set-wings" value="1,2,3,4,5"></div>
-        </div>
-        <div class="settings-section">
-          <h4>🎨 Branding & Theme</h4>
-          <div class="setting-row"><label>Application Title</label><input type="text" id="set-apptitle" placeholder="Society Maintenance Portal"></div>
-          <div class="setting-row"><label>Primary Color</label><input type="color" id="set-primary" value="#6c63ff"></div>
-          <div class="setting-row"><label>Secondary Color</label><input type="color" id="set-secondary" value="#1a1f36"></div>
-          <div class="setting-row"><label>Theme</label><select id="set-theme" onchange="applyThemeSetting()"><option value="light">Light</option><option value="dark">Dark</option></select></div>
-        </div>
-        <div class="settings-section">
-          <h4>📂 Expense Categories</h4>
-          <div id="cat-list" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
-          <div data-perm="Settings" style="display:flex;gap:6px;"><input type="text" id="new-cat" placeholder="New category..."><button class="btn btn-primary" onclick="addCategory()">＋</button></div>
-        </div>
-      </div>
-
-<div style="margin-top:14px;display:flex;gap:8px;" data-perm="Settings">
-        <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
-      </div>
-    </div>
+    <!-- SETTINGS (lazy-loaded from partials/settings.html) -->
+    <div id="tab-settings" class="tab-content" data-partial="settings"></div>
 
 
-    <!-- ADMIN -->
-    <div id="tab-admin" class="tab-content">
-      <div class="card">
-        <div class="card-hdr"><h3>🔐 Admin Panel</h3><button class="btn btn-primary admin-only" onclick="openModal('user')">＋ Add User</button></div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>#</th><th>Username</th><th>Role</th><th>Email</th><th>Permissions</th><th></th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="user-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
+    <!-- ADMIN (lazy-loaded from partials/admin.html) -->
+    <div id="tab-admin" class="tab-content" data-partial="admin"></div>
 
     <!-- ══════════ MEMBER (resident) EXPERIENCE ══════════ -->
 
-    <!-- MEMBER DASHBOARD -->
-    <div id="tab-mdash" class="tab-content">
-      <div class="mwelcome" id="m-welcome"></div>
-      <div class="kpi-grid" id="m-kpi-grid"></div>
-      <div class="qa-grid">
-        <div class="qa-tile" onclick="showTab('mpay',document.getElementById('mnav-dash'))"><div class="qa-ic">💰</div><div class="qa-t">Pay / View Dues</div><div class="qa-s">See your maintenance</div></div>
-        <div class="qa-tile" onclick="openModal('cmp')"><div class="qa-ic">🛠️</div><div class="qa-t">Raise a Complaint</div><div class="qa-s">Report an issue</div></div>
-        <div class="qa-tile" onclick="showTab('mreceipts')"><div class="qa-ic">🧾</div><div class="qa-t">Download Receipt</div><div class="qa-s">Payment history</div></div>
-        <div class="qa-tile" onclick="showTab('mhome')"><div class="qa-ic">🏠</div><div class="qa-t">Update Profile</div><div class="qa-s">My Home details</div></div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="m-two-col">
-        <div class="card">
-          <div class="card-hdr"><h3>Recent Payments</h3><button class="btn btn-ghost" onclick="showTab('mpay')">View all</button></div>
-          <div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Amount</th><th>Status</th></tr></thead><tbody id="m-recent-pay"></tbody></table></div>
-        </div>
-        <div class="card">
-          <div class="card-hdr"><h3>Latest Notices</h3><button class="btn btn-ghost" onclick="showTab('mnotices')">View all</button></div>
-          <div id="m-recent-notices"></div>
-        </div>
-      </div>
-    </div>
+    <!-- MEMBER DASHBOARD (lazy-loaded from partials/mdash.html) -->
+    <div id="tab-mdash" class="tab-content" data-partial="mdash"></div>
 
-    <!-- MY PAYMENTS -->
-    <div id="tab-mpay" class="tab-content">
-      <div class="kpi-grid" id="m-pay-kpi"></div>
-      <div class="card">
-        <div class="card-hdr"><h3>💳 Pay Online</h3></div>
-        <p class="mhint">Scan the UPI QR with any UPI app (GPay, PhonePe, Paytm…), pay the exact amount, then tap “I've Paid” to submit your reference for verification.</p>
-        <div class="pay-invoice-grid" id="m-pay-invoices"></div>
-      </div>
-      <div class="card">
-        <div class="card-hdr">
-          <h3>Maintenance History</h3>
-          <select id="mPayStatusF" onchange="renderMemberPayments()" style="width:auto;"><option value="">All Statuses</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
-        </div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>Month / Year</th><th>Amount</th><th>Status</th><th>Paid On</th><th>Mode</th><th>Remarks</th><th></th></tr></thead>
-          <tbody id="m-pay-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
+    <!-- MY PAYMENTS (lazy-loaded from partials/mpay.html) -->
+    <div id="tab-mpay" class="tab-content" data-partial="mpay"></div>
 
-    <!-- RECEIPTS -->
-    <div id="tab-mreceipts" class="tab-content">
-      <div class="card">
-        <div class="card-hdr"><h3>🧾 Payment Receipts</h3></div>
-        <p class="mhint">Only successfully paid maintenance entries can be downloaded as receipts.</p>
-        <div class="doc-grid" id="m-receipt-grid"></div>
-      </div>
-    </div>
+    <!-- RECEIPTS (lazy-loaded from partials/mreceipts.html) -->
+    <div id="tab-mreceipts" class="tab-content" data-partial="mreceipts"></div>
 
-    <!-- MY COMPLAINTS -->
-    <div id="tab-mcomplaints" class="tab-content">
-      <div class="card">
-        <div class="card-hdr">
-          <h3>🛠️ My Complaints</h3>
-          <button class="btn btn-primary" onclick="openModal('cmp')">＋ Raise Complaint</button>
-        </div>
-        <div id="m-cmp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
-        <div class="tbl-wrap">
-          <table><thead><tr><th>Date</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Resolution</th><th></th></tr></thead>
-          <tbody id="m-cmp-tbody"></tbody></table>
-        </div>
-      </div>
-    </div>
+    <!-- MY COMPLAINTS (lazy-loaded from partials/mcomplaints.html) -->
+    <div id="tab-mcomplaints" class="tab-content" data-partial="mcomplaints"></div>
 
-    <!-- NOTICES -->
-    <div id="tab-mnotices" class="tab-content">
-      <div class="card">
-        <div class="card-hdr"><h3>🔔 Notices & Updates</h3></div>
-        <div id="m-notice-list"></div>
-      </div>
-    </div>
+    <!-- NOTICES (lazy-loaded from partials/mnotices.html) -->
+    <div id="tab-mnotices" class="tab-content" data-partial="mnotices"></div>
 
-    <!-- MY HOME (profile hub) -->
-    <div id="tab-mhome" class="tab-content">
-      <div class="profile-hero">
-        <div class="ph-avatar" id="m-avatar">A</div>
-        <div class="ph-meta">
-          <div class="ph-name" id="m-hero-name">Resident</div>
-          <div class="ph-sub" id="m-hero-sub">Flat — · —</div>
-          <div class="ph-badges" id="m-hero-badges"></div>
-        </div>
-        <label class="btn btn-ghost ph-photo-btn">📷 Change Photo<input type="file" id="m-photo-input" accept="image/*" onchange="handleMemberPhoto(event)" hidden></label>
-      </div>
-
-      <div class="mhome-grid">
-        <div class="card">
-          <div class="card-hdr"><h3>👤 Personal Information</h3></div>
-          <div class="setting-row"><label>Full Name</label><input type="text" id="m-name"></div>
-          <div class="setting-row"><label>Email</label><input type="email" id="m-email"></div>
-          <div class="setting-row"><label>Mobile</label><input type="tel" id="m-mobile"></div>
-          <div class="setting-row"><label>Occupancy</label><select id="m-occupancy"><option value="">Not specified</option><option>Owner</option><option>Tenant</option></select></div>
-          <div class="setting-row"><label>Emergency Contact</label><input type="text" id="m-emergency" placeholder="Name & phone"></div>
-          <div class="setting-row"><label>Flat</label><input type="text" id="m-flat" disabled><small class="mhint">Contact admin to change</small></div>
-          <div class="setting-row"><label>Floor</label><input type="text" id="m-floor" disabled><small class="mhint">Contact admin to change</small></div>
-        </div>
-
-        <div class="card">
-          <div class="card-hdr"><h3>👨‍👩‍👧 Family Members</h3><button class="btn btn-ghost" onclick="addFamilyRow()">＋ Add</button></div>
-          <div id="m-family-list"></div>
-
-          <div class="card-hdr" style="margin-top:16px;"><h3>🚗 Vehicles</h3><button class="btn btn-ghost" onclick="addVehicleRow()">＋ Add</button></div>
-          <div id="m-vehicle-list"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-hdr"><h3>🔔 Notification Preferences</h3></div>
-          <div class="pref-row"><span>SMS alerts</span><label class="switch"><input type="checkbox" id="m-pref-sms"><span class="slider"></span></label></div>
-          <div class="pref-row"><span>Email alerts</span><label class="switch"><input type="checkbox" id="m-pref-email"><span class="slider"></span></label></div>
-          <div class="pref-row"><span>WhatsApp alerts</span><label class="switch"><input type="checkbox" id="m-pref-whatsapp"><span class="slider"></span></label></div>
-
-          <div class="card-hdr" style="margin-top:16px;"><h3>🔒 Change Password</h3></div>
-          <div class="setting-row"><label>Current Password</label><input type="password" id="m-pw-current"></div>
-          <div class="setting-row"><label>New Password</label><input type="password" id="m-pw-new"></div>
-          <div class="setting-row"><label>Confirm New Password</label><input type="password" id="m-pw-confirm"></div>
-          <button class="btn btn-ghost" onclick="changeMyPassword()">Update Password</button>
-        </div>
-      </div>
-
-      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-primary" onclick="saveMyProfile()">💾 Save Profile</button>
-        <button class="btn btn-ghost" onclick="renderMemberHome()">↺ Reset</button>
-        <button class="btn btn-danger" style="margin-left:auto;" onclick="logout()">🚪 Logout</button>
-      </div>
-    </div>
+    <!-- MY HOME (profile hub) (lazy-loaded from partials/mhome.html) -->
+    <div id="tab-mhome" class="tab-content" data-partial="mhome"></div>
 
   </div>
 </div>

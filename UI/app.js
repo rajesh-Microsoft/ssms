@@ -381,6 +381,29 @@ function closeSidebar(){
   const bd = document.getElementById('sidebarBackdrop');
   if(bd) bd.classList.remove('show');
 }
+// --- Lazy partial loader (Option B) -------------------------------------
+// Tabs marked with data-partial="name" have their markup in partials/name.html
+// and are fetched + injected the first time the tab is opened (once only).
+const _partialsLoaded = new Set();
+async function ensurePartial(tab){
+  const host = document.getElementById('tab-'+tab);
+  if(!host) return;
+  const name = host.dataset.partial;
+  if(!name || _partialsLoaded.has(name)) return;      // inline tab, or already loaded
+  try{
+    const res = await fetch(`partials/${name}.html`, { cache: 'no-cache' });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    host.innerHTML = await res.text();
+    _partialsLoaded.add(name);
+    // Newly injected data-perm / data-perm-view nodes must be re-gated for the
+    // current user, since applyRolePermissions() already ran once at login.
+    if(typeof applyRolePermissions === 'function') applyRolePermissions();
+  }catch(err){
+    host.innerHTML = `<div class="card"><p>⚠ Failed to load this section: ${err.message}</p></div>`;
+    if(typeof toast === 'function') toast('Failed to load '+name+': '+err.message,'warn');
+  }
+}
+
 async function showTab(t, el){
   if(t==='admin' && !isAdmin()) return toast('Admin access required.','warn');
   if(t==='auditlog' && !isAdmin()) return toast('Admin access required.','warn');
@@ -403,6 +426,9 @@ async function showTab(t, el){
   // Dashboard defaults to All Years for the full picture, while every other
   // tab keeps its own last-used (default: current year) selection.
   syncFilterControls(t);
+
+  // Load this tab's markup on first open (no-op for inline tabs).
+  await ensurePartial(t);
 
   // Audit log & users are admin-only server-side — fetch the latest each
   // time these tabs are opened instead of relying on the snapshot loaded at login.
@@ -600,6 +626,7 @@ function buildPieChart(){
 // COLLECTIONS
 // ═══════════════════════════════════════════════
 function renderCollections(){
+  if(!document.getElementById('col-tbody')) return;   // partial not loaded yet
   // populate floor filter
   const flSel = document.getElementById('colFloorF');
   const flCur = flSel.value;
@@ -743,6 +770,7 @@ async function deleteCollection(id){
 // EXPENSES
 // ═══════════════════════════════════════════════
 function renderExpenses(){
+  if(!document.getElementById('exp-tbody')) return;   // partial not loaded yet
   // populate category filter
   const catSel = document.getElementById('expCatF');
   const catCur = catSel.value;
@@ -872,6 +900,7 @@ async function deleteExpense(id){
 // MEMBERS
 // ═══════════════════════════════════════════════
 function renderMembers(){
+  if(!document.getElementById('mem-tbody')) return;   // partial not loaded yet
   const flSel = document.getElementById('memFloorF');
   const flCur = flSel.value;
   flSel.innerHTML = '<option value="">All Floors</option>'+DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join('');
@@ -1019,6 +1048,7 @@ function exportReport(type){
 // NOTIFICATIONS
 // ═══════════════════════════════════════════════
 function renderNotifications(){
+  if(!document.getElementById('notif-list')) return;   // partial not loaded yet
   const m=topMonth(), y=topYear()||new Date().getFullYear();
   const paidSet=new Set(DB.collections.filter(c=>getStatus(c).toLowerCase()==='paid'&&(!m||getMonth(c)===m)&&(!y||getYear(c)===y)).map(c=>String(fld(c,'memberId','MemberId')).trim()));
   const pend=DB.members.filter(m=>!paidSet.has(String(fld(m,'id','Id')).trim()));
@@ -1071,6 +1101,7 @@ function updateNotifBadge(){
 function addAudit(module,action,details){ DB.auditLog.push({id:Date.now(),timestamp:new Date().toLocaleString(),user:(currentUser&&currentUser.username)||'Admin',module,action,details}); }
 
 function renderAudit(){
+  if(!document.getElementById('audit-tbody')) return;   // partial not loaded yet
   const search=document.getElementById('auditSearch').value.toLowerCase();
   const mod=document.getElementById('auditModF').value;
   const data=[...DB.auditLog].reverse().filter(a=>(!mod||a.module===mod)&&(!search||a.details.toLowerCase().includes(search)||a.action.toLowerCase().includes(search)));
@@ -1081,6 +1112,7 @@ function renderAudit(){
 // SETTINGS
 // ═══════════════════════════════════════════════
 function loadSettingsUI(){
+  if(!document.getElementById('set-sname')) return;   // partial not loaded yet
   const s=DB.settings;
   document.getElementById('set-sname').value=s.societyName||'';
   document.getElementById('set-addr').value=s.address||'';
@@ -1199,6 +1231,7 @@ async function removeCategory(i){
 // ADMIN
 // ═══════════════════════════════════════════════
 function renderUsers(){
+  if(!document.getElementById('user-tbody')) return;   // partial not loaded yet
   document.getElementById('user-tbody').innerHTML=DB.users.map((u,i)=>{
     const st = u.status || 'Active';
     const badgeClass = st==='Active' ? 'active' : st==='Pending' ? 'pending' : 'inactive';
@@ -1418,6 +1451,7 @@ function populateComplaintCatDropdown(){ document.getElementById('cmp-category')
 // COMPLAINTS
 // ═══════════════════════════════════════════════
 function renderComplaints(){
+  if(!document.getElementById('cmp-tbody')) return;   // partial not loaded yet
   const search  = document.getElementById('cmpSearch') ? document.getElementById('cmpSearch').value.toLowerCase() : '';
   const statusF = document.getElementById('cmpStatusF') ? document.getElementById('cmpStatusF').value : '';
 
@@ -1727,6 +1761,7 @@ function mStatusBadge(st){ const k=(st||'').toLowerCase(); return `<span class="
 // ── Dashboard ──
 function renderMemberDashboard(){
   if(!ME) return;
+  if(!document.getElementById('m-kpi-grid')) return;   // partial not loaded yet
   const mnt = ME.maintenance || {}, cmp = ME.complaints || {};
   const hour = new Date().getHours();
   const greet = hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
@@ -1757,6 +1792,7 @@ function renderMemberDashboard(){
 // ── My Payments ──
 function renderMemberPayments(){
   if(!ME) return;
+  if(!document.getElementById('m-pay-tbody')) return;   // partial not loaded yet
   const mnt = ME.maintenance || {};
   document.getElementById('m-pay-kpi').innerHTML =
     mKpi('✅','Total Paid', mMoney(mnt.totalPaid), (mnt.totalReceipts||0)+' receipts','up') +
@@ -1783,6 +1819,7 @@ function renderMemberPayments(){
 // ── Receipts ──
 function renderMemberReceipts(){
   if(!ME) return;
+  if(!document.getElementById('m-receipt-grid')) return;   // partial not loaded yet
   const paid = (ME.payments||[]).filter(p=>p.status==='Paid');
   document.getElementById('m-receipt-grid').innerHTML = paid.map(p=>
     `<div class="doc-tile">
@@ -1915,6 +1952,7 @@ async function submitPaymentProof(){
 // ═══════════════════════════════════════════════
 async function renderPaymentsAdmin(){
   if(!isAdmin()) return;
+  if(!document.getElementById('pay-tbody')) return;   // partial not loaded yet
   await loadUpiSettingsForm();
   try{
     const dash = await Api.getPaymentDashboard();
@@ -2025,6 +2063,7 @@ async function refreshPayBadge(){
 
 // ── My Complaints ──
 function renderMemberComplaints(){
+  if(!document.getElementById('m-cmp-tbody')) return;   // partial not loaded yet
   const list = DB.complaints || [];
   const open = list.filter(c=>c.status==='Open').length;
   const prog = list.filter(c=>c.status==='In Progress').length;
@@ -2075,8 +2114,9 @@ function mNoticeHtml(n){
   return `<div class="notif-item"><div class="ndot" style="background:${n.color}"></div><div><div class="ntext">${n.text}</div><div class="ntime">${n.time||''}</div></div></div>`;
 }
 function renderMemberNotices(){
-  const items = memberNoticeItems();
-  document.getElementById('m-notice-list').innerHTML = items.map(mNoticeHtml).join('')
+  const list = document.getElementById('m-notice-list');
+  if(!list){ updateMemberBadge(); return; }   // partial not loaded — still refresh badge
+  list.innerHTML = memberNoticeItems().map(mNoticeHtml).join('')
     || '<div class="empty">No notices right now 🎉</div>';
   updateMemberBadge();
 }
@@ -2088,6 +2128,7 @@ function updateMemberBadge(){
 // ── My Home (profile) ──
 function renderMemberHome(){
   if(!ME) return;
+  if(!document.getElementById('m-avatar')) return;   // partial not loaded yet
   mPhoto = ME.profilePhoto || '';
   const av = document.getElementById('m-avatar');
   if(av){

@@ -1,0 +1,16 @@
+<div class="kpi-grid" id="m-pay-kpi"></div>
+<div class="card">
+  <div class="card-hdr"><h3>💳 Pay Online</h3></div>
+  <p class="mhint">Scan the UPI QR with any UPI app (GPay, PhonePe, Paytm…), pay the exact amount, then tap “I've Paid” to submit your reference for verification.</p>
+  <div class="pay-invoice-grid" id="m-pay-invoices"></div>
+</div>
+<div class="card">
+  <div class="card-hdr">
+    <h3>Maintenance History</h3>
+    <select id="mPayStatusF" onchange="renderMemberPayments()" style="width:auto;"><option value="">All Statuses</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Month / Year</th><th>Amount</th><th>Status</th><th>Paid On</th><th>Mode</th><th>Remarks</th><th></th></tr></thead>
+    <tbody id="m-pay-tbody"></tbody></table>
+  </div>
+</div>

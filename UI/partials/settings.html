@@ -1,0 +1,41 @@
+<div class="settings-grid">
+  <div class="settings-section">
+    <h4>🏢 Society Profile</h4>
+    <div class="setting-row"><label>Society Name</label><input type="text" id="set-sname" value="Our Society"></div>
+    <div class="setting-row"><label>Society Logo</label><input type="file" id="set-logo" accept="image/*" onchange="handleLogoUpload(event)"></div>
+    <div id="set-logo-preview" style="margin:4px 0 8px;"></div>
+    <div class="setting-row"><label>Address</label><textarea id="set-addr"></textarea></div>
+    <div class="setting-row"><label>Contact Email</label><input type="email" id="set-email"></div>
+    <div class="setting-row"><label>Contact Phone</label><input type="tel" id="set-phone"></div>
+    <div class="setting-row"><label>Registration Number</label><input type="text" id="set-regno"></div>
+    <div class="setting-row"><label>GST (optional)</label><input type="text" id="set-gst"></div>
+    <div class="setting-row"><label>PAN (optional)</label><input type="text" id="set-pan"></div>
+  </div>
+  <div class="settings-section">
+    <h4>💰 Maintenance Settings</h4>
+    <div class="setting-row"><label>Monthly Maintenance Amount (₹)</label><input type="number" id="set-mamt" value="2000"></div>
+    <div class="setting-row"><label>Due Date (day of month)</label><input type="number" id="set-dueday" min="1" max="31" value="5"></div>
+    <div class="setting-row"><label>Late Fee (₹)</label><input type="number" id="set-latefee" value="100"></div>
+    <div class="setting-row"><label>Grace Days</label><input type="number" id="set-gracedays" value="5"></div>
+    <div class="setting-row"><label>Billing Day (day of month)</label><input type="number" id="set-billingday" min="1" max="31" value="1"></div>
+    <div class="setting-row"><label>Auto-generate monthly invoices</label><input type="checkbox" id="set-autogen"></div>
+    <div class="setting-row"><label>Financial Year</label><input type="text" id="set-fy" placeholder="2026-27"></div>
+    <div class="setting-row"><label>Floors (comma separated)</label><input type="text" id="set-wings" value="1,2,3,4,5"></div>
+  </div>
+  <div class="settings-section">
+    <h4>🎨 Branding & Theme</h4>
+    <div class="setting-row"><label>Application Title</label><input type="text" id="set-apptitle" placeholder="Society Maintenance Portal"></div>
+    <div class="setting-row"><label>Primary Color</label><input type="color" id="set-primary" value="#6c63ff"></div>
+    <div class="setting-row"><label>Secondary Color</label><input type="color" id="set-secondary" value="#1a1f36"></div>
+    <div class="setting-row"><label>Theme</label><select id="set-theme" onchange="applyThemeSetting()"><option value="light">Light</option><option value="dark">Dark</option></select></div>
+  </div>
+  <div class="settings-section">
+    <h4>📂 Expense Categories</h4>
+    <div id="cat-list" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+    <div data-perm="Settings" style="display:flex;gap:6px;"><input type="text" id="new-cat" placeholder="New category..."><button class="btn btn-primary" onclick="addCategory()">＋</button></div>
+  </div>
+</div>
+
+<div style="margin-top:14px;display:flex;gap:8px;" data-perm="Settings">
+  <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+</div>

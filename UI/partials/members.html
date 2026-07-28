@@ -1,0 +1,16 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Members</h3>
+    <div class="search-row">
+      <input type="text" id="memSearch" placeholder="🔍 Search..." oninput="renderMembers()" style="width:160px;">
+      <select id="memFloorF" onchange="renderMembers()" style="width:auto;"><option value="">All Floors</option></select>
+      <select id="memStatusF" onchange="renderMembers()" style="width:auto;"><option value="">All</option><option>Active</option><option>Inactive</option></select>
+      <button class="btn btn-primary" data-perm="Members" onclick="openModal('mem')">＋ Add Member</button>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Name</th><th>Flat</th><th>Floor</th><th>Mobile</th><th>Email</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="mem-tbody"></tbody></table>
+  </div>
+  <div class="pagination" id="mem-pagination"></div>
+</div>

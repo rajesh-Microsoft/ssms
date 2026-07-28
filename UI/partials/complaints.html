@@ -1,0 +1,22 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Complaints</h3>
+    <div class="search-row">
+      <input type="text" id="cmpSearch" placeholder="🔍 Search..." oninput="renderComplaints()" style="width:160px;">
+      <select id="cmpStatusF" onchange="renderComplaints()" style="width:auto;">
+        <option value="">All Statuses</option>
+        <option>Open</option>
+        <option>In Progress</option>
+        <option>Resolved</option>
+        <option>Closed</option>
+      </select>
+      <button class="btn btn-primary" onclick="openModal('cmp')">＋ Raise Complaint</button>
+    </div>
+  </div>
+  <div id="cmp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Date</th><th>Subject</th><th>Category</th><th>Priority</th><th>Status</th><th>Raised By</th><th>Actions</th></tr></thead>
+    <tbody id="cmp-tbody"></tbody></table>
+  </div>
+  <div class="pagination" id="cmp-pagination"></div>
+</div>

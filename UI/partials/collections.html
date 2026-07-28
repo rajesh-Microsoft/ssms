@@ -1,0 +1,19 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Collections</h3>
+    <div class="search-row">
+      <input type="text" id="colSearch" placeholder="🔍 Search..." oninput="renderCollections()" style="width:160px;">
+      <select id="colFloorF" onchange="renderCollections()" style="width:auto;"><option value="">All Floors</option></select>
+      <select id="colStatusF" onchange="renderCollections()" style="width:auto;"><option value="">All Status</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
+      <button class="btn btn-ghost" data-perm="Collections" onclick="openGenBill()">🧾 Generate Monthly</button>
+      <button class="btn btn-primary" data-perm="Collections" onclick="openModal('col')">＋ Add</button>
+    </div>
+  </div>
+  <div class="pills" id="colMonthPills"></div>
+  <div id="col-summary" style="display:none;margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Member</th><th>Flat</th><th>Floor</th><th>Amount</th><th>Month / Year</th><th>Payment Date</th><th>Mode</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+    <tbody id="col-tbody"></tbody></table>
+  </div>
+  <div class="pagination" id="col-pagination"></div>
+</div>

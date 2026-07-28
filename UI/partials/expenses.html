@@ -1,0 +1,17 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Expenses</h3>
+    <div class="search-row">
+      <input type="text" id="expSearch" placeholder="🔍 Search..." oninput="renderExpenses()" style="width:160px;">
+      <select id="expCatF" onchange="renderExpenses()" style="width:auto;"><option value="">All Categories</option></select>
+      <button class="btn btn-primary" data-perm="Expenses" onclick="openModal('exp')">＋ Add</button>
+    </div>
+  </div>
+  <div class="pills" id="expMonthPills"></div>
+  <div id="exp-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>Amount</th><th>Mode</th><th>Month</th><th>Year</th><th>Remarks</th><th>Actions</th></tr></thead>
+    <tbody id="exp-tbody"></tbody></table>
+  </div>
+  <div class="pagination" id="exp-pagination"></div>
+</div>

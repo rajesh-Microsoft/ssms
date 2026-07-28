@@ -1,0 +1,49 @@
+<div class="profile-hero">
+  <div class="ph-avatar" id="m-avatar">A</div>
+  <div class="ph-meta">
+    <div class="ph-name" id="m-hero-name">Resident</div>
+    <div class="ph-sub" id="m-hero-sub">Flat — · —</div>
+    <div class="ph-badges" id="m-hero-badges"></div>
+  </div>
+  <label class="btn btn-ghost ph-photo-btn">📷 Change Photo<input type="file" id="m-photo-input" accept="image/*" onchange="handleMemberPhoto(event)" hidden></label>
+</div>
+
+<div class="mhome-grid">
+  <div class="card">
+    <div class="card-hdr"><h3>👤 Personal Information</h3></div>
+    <div class="setting-row"><label>Full Name</label><input type="text" id="m-name"></div>
+    <div class="setting-row"><label>Email</label><input type="email" id="m-email"></div>
+    <div class="setting-row"><label>Mobile</label><input type="tel" id="m-mobile"></div>
+    <div class="setting-row"><label>Occupancy</label><select id="m-occupancy"><option value="">Not specified</option><option>Owner</option><option>Tenant</option></select></div>
+    <div class="setting-row"><label>Emergency Contact</label><input type="text" id="m-emergency" placeholder="Name & phone"></div>
+    <div class="setting-row"><label>Flat</label><input type="text" id="m-flat" disabled><small class="mhint">Contact admin to change</small></div>
+    <div class="setting-row"><label>Floor</label><input type="text" id="m-floor" disabled><small class="mhint">Contact admin to change</small></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><h3>👨‍👩‍👧 Family Members</h3><button class="btn btn-ghost" onclick="addFamilyRow()">＋ Add</button></div>
+    <div id="m-family-list"></div>
+
+    <div class="card-hdr" style="margin-top:16px;"><h3>🚗 Vehicles</h3><button class="btn btn-ghost" onclick="addVehicleRow()">＋ Add</button></div>
+    <div id="m-vehicle-list"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><h3>🔔 Notification Preferences</h3></div>
+    <div class="pref-row"><span>SMS alerts</span><label class="switch"><input type="checkbox" id="m-pref-sms"><span class="slider"></span></label></div>
+    <div class="pref-row"><span>Email alerts</span><label class="switch"><input type="checkbox" id="m-pref-email"><span class="slider"></span></label></div>
+    <div class="pref-row"><span>WhatsApp alerts</span><label class="switch"><input type="checkbox" id="m-pref-whatsapp"><span class="slider"></span></label></div>
+
+    <div class="card-hdr" style="margin-top:16px;"><h3>🔒 Change Password</h3></div>
+    <div class="setting-row"><label>Current Password</label><input type="password" id="m-pw-current"></div>
+    <div class="setting-row"><label>New Password</label><input type="password" id="m-pw-new"></div>
+    <div class="setting-row"><label>Confirm New Password</label><input type="password" id="m-pw-confirm"></div>
+    <button class="btn btn-ghost" onclick="changeMyPassword()">Update Password</button>
+  </div>
+</div>
+
+<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+  <button class="btn btn-primary" onclick="saveMyProfile()">💾 Save Profile</button>
+  <button class="btn btn-ghost" onclick="renderMemberHome()">↺ Reset</button>
+  <button class="btn btn-danger" style="margin-left:auto;" onclick="logout()">🚪 Logout</button>
+</div>

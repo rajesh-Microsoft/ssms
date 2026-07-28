@@ -1,0 +1,18 @@
+<div class="mwelcome" id="m-welcome"></div>
+<div class="kpi-grid" id="m-kpi-grid"></div>
+<div class="qa-grid">
+  <div class="qa-tile" onclick="showTab('mpay',document.getElementById('mnav-dash'))"><div class="qa-ic">💰</div><div class="qa-t">Pay / View Dues</div><div class="qa-s">See your maintenance</div></div>
+  <div class="qa-tile" onclick="openModal('cmp')"><div class="qa-ic">🛠️</div><div class="qa-t">Raise a Complaint</div><div class="qa-s">Report an issue</div></div>
+  <div class="qa-tile" onclick="showTab('mreceipts')"><div class="qa-ic">🧾</div><div class="qa-t">Download Receipt</div><div class="qa-s">Payment history</div></div>
+  <div class="qa-tile" onclick="showTab('mhome')"><div class="qa-ic">🏠</div><div class="qa-t">Update Profile</div><div class="qa-s">My Home details</div></div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;" class="m-two-col">
+  <div class="card">
+    <div class="card-hdr"><h3>Recent Payments</h3><button class="btn btn-ghost" onclick="showTab('mpay')">View all</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Amount</th><th>Status</th></tr></thead><tbody id="m-recent-pay"></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><h3>Latest Notices</h3><button class="btn btn-ghost" onclick="showTab('mnotices')">View all</button></div>
+    <div id="m-recent-notices"></div>
+  </div>
+</div>
