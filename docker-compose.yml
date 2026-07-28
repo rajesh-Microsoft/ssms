@@ -38,6 +38,16 @@ services:
 
       Tenants__aaradya__ConnectionString: Server=sqlserver;Database=SmmsDb_Aaradya;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True
 
+      ControlPlane__ConnectionString: Server=sqlserver;Database=SmmsControlDb;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True
+
+      ControlPlane__TenantConnectionTemplate: Server=sqlserver;Database={DbName};User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True
+
+      ControlPlane__SuperAdmin__Username: superadmin
+
+      ControlPlane__SuperAdmin__Password: super123
+
+      ControlPlane__SuperAdmin__DisplayName: Platform Owner
+
       Jwt__Key: ThisIsAVeryLongDevelopmentSecretKey123456789
 
       Jwt__Issuer: SMMS.Api

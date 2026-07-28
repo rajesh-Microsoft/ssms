@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SMMS.Api.Data;
+using SMMS.Api.Data.Control;
 using SMMS.Api.Data.Tenancy;
 using SMMS.Api.Services;
 
@@ -16,7 +17,13 @@ builder.Services.AddOpenApi();
 // Multi-tenant: each society (tenant) has its own database. The tenant is resolved per-request
 // (from the subdomain, or an X-Tenant header for local dev) by TenantResolutionMiddleware,
 // which populates the scoped ITenantContext that the DbContext options factory below reads.
-builder.Services.AddSingleton<ITenantStore, ConfigTenantStore>();
+// Platform control plane: its own database (fixed connection string, not tenant-resolved).
+builder.Services.AddDbContext<ControlDbContext>(options =>
+    options.UseSqlServer(builder.Configuration["ControlPlane:ConnectionString"]
+        ?? throw new InvalidOperationException("ControlPlane:ConnectionString is not configured.")));
+
+// Tenant registry now comes from SmmsControlDb (enables runtime provisioning) instead of config.
+builder.Services.AddSingleton<ITenantStore, DbTenantStore>();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 builder.Services.AddDbContext<SmmsDbContext>((sp, options) =>
@@ -40,6 +47,7 @@ var jwtSettings = new JwtSettings
 };
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<PlatformTokenService>();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddHttpContextAccessor();
 
@@ -67,7 +75,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
         };
     });
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // Super-admin (platform control plane) surface. Granted by a PlatformTokenService JWT
+    // carrying "platform_role=SuperAdmin" and no tenant claim.
+    options.AddPolicy("SuperAdmin", policy => policy.RequireClaim("platform_role", "SuperAdmin"));
+});
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(options =>
@@ -79,6 +92,31 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Ensure the control-plane database exists and has its first super admin + society records,
+// BEFORE the per-tenant migration loop below reads the society list from it.
+using (var controlScope = app.Services.CreateScope())
+{
+    const int maxRetries = 10;
+    for (int retry = 1; retry <= maxRetries; retry++)
+    {
+        try
+        {
+            Console.WriteLine($"[control] Connecting to SmmsControlDb (attempt {retry}/{maxRetries})...");
+            var controlDb = controlScope.ServiceProvider.GetRequiredService<ControlDbContext>();
+            controlDb.Database.Migrate();
+            ControlDbSeeder.Seed(controlDb, builder.Configuration);
+            Console.WriteLine("[control] Control plane database is ready.");
+            break;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[control] Connection failed: {ex.Message}");
+            if (retry == maxRetries) throw;
+            Thread.Sleep(TimeSpan.FromSeconds(5));
+        }
+    }
+}
 
 // Apply pending EF Core migrations and seed baseline data for every configured tenant on startup.
 // A fresh scope (and therefore a fresh DbContext/connection) is created per attempt so a failed
@@ -140,7 +178,11 @@ app.UseAuthentication();
 // the wrong tenant's database), which is a broken-access-control risk in a shared deployment.
 app.Use(async (context, next) =>
 {
-    if (context.User.Identity?.IsAuthenticated == true)
+    // The platform control-plane surface has no resolved tenant and uses super-admin tokens
+    // (which carry no tenant claim), so the tenant-match check does not apply there.
+    var isControlPlane = context.Items.ContainsKey("IsControlPlane");
+
+    if (!isControlPlane && context.User.Identity?.IsAuthenticated == true)
     {
         var tokenTenant = context.User.FindFirst("tenant")?.Value;
         var resolvedTenant = context.RequestServices.GetRequiredService<ITenantContext>().Current?.Key;
