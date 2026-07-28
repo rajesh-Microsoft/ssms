@@ -43,6 +43,15 @@ public class SocietySettings
 
     public int GraceDays { get; set; } = 5;
 
+    /// <summary>Day of month (1-31) the monthly maintenance invoice is generated. Configurable
+    /// so societies that bill on the 25th of the prior month vs the 1st vs the 5th all work
+    /// without code changes.</summary>
+    public int BillingDay { get; set; } = 1;
+
+    /// <summary>When true, the background scheduler auto-generates monthly invoices on BillingDay.
+    /// When false, an admin must trigger generation manually.</summary>
+    public bool AutoGenerateInvoices { get; set; } = false;
+
     /// <summary>e.g. "2026-27".</summary>
     [MaxLength(20)]
     public string? FinancialYear { get; set; }

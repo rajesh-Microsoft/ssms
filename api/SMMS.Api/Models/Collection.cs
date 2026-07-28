@@ -16,7 +16,7 @@ public class Collection
     [Column(TypeName = "decimal(12,2)")]
     public decimal Amount { get; set; }
 
-    /// <summary>"Paid", "Unpaid", or "Partial".</summary>
+    /// <summary>"Paid", "Unpaid", "Partial", or "Overdue".</summary>
     [Required, MaxLength(20)]
     public string Status { get; set; } = "Paid";
 
@@ -42,4 +42,8 @@ public class Collection
 
     /// <summary>Due date for this charge. Null on legacy rows; derived from settings when needed.</summary>
     public DateTime? DueDate { get; set; }
+
+    /// <summary>True once the overdue job has added the late fee to Amount, so the daily pass
+    /// never double-charges the same invoice.</summary>
+    public bool LateFeeApplied { get; set; } = false;
 }

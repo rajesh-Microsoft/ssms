@@ -48,5 +48,10 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
 
         modelBuilder.Entity<PaymentProof>()
             .HasIndex(p => new { p.Status, p.SubmittedAt });
+
+        // Speeds up "does an invoice already exist for this member/month?" checks that the
+        // generation service uses to stay idempotent (requirement: no duplicate invoices).
+        modelBuilder.Entity<Collection>()
+            .HasIndex(c => new { c.MemberId, c.Year, c.Month });
     }
 }

@@ -37,7 +37,7 @@ let DB = {
   settings: {
     societyName:'NLC Aadya', address:'', email:'', phone:'',
     registrationNumber:'', gst:'', pan:'', logoBase64:'',
-    maintenanceAmt:2000, dueDay:5, lateFee:100, graceDays:5, financialYear:'',
+    maintenanceAmt:2000, dueDay:5, lateFee:100, graceDays:5, billingDay:1, autoGenerateInvoices:false, financialYear:'',
     floors:['1','2','3','4','5'],
     categories:['Security','Housekeeping','Electricity','Water','Repairs','Lift Maintenance','Gardening','Festival','CCTV','Miscellaneous'],
     primaryColor:'#6c63ff', secondaryColor:'#1a1f36', applicationTitle:''
@@ -135,6 +135,8 @@ async function loadSettingsData(){
     dueDay: s.dueDay || 5,
     lateFee: s.lateFee || 100,
     graceDays: s.graceDays || 5,
+    billingDay: s.billingDay || 1,
+    autoGenerateInvoices: !!s.autoGenerateInvoices,
     financialYear: s.financialYear || '',
     floors: (s.floors && s.floors.length) ? s.floors : ['1','2','3','4','5'],
     categories: (s.categories && s.categories.length) ? s.categories : DB.settings.categories,
@@ -159,6 +161,8 @@ function currentSettingsPayload(overrides = {}){
     dueDay: DB.settings.dueDay,
     lateFee: DB.settings.lateFee,
     graceDays: DB.settings.graceDays,
+    billingDay: DB.settings.billingDay,
+    autoGenerateInvoices: DB.settings.autoGenerateInvoices,
     financialYear: DB.settings.financialYear,
     floors: DB.settings.floors,
     categories: DB.settings.categories,
@@ -1089,6 +1093,8 @@ function loadSettingsUI(){
   document.getElementById('set-dueday').value=s.dueDay||5;
   document.getElementById('set-latefee').value=s.lateFee||100;
   document.getElementById('set-gracedays').value=s.graceDays||5;
+  document.getElementById('set-billingday').value=s.billingDay||1;
+  document.getElementById('set-autogen').checked=!!s.autoGenerateInvoices;
   document.getElementById('set-fy').value=s.financialYear||'';
   document.getElementById('set-wings').value=(s.floors||[]).join(',');
   document.getElementById('set-theme').value=s.theme||'light';
@@ -1129,6 +1135,8 @@ async function saveSettings(){
     dueDay: +document.getElementById('set-dueday').value || 5,
     lateFee: +document.getElementById('set-latefee').value || 0,
     graceDays: +document.getElementById('set-gracedays').value || 0,
+    billingDay: +document.getElementById('set-billingday').value || 1,
+    autoGenerateInvoices: document.getElementById('set-autogen').checked,
     financialYear: document.getElementById('set-fy').value,
     floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean),
     applicationTitle: document.getElementById('set-apptitle').value,

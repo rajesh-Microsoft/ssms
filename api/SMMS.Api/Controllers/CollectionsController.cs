@@ -5,13 +5,14 @@ using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
+using SMMS.Api.Services.Storage;
 
 namespace SMMS.Api.Controllers;
 
 [ApiController]
 [Route("api/collections")]
 [Authorize]
-public class CollectionsController(SmmsDbContext db, AuditService audit) : ControllerBase
+public class CollectionsController(SmmsDbContext db, AuditService audit, IFileStorage storage) : ControllerBase
 {
     private static CollectionDto ToDto(Collection c) => new(
         c.Id, c.MemberId, c.Member?.Name, c.Member?.Flat, c.Amount, c.Status, c.Month, c.Year, c.PaymentDate, c.PaymentMode, c.Remarks);
@@ -87,9 +88,17 @@ public class CollectionsController(SmmsDbContext db, AuditService audit) : Contr
         var collection = await db.Collections.FindAsync(id);
         if (collection is null) return NotFound();
 
+        // Payment proofs FK to Collection with DeleteBehavior.Restrict, so remove them first
+        // (including their stored screenshot files) or the delete throws -> 500.
+        var proofs = await db.PaymentProofs.Where(p => p.CollectionId == id).ToListAsync();
+        foreach (var proof in proofs)
+            if (proof.StoredPath is not null) storage.Delete(proof.StoredPath);
+        db.PaymentProofs.RemoveRange(proofs);
+
         db.Collections.Remove(collection);
         await db.SaveChangesAsync();
-        await audit.LogAsync("Collections", "Delete", $"Deleted collection id: {id}");
+        await audit.LogAsync("Collections", "Delete",
+            $"Deleted collection id: {id}" + (proofs.Count > 0 ? $" (+{proofs.Count} payment proof(s))" : ""));
         return NoContent();
     }
 }
