@@ -1384,6 +1384,29 @@ function openModal(type){
 }
 function closeModal(type){ document.getElementById('modal-'+type).classList.remove('open'); }
 
+function openGenBill(){
+  if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
+  document.getElementById('gb-month').value = new Date().getMonth()+1;
+  document.getElementById('gb-year').value  = new Date().getFullYear();
+  document.getElementById('gb-amount').value = '';
+  document.getElementById('modal-genbill').classList.add('open');
+}
+
+async function generateBilling(){
+  if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
+  const month = +document.getElementById('gb-month').value;
+  const year  = +document.getElementById('gb-year').value;
+  const amtRaw = document.getElementById('gb-amount').value.trim();
+  const payload = { month, year, amount: amtRaw === '' ? null : +amtRaw };
+  try{
+    const r = await Api.generateBilling(payload);
+    closeModal('genbill');
+    await loadCollections();
+    renderCollections(); renderDashboard();
+    toast(`Generated ${r.generated} invoice(s) for ${month}/${year}, skipped ${r.skipped} already billed.`);
+  }catch(err){ toast(err.message || 'Generation failed','warn'); }
+}
+
 function populateMemberDropdown(){
   document.getElementById('col-member').innerHTML=DB.members.filter(m=>(fld(m,'status','Status')||'Active')==='Active').map(m=>`<option value="${fld(m,'id','Id')}">${fld(m,'name','Name')} (${fld(m,'flat','Flat')})</option>`).join('');
 }

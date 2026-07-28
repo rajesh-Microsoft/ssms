@@ -119,6 +119,7 @@
             <input type="text" id="colSearch" placeholder="🔍 Search..." oninput="renderCollections()" style="width:160px;">
             <select id="colFloorF" onchange="renderCollections()" style="width:auto;"><option value="">All Floors</option></select>
             <select id="colStatusF" onchange="renderCollections()" style="width:auto;"><option value="">All Status</option><option>Paid</option><option>Unpaid</option><option>Partial</option></select>
+            <button class="btn btn-ghost" data-perm="Collections" onclick="openGenBill()">🧾 Generate Monthly</button>
             <button class="btn btn-primary" data-perm="Collections" onclick="openModal('col')">＋ Add</button>
           </div>
         </div>
@@ -507,6 +508,27 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('col')">Cancel</button>
       <button class="btn btn-primary" onclick="saveCollection()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-genbill">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Generate Monthly Maintenance</h3><button class="modal-close" onclick="closeModal('genbill')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Month *</label><select id="gb-month">
+        <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+        <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+        <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+        <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+      </select></div>
+      <div class="form-group"><label>Year *</label><input type="number" id="gb-year" value="2026"></div>
+      <div class="form-group full"><label>Amount per flat (₹)</label><input type="number" id="gb-amount" placeholder="Blank = use configured maintenance amount"></div>
+    </div>
+    <p style="font-size:12px;color:var(--muted,#888);margin:4px 2px;">Creates one <b>Unpaid</b> invoice for every <b>Active</b> flat. Flats already billed for the selected month are skipped, so this is safe to run more than once.</p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('genbill')">Cancel</button>
+      <button class="btn btn-primary" onclick="generateBilling()">🧾 Generate</button>
     </div>
   </div>
 </div>

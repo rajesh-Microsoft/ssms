@@ -105,6 +105,7 @@ const Api = {
   createCollection: (payload) => apiFetch('/collections', { method: 'POST', body: JSON.stringify(payload) }),
   updateCollection: (id, payload) => apiFetch(`/collections/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteCollection: (id) => apiFetch(`/collections/${id}`, { method: 'DELETE' }),
+  generateBilling: (payload) => apiFetch('/admin/billing/generate', { method: 'POST', body: JSON.stringify(payload) }),
 
   // Expenses
   getExpenses: () => apiFetch('/expenses'),

@@ -49,6 +49,9 @@ builder.Services.AddSingleton<SMMS.Api.Services.Storage.IFileStorage, SMMS.Api.S
 builder.Services.AddScoped<SMMS.Api.Services.Payments.IPaymentGateway, SMMS.Api.Services.Payments.ManualUpiPaymentGateway>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
 
+// Maintenance billing module (manual monthly-invoice generation; scheduler added in a later phase).
+builder.Services.AddScoped<SMMS.Api.Services.Billing.BillingService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
