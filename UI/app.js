@@ -236,7 +236,7 @@ function applyRolePermissions(){
   document.querySelectorAll('[data-perm-view]').forEach(el=>{
     el.style.display = canView(el.getAttribute('data-perm-view')) ? '' : 'none';
   });
-  ['set-sname','set-addr','set-email','set-phone','set-mamt','set-wings','new-cat'].forEach(id=>{
+  ['set-sname','set-addr','set-email','set-phone','set-wings','new-cat'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.disabled = !canEdit('Settings');
   });
@@ -1198,7 +1198,6 @@ function loadSettingsUI(){
   document.getElementById('set-regno').value=s.registrationNumber||'';
   document.getElementById('set-gst').value=s.gst||'';
   document.getElementById('set-pan').value=s.pan||'';
-  document.getElementById('set-mamt').value=s.maintenanceAmt||2000;
   document.getElementById('set-dueday').value=s.dueDay||5;
   document.getElementById('set-latefee').value=s.lateFee||100;
   document.getElementById('set-gracedays').value=s.graceDays||5;
@@ -1207,7 +1206,6 @@ function loadSettingsUI(){
   document.getElementById('set-fy').value=s.financialYear||'';
   document.getElementById('set-wings').value=(s.floors||[]).join(',');
   if(document.getElementById('set-towers')) document.getElementById('set-towers').value=(s.towers||[]).join(',');
-  if(document.getElementById('set-calcmethod')) document.getElementById('set-calcmethod').value=s.maintenanceCalcMethod||'FixedAmount';
   document.getElementById('set-theme').value=s.theme||'light';
   document.getElementById('set-apptitle').value=s.applicationTitle||'';
   document.getElementById('set-primary').value=s.primaryColor||'#6c63ff';
@@ -1242,7 +1240,6 @@ async function saveSettings(){
     gst: document.getElementById('set-gst').value,
     pan: document.getElementById('set-pan').value,
     logoBase64: DB.settings.logoBase64,
-    maintenanceAmt: +document.getElementById('set-mamt').value || 2000,
     dueDay: +document.getElementById('set-dueday').value || 5,
     lateFee: +document.getElementById('set-latefee').value || 0,
     graceDays: +document.getElementById('set-gracedays').value || 0,
@@ -1251,7 +1248,6 @@ async function saveSettings(){
     financialYear: document.getElementById('set-fy').value,
     floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean),
     towers: (document.getElementById('set-towers')?.value || '').split(',').map(w=>w.trim()).filter(Boolean),
-    maintenanceCalcMethod: document.getElementById('set-calcmethod')?.value || DB.settings.maintenanceCalcMethod,
     applicationTitle: document.getElementById('set-apptitle').value,
     primaryColor: document.getElementById('set-primary').value,
     secondaryColor: document.getElementById('set-secondary').value

@@ -7,6 +7,7 @@ using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
+using SMMS.Api.Services.Billing;
 
 namespace SMMS.Api.Controllers;
 
@@ -18,7 +19,7 @@ namespace SMMS.Api.Controllers;
 [ApiController]
 [Route("api/me")]
 [Authorize]
-public class MeController(SmmsDbContext db, AuditService audit) : ControllerBase
+public class MeController(SmmsDbContext db, AuditService audit, MaintenanceCalculationService calc) : ControllerBase
 {
     private static readonly PasswordHasher<User> Hasher = new();
 
@@ -47,8 +48,15 @@ public class MeController(SmmsDbContext db, AuditService audit) : ControllerBase
                 .ToListAsync();
 
         var settings = await db.Settings.FirstOrDefaultAsync();
-        var maintenanceAmt = settings?.MaintenanceAmt ?? 0m;
         var dueDay = settings?.DueDay ?? 5;
+
+        // Expected monthly maintenance is this flat's own rule-engine total (sum of active components).
+        var maintenanceAmt = 0m;
+        if (member is not null)
+        {
+            var components = await calc.LoadComponentsAsync();
+            maintenanceAmt = calc.CalculateForFlat(components, MaintenanceCalculationService.ToContext(member)).Total;
+        }
 
         var paid = payments.Where(p => p.Status == "Paid").ToList();
         var pending = payments.Where(p => p.Status != "Paid").ToList();
