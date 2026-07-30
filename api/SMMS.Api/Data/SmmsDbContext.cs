@@ -13,6 +13,10 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<SocietySettings> Settings => Set<SocietySettings>();
     public DbSet<Complaint> Complaints => Set<Complaint>();
     public DbSet<PaymentProof> PaymentProofs => Set<PaymentProof>();
+    public DbSet<MaintenanceComponent> MaintenanceComponents => Set<MaintenanceComponent>();
+    public DbSet<MaintenanceComponentRate> MaintenanceComponentRates => Set<MaintenanceComponentRate>();
+    public DbSet<MaintenanceComponentFlatOverride> MaintenanceComponentFlatOverrides => Set<MaintenanceComponentFlatOverride>();
+    public DbSet<CollectionLine> CollectionLines => Set<CollectionLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,5 +57,43 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         // generation service uses to stay idempotent (requirement: no duplicate invoices).
         modelBuilder.Entity<Collection>()
             .HasIndex(c => new { c.MemberId, c.Year, c.Month });
+
+        // Enum stored as string for admin readability and stability across enum reordering.
+        modelBuilder.Entity<MaintenanceComponent>()
+            .Property(c => c.Method)
+            .HasConversion<string>()
+            .HasMaxLength(30);
+
+        modelBuilder.Entity<MaintenanceComponentRate>()
+            .HasOne(r => r.Component)
+            .WithMany(c => c.Rates)
+            .HasForeignKey(r => r.ComponentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MaintenanceComponentRate>()
+            .HasIndex(r => new { r.ComponentId, r.Key })
+            .IsUnique();
+
+        modelBuilder.Entity<MaintenanceComponentFlatOverride>()
+            .HasOne(o => o.Component)
+            .WithMany(c => c.FlatOverrides)
+            .HasForeignKey(o => o.ComponentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<MaintenanceComponentFlatOverride>()
+            .HasOne(o => o.Member)
+            .WithMany()
+            .HasForeignKey(o => o.MemberId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<MaintenanceComponentFlatOverride>()
+            .HasIndex(o => new { o.ComponentId, o.MemberId })
+            .IsUnique();
+
+        modelBuilder.Entity<CollectionLine>()
+            .HasOne(l => l.Collection)
+            .WithMany(c => c.Lines)
+            .HasForeignKey(l => l.CollectionId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

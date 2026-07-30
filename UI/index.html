@@ -26,6 +26,7 @@
     <div class="nav-item admin-only" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
     <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
+    <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Maintenance</div>
     <div class="nav-sec admin-only">Management</div>
     <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
     <div class="nav-item admin-only" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
@@ -117,6 +118,9 @@
 
     <!-- SETTINGS (lazy-loaded from partials/settings.html) -->
     <div id="tab-settings" class="tab-content" data-partial="settings"></div>
+
+    <!-- MAINTENANCE RULE ENGINE (lazy-loaded from partials/maintenance.html) -->
+    <div id="tab-maintenance" class="tab-content" data-partial="maintenance"></div>
 
 
     <!-- ADMIN (lazy-loaded from partials/admin.html) -->
@@ -225,6 +229,9 @@
       <div class="form-group full"><label>Full Name *</label><input type="text" id="mem-name"></div>
       <div class="form-group"><label>Flat Number *</label><input type="text" id="mem-flat"></div>
       <div class="form-group"><label>Floor *</label><select id="mem-floor"></select></div>
+      <div class="form-group"><label>Area (sq ft)</label><input type="number" step="0.01" min="0" id="mem-area"></div>
+      <div class="form-group"><label>Flat Type</label><input type="text" id="mem-flattype" placeholder="e.g. 2BHK"></div>
+      <div class="form-group"><label>Tower / Block</label><input type="text" id="mem-tower" list="mem-tower-list" placeholder="e.g. A"><datalist id="mem-tower-list"></datalist></div>
       <div class="form-group"><label>Mobile</label><input type="tel" id="mem-mobile"></div>
       <div class="form-group"><label>Email</label><input type="email" id="mem-email"></div>
       <div class="form-group"><label>Status</label><select id="mem-status"><option>Active</option><option>Inactive</option></select></div>
@@ -331,5 +338,6 @@
 
 <script src="api.js"></script>
 <script src="app.js"></script>
+<script src="maintenance.js"></script>
 </body>
 </html>

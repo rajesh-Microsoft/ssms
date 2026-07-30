@@ -13,7 +13,8 @@ namespace SMMS.Api.Controllers;
 [Authorize]
 public class MembersController(SmmsDbContext db, AuditService audit) : ControllerBase
 {
-    private static MemberDto ToDto(Member m) => new(m.Id, m.Name, m.Flat, m.Floor, m.Mobile, m.Email, m.Status);
+    private static MemberDto ToDto(Member m) => new(m.Id, m.Name, m.Flat, m.Floor, m.Mobile, m.Email, m.Status,
+        m.AreaSqFt, m.FlatType, m.Tower);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<MemberDto>>> GetAll()
@@ -42,7 +43,10 @@ public class MembersController(SmmsDbContext db, AuditService audit) : Controlle
             Floor = request.Floor,
             Mobile = request.Mobile,
             Email = request.Email,
-            Status = request.Status
+            Status = request.Status,
+            AreaSqFt = request.AreaSqFt,
+            FlatType = request.FlatType,
+            Tower = request.Tower
         };
         db.Members.Add(member);
         await db.SaveChangesAsync();
@@ -63,6 +67,9 @@ public class MembersController(SmmsDbContext db, AuditService audit) : Controlle
         member.Mobile = request.Mobile;
         member.Email = request.Email;
         member.Status = request.Status;
+        member.AreaSqFt = request.AreaSqFt;
+        member.FlatType = request.FlatType;
+        member.Tower = request.Tower;
         await db.SaveChangesAsync();
         await audit.LogAsync("Members", "Update", $"Updated: {member.Name} ({member.Flat})");
         return NoContent();

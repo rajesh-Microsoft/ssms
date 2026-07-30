@@ -35,6 +35,10 @@ public class SocietySettings
     [Column(TypeName = "decimal(12,2)")]
     public decimal MaintenanceAmt { get; set; } = 2000;
 
+    /// <summary>Default calculation method for the primary "Maintenance Charges" component.</summary>
+    [MaxLength(30)]
+    public string MaintenanceCalcMethod { get; set; } = nameof(Models.CalculationMethod.FixedAmount);
+
     /// <summary>Day of the month maintenance is due, 1-31.</summary>
     public int DueDay { get; set; } = 5;
 
@@ -59,6 +63,11 @@ public class SocietySettings
     /// <summary>Comma-separated floor labels, e.g. "1,2,3,4,5".</summary>
     [MaxLength(500)]
     public string Floors { get; set; } = "1,2,3,4,5";
+
+    /// <summary>Comma-separated tower/block labels, e.g. "A,B,C". Sources the Tower dropdowns
+    /// and the PerTower component rate keys.</summary>
+    [MaxLength(500)]
+    public string Towers { get; set; } = string.Empty;
 
     /// <summary>Comma-separated expense category names.</summary>
     [MaxLength(1000)]

@@ -30,6 +30,35 @@ public static class DbSeeder
             db.Users.Add(admin);
         }
 
+        // Seed a starter set of maintenance components so the rule engine produces invoices
+        // out of the box. Admins can add/edit/remove these from the Maintenance tab.
+        if (!db.MaintenanceComponents.Any())
+        {
+            db.MaintenanceComponents.AddRange(
+                new MaintenanceComponent
+                {
+                    Name = "Maintenance Charges",
+                    Method = CalculationMethod.FixedAmount,
+                    Amount = 2000,
+                    SortOrder = 10
+                },
+                new MaintenanceComponent
+                {
+                    Name = "Sinking Fund",
+                    Method = CalculationMethod.FixedAmount,
+                    Amount = 200,
+                    SortOrder = 20
+                },
+                new MaintenanceComponent
+                {
+                    Name = "Parking Charges",
+                    Method = CalculationMethod.CustomPerFlat,
+                    Amount = 300,
+                    ApplyToAllFlats = false,
+                    SortOrder = 30
+                });
+        }
+
         db.SaveChanges();
     }
 }

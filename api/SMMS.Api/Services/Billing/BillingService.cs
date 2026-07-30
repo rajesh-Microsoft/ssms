@@ -9,8 +9,10 @@ namespace SMMS.Api.Services.Billing;
 /// Generates monthly maintenance invoices (Collection rows with Status="Unpaid") — one per active
 /// member per billing month. Idempotent: a member who already has any Collection for the target
 /// Year+Month is skipped, so re-running (manually or via the scheduler) never creates duplicates.
+/// Each invoice's amount comes from the data-driven maintenance rule engine
+/// (<see cref="MaintenanceCalculationService"/>), with the per-component breakdown persisted as lines.
 /// </summary>
-public class BillingService(SmmsDbContext db, AuditService audit)
+public class BillingService(SmmsDbContext db, AuditService audit, MaintenanceCalculationService calc)
 {
     public async Task<BillingRunResult> GenerateForMonthAsync(int month, int year, decimal? amountOverride = null)
     {
@@ -20,9 +22,10 @@ public class BillingService(SmmsDbContext db, AuditService audit)
         var settings = await db.Settings.FirstOrDefaultAsync()
             ?? throw new InvalidOperationException("Society settings not found.");
 
-        var amount = amountOverride ?? settings.MaintenanceAmt;
         var dueDay = Math.Clamp(settings.DueDay, 1, DateTime.DaysInMonth(year, month));
         var dueDate = new DateTime(year, month, dueDay);
+
+        var components = await calc.LoadComponentsAsync();
 
         var activeMembers = await db.Members
             .Where(m => m.Status == "Active")
@@ -35,21 +38,36 @@ public class BillingService(SmmsDbContext db, AuditService audit)
                 .ToListAsync())
             .ToHashSet();
 
-        var newInvoices = activeMembers
-            .Where(m => !billedSet.Contains(m.Id))
-            .Select(m => new Collection
+        var newInvoices = new List<Collection>();
+        foreach (var m in activeMembers.Where(m => !billedSet.Contains(m.Id)))
+        {
+            var invoice = calc.CalculateForFlat(components, MaintenanceCalculationService.ToContext(m));
+
+            // amountOverride still wins for one-off manual runs; otherwise use the engine total.
+            var total = amountOverride ?? invoice.Total;
+
+            newInvoices.Add(new Collection
             {
                 MemberId = m.Id,
-                Amount = amount,
+                Amount = total,
                 Status = "Unpaid",
                 Month = month,
                 Year = year,
                 DueDate = dueDate,
                 // InvoiceNumber left null → PaymentNumbering derives "INV{Id:D6}" after save,
                 // consistent with every other invoice in the system.
-                Remarks = "Auto-generated monthly maintenance"
-            })
-            .ToList();
+                Remarks = "Auto-generated monthly maintenance",
+                Lines = amountOverride is null
+                    ? invoice.Lines.Select(l => new CollectionLine
+                    {
+                        ComponentId = l.ComponentId,
+                        ComponentName = l.ComponentName,
+                        Method = l.Method,
+                        Amount = l.Amount
+                    }).ToList()
+                    : new List<CollectionLine>()
+            });
+        }
 
         if (newInvoices.Count > 0)
         {
@@ -57,11 +75,13 @@ public class BillingService(SmmsDbContext db, AuditService audit)
             await db.SaveChangesAsync();
         }
 
-        await audit.LogAsync("Collections", "GenerateBilling",
-            $"Generated {newInvoices.Count} maintenance invoice(s) for {month:D2}/{year} " +
-            $"@ {amount:0.00} (skipped {activeMembers.Count - newInvoices.Count} already billed).");
+        var avgAmount = newInvoices.Count > 0 ? newInvoices.Average(i => i.Amount) : 0m;
 
-        return new BillingRunResult(month, year, amount, newInvoices.Count,
+        await audit.LogAsync("Collections", "GenerateBilling",
+            $"Generated {newInvoices.Count} maintenance invoice(s) for {month:D2}/{year} via rule engine " +
+            $"(skipped {activeMembers.Count - newInvoices.Count} already billed).");
+
+        return new BillingRunResult(month, year, avgAmount, newInvoices.Count,
             activeMembers.Count - newInvoices.Count, activeMembers.Count);
     }
 }

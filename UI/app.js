@@ -139,6 +139,8 @@ async function loadSettingsData(){
     autoGenerateInvoices: !!s.autoGenerateInvoices,
     financialYear: s.financialYear || '',
     floors: (s.floors && s.floors.length) ? s.floors : ['1','2','3','4','5'],
+    towers: (s.towers && s.towers.length) ? s.towers : [],
+    maintenanceCalcMethod: s.maintenanceCalcMethod || 'FixedAmount',
     categories: (s.categories && s.categories.length) ? s.categories : DB.settings.categories,
     theme: s.theme || 'light',
     primaryColor: s.primaryColor || '#6c63ff',
@@ -165,6 +167,8 @@ function currentSettingsPayload(overrides = {}){
     autoGenerateInvoices: DB.settings.autoGenerateInvoices,
     financialYear: DB.settings.financialYear,
     floors: DB.settings.floors,
+    towers: DB.settings.towers,
+    maintenanceCalcMethod: DB.settings.maintenanceCalcMethod,
     categories: DB.settings.categories,
     theme: DB.settings.theme || 'light',
     primaryColor: DB.settings.primaryColor || '#6c63ff',
@@ -475,7 +479,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',admin:'Admin Panel',payments:'Payment Verifications',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Maintenance Rule Engine',admin:'Admin Panel',payments:'Payment Verifications',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -503,7 +507,7 @@ async function showTab(t, el){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, admin:renderUsers, payments:renderPaymentsAdmin, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -1013,6 +1017,9 @@ async function saveMember(){
   const payload = {
     name, flat,
     floor: document.getElementById('mem-floor').value,
+    areaSqFt: parseFloat(document.getElementById('mem-area').value) || 0,
+    flatType: document.getElementById('mem-flattype').value.trim() || null,
+    tower: document.getElementById('mem-tower').value.trim() || null,
     mobile: document.getElementById('mem-mobile').value,
     email:  document.getElementById('mem-email').value,
     status: document.getElementById('mem-status').value
@@ -1030,9 +1037,13 @@ function editMember(id){
   editId.mem = id;
   document.getElementById('mem-modal-title').textContent = 'Edit Member';
   populateFloorDropdown('mem-floor');
+  populateTowerDatalist();
   document.getElementById('mem-name').value   = fld(m,'name','Name');
   document.getElementById('mem-flat').value   = fld(m,'flat','Flat');
   document.getElementById('mem-floor').value  = fld(m,'floor','Floor');
+  document.getElementById('mem-area').value     = fld(m,'areaSqFt','AreaSqFt')||'';
+  document.getElementById('mem-flattype').value = fld(m,'flatType','FlatType')||'';
+  document.getElementById('mem-tower').value    = fld(m,'tower','Tower')||'';
   document.getElementById('mem-mobile').value = fld(m,'mobile','Mobile');
   document.getElementById('mem-email').value  = fld(m,'email','Email');
   document.getElementById('mem-status').value = fld(m,'status','Status')||'Active';
@@ -1195,6 +1206,8 @@ function loadSettingsUI(){
   document.getElementById('set-autogen').checked=!!s.autoGenerateInvoices;
   document.getElementById('set-fy').value=s.financialYear||'';
   document.getElementById('set-wings').value=(s.floors||[]).join(',');
+  if(document.getElementById('set-towers')) document.getElementById('set-towers').value=(s.towers||[]).join(',');
+  if(document.getElementById('set-calcmethod')) document.getElementById('set-calcmethod').value=s.maintenanceCalcMethod||'FixedAmount';
   document.getElementById('set-theme').value=s.theme||'light';
   document.getElementById('set-apptitle').value=s.applicationTitle||'';
   document.getElementById('set-primary').value=s.primaryColor||'#6c63ff';
@@ -1237,6 +1250,8 @@ async function saveSettings(){
     autoGenerateInvoices: document.getElementById('set-autogen').checked,
     financialYear: document.getElementById('set-fy').value,
     floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean),
+    towers: (document.getElementById('set-towers')?.value || '').split(',').map(w=>w.trim()).filter(Boolean),
+    maintenanceCalcMethod: document.getElementById('set-calcmethod')?.value || DB.settings.maintenanceCalcMethod,
     applicationTitle: document.getElementById('set-apptitle').value,
     primaryColor: document.getElementById('set-primary').value,
     secondaryColor: document.getElementById('set-secondary').value
@@ -1452,7 +1467,7 @@ function openModal(type){
   editId[type]=null;
   if(type==='col'){ document.getElementById('col-modal-title').textContent='Add Collection'; populateMemberDropdown(); document.getElementById('col-date').value=new Date().toISOString().split('T')[0]; document.getElementById('col-month').value=new Date().getMonth()+1; document.getElementById('col-year').value=new Date().getFullYear(); document.getElementById('col-amount').value=''; document.getElementById('col-remarks').value=''; }
   if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; }
-  if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
+  if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); populateTowerDatalist(); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-area').value=''; document.getElementById('mem-flattype').value=''; document.getElementById('mem-tower').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
   if(type==='cmp'){
     document.getElementById('cmp-modal-title').textContent='Raise Complaint';
     populateComplaintCatDropdown();
@@ -1511,6 +1526,7 @@ function populateMemberDropdown(){
 }
 function populateCatDropdown(){ document.getElementById('exp-cat').innerHTML=DB.settings.categories.map(c=>`<option>${c}</option>`).join(''); }
 function populateFloorDropdown(id){ document.getElementById(id).innerHTML=DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join(''); }
+function populateTowerDatalist(){ const dl=document.getElementById('mem-tower-list'); if(dl) dl.innerHTML=(DB.settings.towers||[]).map(t=>`<option value="${t}">`).join(''); }
 function populateComplaintCatDropdown(){ document.getElementById('cmp-category').innerHTML=COMPLAINT_CATEGORIES.map(c=>`<option>${c}</option>`).join(''); }
 
 // ═══════════════════════════════════════════════

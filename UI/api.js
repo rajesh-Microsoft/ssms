@@ -107,6 +107,13 @@ const Api = {
   deleteCollection: (id) => apiFetch(`/collections/${id}`, { method: 'DELETE' }),
   generateBilling: (payload) => apiFetch('/admin/billing/generate', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // Maintenance rule engine (data-driven components)
+  getComponents: () => apiFetch('/admin/maintenance-components'),
+  createComponent: (payload) => apiFetch('/admin/maintenance-components', { method: 'POST', body: JSON.stringify(payload) }),
+  updateComponent: (id, payload) => apiFetch(`/admin/maintenance-components/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteComponent: (id) => apiFetch(`/admin/maintenance-components/${id}`, { method: 'DELETE' }),
+  previewInvoices: () => apiFetch('/admin/maintenance-components/preview'),
+
   // Expenses
   getExpenses: () => apiFetch('/expenses'),
   createExpense: (payload) => apiFetch('/expenses', { method: 'POST', body: JSON.stringify(payload) }),

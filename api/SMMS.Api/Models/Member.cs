@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SMMS.Api.Models;
 
@@ -14,6 +15,16 @@ public class Member
 
     [MaxLength(10)]
     public string? Floor { get; set; }
+
+    /// <summary>Carpet/built-up area in square feet; drives PerSquareFoot components.</summary>
+    [Column(TypeName = "decimal(10,2)")]
+    public decimal AreaSqFt { get; set; }
+
+    [MaxLength(50)]
+    public string? FlatType { get; set; }
+
+    [MaxLength(50)]
+    public string? Tower { get; set; }
 
     [MaxLength(20)]
     public string? Mobile { get; set; }

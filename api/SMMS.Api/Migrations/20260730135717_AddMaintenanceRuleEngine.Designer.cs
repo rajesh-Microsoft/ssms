@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SMMS.Api.Data;
 
@@ -11,9 +12,11 @@ using SMMS.Api.Data;
 namespace SMMS.Api.Migrations
 {
     [DbContext(typeof(SmmsDbContext))]
-    partial class SmmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730135717_AddMaintenanceRuleEngine")]
+    partial class AddMaintenanceRuleEngine
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -592,11 +595,6 @@ namespace SMMS.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Towers")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("UpiId")
                         .HasMaxLength(100)

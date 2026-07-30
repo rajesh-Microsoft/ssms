@@ -46,4 +46,7 @@ public class Collection
     /// <summary>True once the overdue job has added the late fee to Amount, so the daily pass
     /// never double-charges the same invoice.</summary>
     public bool LateFeeApplied { get; set; } = false;
+
+    /// <summary>Per-component breakdown produced by the maintenance rule engine.</summary>
+    public ICollection<CollectionLine> Lines { get; set; } = new List<CollectionLine>();
 }

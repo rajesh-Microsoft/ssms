@@ -67,6 +67,18 @@ builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
 // Maintenance billing module (manual monthly-invoice generation; scheduler added in a later phase).
 builder.Services.AddScoped<SMMS.Api.Services.Billing.BillingService>();
 
+// Maintenance rule engine: one strategy per calculation method (auto-discovered by the resolver),
+// plus the data-driven calculation service used for both preview and invoice generation.
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.FixedAmountStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerSquareFootStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PercentageStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerFlatTypeStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerTowerStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerFloorStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.CustomPerFlatStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.ChargeStrategyResolver>();
+builder.Services.AddScoped<SMMS.Api.Services.Billing.MaintenanceCalculationService>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
