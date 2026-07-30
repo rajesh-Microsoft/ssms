@@ -53,6 +53,21 @@ public class TenantResolutionMiddleware(RequestDelegate next)
             return;
         }
 
+        // Subscription/licence enforcement: block once the paid term has lapsed. The background
+        // SubscriptionEnforcementService flips Status to "Expired", but we also check the date
+        // in real time so access is cut off immediately at expiry (before the next sweep runs).
+        var expired = string.Equals(tenant.Status, SocietyStatus.Expired, StringComparison.OrdinalIgnoreCase)
+            || (tenant.ExpiryDate is { } exp && exp.Date < DateTime.UtcNow.Date);
+        if (expired)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                message = "This society's subscription has expired. Please contact the platform administrator to renew."
+            });
+            return;
+        }
+
         tenantContext.Current = tenant;
         await next(context);
     }

@@ -47,7 +47,8 @@ public class DbTenantStore : ITenantStore
                     s.Key,
                     s.DisplayName,
                     _connectionTemplate.Replace("{DbName}", s.DbName),
-                    s.Status),
+                    s.Status,
+                    s.ExpiryDate),
                 StringComparer.OrdinalIgnoreCase);
         }
     }

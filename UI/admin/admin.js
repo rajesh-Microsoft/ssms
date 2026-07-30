@@ -56,6 +56,7 @@ const Platform = {
   onboard: (payload) => pfetch('/platform/societies', { method:'POST', body: JSON.stringify(payload) }),
   suspend: (key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/suspend`, { method:'POST' }),
   activate:(key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/activate`, { method:'POST' }),
+  renew:  (key, expiryDate, plan) => pfetch(`/platform/societies/${encodeURIComponent(key)}/renew`, { method:'POST', body: JSON.stringify({ expiryDate, plan }) }),
   impersonate:(key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/impersonate`, { method:'POST' }),
   audit: (take = 100) => pfetch(`/platform/audit?take=${take}`),
 };
@@ -148,6 +149,8 @@ async function loadDashboard(){
       ${kpi(d.totalSocieties, 'Total societies', '')}
       ${kpi(d.activeSocieties, 'Active', 'green')}
       ${kpi(d.suspendedSocieties, 'Suspended', 'red')}
+      ${kpi(d.expiredSocieties, 'Expired', 'red')}
+      ${kpi(d.expiringSoonSocieties, 'Expiring soon', 'amber')}
       ${kpi(d.trialSocieties, 'Trial', 'amber')}
       ${kpi(d.totalMembers, 'Total members', '')}`;
     tbl.innerHTML = societyTable(d.societies, false);
@@ -175,22 +178,28 @@ async function loadSocieties(){
 function societyTable(list, withActions){
   if(!list || !list.length) return '<div class="empty">No societies yet.</div>';
   const rows = list.map(s => {
-    const suspended = String(s.status).toLowerCase() === 'suspended';
+    const status = String(s.status).toLowerCase();
+    const suspended = status === 'suspended';
+    const expired = s.isExpired || status === 'expired';
+    const blocked = suspended || expired;
     const actions = withActions ? `
       <td><div class="row-actions">
-        <button class="btn btn-light btn-sm" onclick="doImpersonate('${esc(s.key)}')" ${suspended ? 'disabled title="Activate first"' : ''}>🔓 Impersonate</button>
-        ${suspended
-          ? `<button class="btn btn-light btn-sm" onclick="doActivate('${esc(s.key)}')">▶ Activate</button>`
-          : `<button class="btn btn-light btn-sm" onclick="doSuspend('${esc(s.key)}')">⏸ Suspend</button>`}
+        <button class="btn btn-light btn-sm" onclick="doImpersonate('${esc(s.key)}')" ${blocked ? 'disabled title="Renew/activate first"' : ''}>🔓 Impersonate</button>
+        ${expired
+          ? `<button class="btn btn-primary btn-sm" onclick="doRenew('${esc(s.key)}')">♻ Renew</button>`
+          : suspended
+            ? `<button class="btn btn-light btn-sm" onclick="doActivate('${esc(s.key)}')">▶ Activate</button>`
+            : `<button class="btn btn-light btn-sm" onclick="doRenew('${esc(s.key)}')">♻ Renew</button>
+               <button class="btn btn-light btn-sm" onclick="doSuspend('${esc(s.key)}')">⏸ Suspend</button>`}
         <a class="btn btn-light btn-sm" href="${tenantUrl(s.key)}" target="_blank" rel="noopener">↗ Open</a>
       </div></td>` : '';
     return `<tr>
       <td><div class="society-name">${esc(s.displayName)}</div><div class="sub-key">${esc(s.key)}.localhost</div></td>
-      <td>${statusBadge(s.status)}</td>
+      <td>${statusBadge(expired ? 'Expired' : s.status)}</td>
       <td>${esc(s.plan || '—')}</td>
       <td>${s.memberCount ?? 0}</td>
       <td>${s.flatCount ?? 0}</td>
-      <td>${fmtDate(s.expiryDate)}</td>
+      <td>${expiryCell(s)}</td>
       <td>${fmtDate(s.createdAt)}</td>
       ${actions}
     </tr>`;
@@ -204,6 +213,18 @@ function societyTable(list, withActions){
   </table>`;
 }
 
+// Expiry date plus a derived pill: "Expired", "Xd left" (amber when ≤14 days).
+function expiryCell(s){
+  const base = fmtDate(s.expiryDate);
+  if(s.expiryDate == null) return base;
+  const d = s.daysUntilExpiry;
+  if(s.isExpired || (typeof d === 'number' && d < 0))
+    return `${base} <span class="pill red">Expired</span>`;
+  if(typeof d === 'number' && d <= 14)
+    return `${base} <span class="pill amber">${d}d left</span>`;
+  return base;
+}
+
 async function doSuspend(key){
   if(!confirm(`Suspend "${key}"? Its members and admins will be blocked from logging in.`)) return;
   try{ await Platform.suspend(key); toast(`Suspended ${key}`, 'warn'); refreshCurrentView(); }
@@ -211,6 +232,15 @@ async function doSuspend(key){
 }
 async function doActivate(key){
   try{ await Platform.activate(key); toast(`Activated ${key}`, 'ok'); refreshCurrentView(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+async function doRenew(key){
+  const def = new Date(); def.setFullYear(def.getFullYear() + 1);
+  const input = prompt(`Renew "${key}" — enter new expiry date (YYYY-MM-DD):`, def.toISOString().slice(0,10));
+  if(!input) return;
+  const when = new Date(input + 'T00:00:00');
+  if(isNaN(when)){ toast('Invalid date. Use YYYY-MM-DD.', 'warn'); return; }
+  try{ await Platform.renew(key, when.toISOString(), null); toast(`Renewed ${key} to ${input}`, 'ok'); refreshCurrentView(); }
   catch(e){ toast(e.message, 'warn'); }
 }
 async function doImpersonate(key){

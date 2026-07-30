@@ -55,6 +55,7 @@ builder.Services.AddScoped<AuditService>();
 // Platform control-plane services (super-admin surface).
 builder.Services.AddScoped<SMMS.Api.Services.Control.PlatformAuditService>();
 builder.Services.AddScoped<SMMS.Api.Services.Control.TenantProvisioningService>();
+builder.Services.AddHostedService<SMMS.Api.Services.Control.SubscriptionEnforcementService>();
 builder.Services.AddHttpContextAccessor();
 
 // Maintenance-payment module (dynamic UPI QR + proof upload + admin approval).

@@ -28,8 +28,7 @@ public class PlatformDashboardController(
         {
             var tenant = tenantStore.GetByKey(s.Key);
             var memberCount = tenant is not null ? TenantMetrics.CountMembers(scopeFactory, tenant) : 0;
-            return new SocietyDto(s.Key, s.DisplayName, s.DbName, s.Status, s.Plan,
-                s.ExpiryDate, s.FlatCount, memberCount, s.CreatedAt);
+            return SocietyMapping.ToDto(s, memberCount);
         }).ToList();
 
         var dto = new PlatformDashboardDto(
@@ -37,6 +36,9 @@ public class PlatformDashboardController(
             ActiveSocieties: dtos.Count(d => d.Status == SocietyStatus.Active),
             SuspendedSocieties: dtos.Count(d => d.Status == SocietyStatus.Suspended),
             TrialSocieties: dtos.Count(d => d.Status == SocietyStatus.Trial),
+            ExpiredSocieties: dtos.Count(d => d.IsExpired),
+            ExpiringSoonSocieties: dtos.Count(d => !d.IsExpired
+                && d.DaysUntilExpiry is >= 0 and <= SocietyMapping.ExpiringSoonDays),
             TotalMembers: dtos.Sum(d => d.MemberCount),
             Societies: dtos);
 

@@ -39,4 +39,8 @@ public static class SocietyStatus
     public const string Active = "Active";
     public const string Trial = "Trial";
     public const string Suspended = "Suspended";
+
+    /// <summary>Set automatically once <see cref="Society.ExpiryDate"/> has passed. Distinct from a
+    /// manual <see cref="Suspended"/> so the console can offer "Renew" instead of "Activate".</summary>
+    public const string Expired = "Expired";
 }

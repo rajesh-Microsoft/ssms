@@ -1,5 +1,7 @@
 namespace SMMS.Api.Dtos.Control;
 
+using SMMS.Api.Models.Control;
+
 /// <summary>Payload for the society onboarding wizard.</summary>
 public record OnboardSocietyRequest(
     string Key,
@@ -9,6 +11,11 @@ public record OnboardSocietyRequest(
     string? AdminPassword,
     int FlatCount,
     DateTime? ExpiryDate);
+
+/// <summary>Payload to renew/extend a society's subscription (sets a new expiry and optional plan).</summary>
+public record RenewSocietyRequest(
+    DateTime ExpiryDate,
+    string? Plan);
 
 /// <summary>A society as seen by the super-admin, including a live member count.</summary>
 public record SocietyDto(
@@ -20,13 +27,17 @@ public record SocietyDto(
     DateTime? ExpiryDate,
     int FlatCount,
     int MemberCount,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool IsExpired,
+    int? DaysUntilExpiry);
 
 public record PlatformDashboardDto(
     int TotalSocieties,
     int ActiveSocieties,
     int SuspendedSocieties,
     int TrialSocieties,
+    int ExpiredSocieties,
+    int ExpiringSoonSocieties,
     int TotalMembers,
     IReadOnlyList<SocietyDto> Societies);
 
@@ -41,3 +52,25 @@ public record PlatformAuditDto(
     DateTime Timestamp);
 
 public record ImpersonateResponse(string Token, string TenantKey, string AdminUsername);
+
+/// <summary>Builds <see cref="SocietyDto"/> instances with the derived subscription fields
+/// (expired flag + days-until-expiry) computed consistently across every endpoint.</summary>
+public static class SocietyMapping
+{
+    /// <summary>A society within this many days of expiry is flagged as "expiring soon" in the console.</summary>
+    public const int ExpiringSoonDays = 14;
+
+    public static SocietyDto ToDto(Society s, int memberCount)
+    {
+        int? daysUntilExpiry = s.ExpiryDate is { } exp
+            ? (int)Math.Ceiling((exp.Date - DateTime.UtcNow.Date).TotalDays)
+            : null;
+
+        var isExpired = string.Equals(s.Status, SocietyStatus.Expired, StringComparison.OrdinalIgnoreCase)
+            || (daysUntilExpiry is < 0);
+
+        return new SocietyDto(
+            s.Key, s.DisplayName, s.DbName, s.Status, s.Plan, s.ExpiryDate,
+            s.FlatCount, memberCount, s.CreatedAt, isExpired, daysUntilExpiry);
+    }
+}

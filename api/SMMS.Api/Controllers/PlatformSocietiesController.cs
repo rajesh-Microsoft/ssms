@@ -67,6 +67,36 @@ public class PlatformSocietiesController(
     [HttpPost("{key}/activate")]
     public Task<IActionResult> Activate(string key) => SetStatus(key, SocietyStatus.Active);
 
+    /// <summary>Renew/extend a society's subscription: sets a new expiry date (and optional plan) and,
+    /// if it was Expired or Suspended, restores it to Active. Refreshes the tenant registry so access
+    /// is granted again immediately.</summary>
+    [HttpPost("{key}/renew")]
+    public async Task<IActionResult> Renew(string key, RenewSocietyRequest req)
+    {
+        if (req.ExpiryDate.Date < DateTime.UtcNow.Date)
+            return BadRequest(new { message = "New expiry date must be today or in the future." });
+
+        var society = await controlDb.Societies.FirstOrDefaultAsync(s => s.Key == key);
+        if (society is null) return NotFound();
+
+        society.ExpiryDate = req.ExpiryDate.Date;
+        if (!string.IsNullOrWhiteSpace(req.Plan))
+            society.Plan = req.Plan;
+
+        // Renewing a lapsed (Expired) or paused (Suspended) society brings it back online.
+        if (string.Equals(society.Status, SocietyStatus.Expired, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(society.Status, SocietyStatus.Suspended, StringComparison.OrdinalIgnoreCase))
+            society.Status = SocietyStatus.Active;
+
+        await controlDb.SaveChangesAsync();
+        tenantStore.Reload();
+
+        await audit.LogAsync("SocietyRenew", "Society", key,
+            $"Subscription renewed to {society.ExpiryDate:yyyy-MM-dd}" +
+            (string.IsNullOrWhiteSpace(req.Plan) ? "." : $" on plan '{society.Plan}'."));
+        return Ok(ToDto(society));
+    }
+
     private async Task<IActionResult> SetStatus(string key, string status)
     {
         var society = await controlDb.Societies.FirstOrDefaultAsync(s => s.Key == key);
@@ -89,6 +119,10 @@ public class PlatformSocietiesController(
 
         if (string.Equals(society.Status, SocietyStatus.Suspended, StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Cannot impersonate a suspended society. Activate it first." });
+
+        if (string.Equals(society.Status, SocietyStatus.Expired, StringComparison.OrdinalIgnoreCase)
+            || (society.ExpiryDate is { } exp && exp.Date < DateTime.UtcNow.Date))
+            return BadRequest(new { message = "Cannot impersonate a society with an expired subscription. Renew it first." });
 
         var tenant = tenantStore.GetByKey(key);
         if (tenant is null) return NotFound();
@@ -116,7 +150,6 @@ public class PlatformSocietiesController(
     {
         var tenant = tenantStore.GetByKey(s.Key);
         var memberCount = tenant is not null ? TenantMetrics.CountMembers(scopeFactory, tenant) : 0;
-        return new SocietyDto(s.Key, s.DisplayName, s.DbName, s.Status, s.Plan,
-            s.ExpiryDate, s.FlatCount, memberCount, s.CreatedAt);
+        return SocietyMapping.ToDto(s, memberCount);
     }
 }
