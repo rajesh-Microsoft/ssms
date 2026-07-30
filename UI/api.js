@@ -106,6 +106,7 @@ const Api = {
   updateCollection: (id, payload) => apiFetch(`/collections/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteCollection: (id) => apiFetch(`/collections/${id}`, { method: 'DELETE' }),
   generateBilling: (payload) => apiFetch('/admin/billing/generate', { method: 'POST', body: JSON.stringify(payload) }),
+  raiseOneTimeCharge: (payload) => apiFetch('/admin/billing/onetime', { method: 'POST', body: JSON.stringify(payload) }),
 
   // Maintenance rule engine (data-driven components)
   getComponents: () => apiFetch('/admin/maintenance-components'),

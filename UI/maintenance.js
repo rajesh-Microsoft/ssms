@@ -15,8 +15,11 @@ const METHOD_LABELS = {
   PerFlatType: 'Flat Type',
   PerTower: 'Tower / Block',
   PerFloor: 'Floor',
-  CustomPerFlat: 'Custom Per Flat'
+  CustomPerFlat: 'Custom Per Flat',
+  Manual: 'Manual'
 };
+
+const CATTYPE_LABELS = { Recurring: 'Recurring', OneTime: 'One-Time', Income: 'Income' };
 
 function mEsc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function mMoney(n){ return '₹' + (Number(n)||0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
@@ -51,21 +54,22 @@ function keysForMethod(method, field){
 async function renderMaintenance(){
   const body = document.getElementById('cmp-tbody');
   if(!body) return;
-  body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:16px;">Loading…</td></tr>`;
+  body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:16px;">Loading…</td></tr>`;
   try{
     _components = await Api.getComponents();
   }catch(err){
-    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:16px;">⚠ ${mEsc(err.message)}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:16px;">⚠ ${mEsc(err.message)}</td></tr>`;
     return;
   }
   if(_components.length === 0){
-    body.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:16px;">No components yet. Click “Add Component”.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:16px;">No categories yet. Click “Add Category”.</td></tr>`;
     return;
   }
   body.innerHTML = _components.map((c, i) => `
     <tr>
       <td>${i + 1}</td>
       <td><strong>${mEsc(c.name)}</strong>${c.description ? `<br><small>${mEsc(c.description)}</small>` : ''}</td>
+      <td>${CATTYPE_LABELS[c.categoryType] || c.categoryType || 'Recurring'}</td>
       <td>${METHOD_LABELS[c.method] || c.method}</td>
       <td>${describeRate(c)}</td>
       <td>${c.applyToAllFlats ? 'All flats' : 'Optional'}</td>
@@ -91,10 +95,14 @@ function describeRate(c){
 // ─── modal ───
 function openComponentModal(id){
   const editing = _components.find(c => String(c.id) === String(id));
-  document.getElementById('comp-modal-title').textContent = editing ? 'Edit Component' : 'Add Component';
+  document.getElementById('comp-modal-title').textContent = editing ? 'Edit Category' : 'Add Category';
   document.getElementById('modal-comp').dataset.editId = editing ? editing.id : '';
 
   document.getElementById('comp-name').value    = editing ? editing.name : '';
+  document.getElementById('comp-cattype').value = editing ? (editing.categoryType || 'Recurring') : 'Recurring';
+  document.getElementById('comp-freq').value    = editing ? (editing.frequency || 'Monthly') : 'Monthly';
+  document.getElementById('comp-tax').value     = editing ? String(!!editing.taxApplicable) : 'false';
+  document.getElementById('comp-latefee').value = editing ? String(editing.lateFeeApplicable !== false) : 'true';
   document.getElementById('comp-method').value  = editing ? editing.method : 'FixedAmount';
   document.getElementById('comp-amount').value  = editing ? editing.amount : 0;
   document.getElementById('comp-percent').value = editing?.percentageValue ?? 0;
@@ -127,7 +135,11 @@ function onComponentMethodChange(){
   const method = document.getElementById('comp-method').value;
   const show = (id, on) => document.getElementById(id).style.display = on ? '' : 'none';
 
-  const needsAmount = ['FixedAmount', 'PerSquareFoot', 'CustomPerFlat'].includes(method);
+  // Billing frequency only applies to recurring categories.
+  const freqWrap = document.getElementById('comp-freq-wrap');
+  if(freqWrap) freqWrap.style.display = document.getElementById('comp-cattype').value === 'Recurring' ? '' : 'none';
+
+  const needsAmount = ['FixedAmount', 'PerSquareFoot', 'CustomPerFlat', 'Manual'].includes(method);
   const isPercent   = method === 'Percentage';
   const isKeyed     = ['PerFlatType', 'PerTower', 'PerFloor'].includes(method);
 
@@ -228,6 +240,10 @@ async function saveComponent(){
     applyToAllFlats: document.getElementById('comp-scope').value === 'true',
     isActive: document.getElementById('comp-active').value === 'true',
     sortOrder: Number(document.getElementById('comp-sort').value) || 0,
+    categoryType: document.getElementById('comp-cattype').value,
+    frequency: document.getElementById('comp-freq').value,
+    taxApplicable: document.getElementById('comp-tax').value === 'true',
+    lateFeeApplicable: document.getElementById('comp-latefee').value === 'true',
     rates: collectRates(),
     flatOverrides: collectOverrides()
   };
@@ -283,3 +299,47 @@ async function previewMaintenance(){
 document.addEventListener('change', e => {
   if(e.target && e.target.id === 'comp-scope') onComponentMethodChange();
 });
+
+// ─── one-time charges ───
+function openOneTimeModal(){
+  if(typeof canEdit === 'function' && !canEdit('Settings')) return toast('You do not have edit access to Settings.', 'warn');
+  const oneTimers = (_components || []).filter(c => c.categoryType === 'OneTime' && c.isActive);
+  if(oneTimers.length === 0)
+    return toast('No active One-Time categories. Add one first (Category Type = One-Time).', 'warn');
+
+  document.getElementById('ot-category').innerHTML =
+    oneTimers.map(c => `<option value="${c.id}">${mEsc(c.name)}</option>`).join('');
+
+  const due = new Date(); due.setDate(due.getDate() + 15);
+  document.getElementById('ot-due').value = due.toISOString().slice(0, 10);
+  onOneTimeCategoryChange();
+  document.getElementById('modal-onetime').classList.add('open');
+}
+
+// Prefill the amount for fixed-amount categories; leave blank so other methods compute per-flat.
+function onOneTimeCategoryChange(){
+  const id = document.getElementById('ot-category').value;
+  const c = (_components || []).find(x => String(x.id) === String(id));
+  document.getElementById('ot-amount').value = c && c.method === 'FixedAmount' ? c.amount : '';
+}
+
+async function saveOneTimeCharge(){
+  if(typeof canEdit === 'function' && !canEdit('Settings')) return toast('You do not have edit access to Settings.', 'warn');
+  const categoryId = Number(document.getElementById('ot-category').value);
+  if(!categoryId) return toast('Pick a category.', 'warn');
+
+  const amtRaw = document.getElementById('ot-amount').value;
+  const dueRaw = document.getElementById('ot-due').value;
+  const payload = {
+    categoryId,
+    amount: amtRaw === '' ? null : Number(amtRaw),
+    dueDate: dueRaw || null,
+    memberIds: null
+  };
+  try{
+    const r = await Api.raiseOneTimeCharge(payload);
+    closeModal('onetime');
+    toast(`Raised “${r.categoryName}” for ${r.generated} flat(s)` +
+      (r.skipped ? `, skipped ${r.skipped} already charged` : '') + `. Total ${mMoney(r.totalAmount)}.`);
+  }catch(err){ toast(err.message || 'Failed to raise charge', 'warn'); }
+}

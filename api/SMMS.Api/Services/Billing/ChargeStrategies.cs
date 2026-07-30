@@ -60,6 +60,14 @@ public sealed class CustomPerFlatStrategy : IChargeStrategy
     }
 }
 
+public sealed class ManualStrategy : IChargeStrategy
+{
+    public CalculationMethod Method => CalculationMethod.Manual;
+    // No formula: auto-generation uses the admin-set default amount as a starting value.
+    public decimal Calculate(MaintenanceComponent c, FlatContext f, IReadOnlyDictionary<int, decimal> _)
+        => c.Amount;
+}
+
 internal static class RateLookup
 {
     public static decimal ByKey(MaintenanceComponent c, string? key)

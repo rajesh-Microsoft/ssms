@@ -1,19 +1,21 @@
 <div class="card">
   <div class="card-hdr">
-    <h3>Maintenance Components</h3>
+    <h3>Collection Categories</h3>
     <div class="search-row">
       <button class="btn btn-ghost" onclick="previewMaintenance()">👁 Preview invoices</button>
-      <button class="btn btn-primary" data-perm="Settings" onclick="openComponentModal()">＋ Add Component</button>
+      <button class="btn btn-ghost" data-perm="Settings" onclick="openOneTimeModal()">💰 Raise one-time charge</button>
+      <button class="btn btn-primary" data-perm="Settings" onclick="openComponentModal()">＋ Add Category</button>
     </div>
   </div>
   <p class="muted" style="margin:0 0 10px;color:var(--muted,#8a94a6);font-size:13px;">
-    Configure how each monthly charge is calculated. The invoice total for every flat is the sum of all
-    active components. Changes take effect on the next invoice generation — no code changes needed.
+    Configure the charges collected from members. Each recurring category is auto-billed monthly; the
+    invoice total for every flat is the sum of all active recurring categories. Changes take effect on
+    the next invoice generation — no code changes needed.
   </p>
   <div class="tbl-wrap">
     <table>
-      <thead><tr><th>#</th><th>Component</th><th>Method</th><th>Rate / Amount</th><th>Scope</th><th>Active</th><th>Actions</th></tr></thead>
-      <tbody id="cmp-tbody"><tr><td colspan="7" style="text-align:center;padding:16px;">Loading…</td></tr></tbody>
+      <thead><tr><th>#</th><th>Category</th><th>Type</th><th>Method</th><th>Rate / Amount</th><th>Scope</th><th>Active</th><th>Actions</th></tr></thead>
+      <tbody id="cmp-tbody"><tr><td colspan="8" style="text-align:center;padding:16px;">Loading…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -29,14 +31,24 @@
 </div>
 
 <!-- Add / Edit component modal -->
-<div class="modal-overlay" id="modal-comp">
-  <div class="modal">
+<div class="modal-overlay" id="modal-comp">  <div class="modal">
     <div class="modal-hdr">
       <h3 id="comp-modal-title">Add Component</h3>
       <button class="modal-close" onclick="closeModal('comp')">✕</button>
     </div>
     <div class="form-grid">
       <div class="form-group full"><label>Name *</label><input type="text" id="comp-name" maxlength="100" placeholder="e.g. Sinking Fund"></div>
+
+      <div class="form-group"><label>Category Type</label>
+        <select id="comp-cattype" onchange="onComponentMethodChange()">
+          <option value="Recurring">Recurring</option>
+          <option value="OneTime">One-Time</option>
+          <option value="Income">Income</option>
+        </select>
+      </div>
+      <div class="form-group" id="comp-freq-wrap"><label>Billing Frequency</label>
+        <select id="comp-freq"><option value="Monthly">Monthly</option></select>
+      </div>
 
       <div class="form-group"><label>Calculation Method</label>
         <select id="comp-method" onchange="onComponentMethodChange()">
@@ -47,6 +59,7 @@
           <option value="PerTower">Tower / Block</option>
           <option value="PerFloor">Floor</option>
           <option value="CustomPerFlat">Custom Amount Per Flat</option>
+          <option value="Manual">Manual</option>
         </select>
       </div>
 
@@ -71,6 +84,12 @@
       </div>
 
       <div class="form-group"><label>Sort Order</label><input type="number" id="comp-sort" value="0"></div>
+      <div class="form-group"><label>Tax Applicable</label>
+        <select id="comp-tax"><option value="false">No</option><option value="true">Yes</option></select>
+      </div>
+      <div class="form-group"><label>Late Fee Applicable</label>
+        <select id="comp-latefee"><option value="true">Yes</option><option value="false">No</option></select>
+      </div>
       <div class="form-group"><label>Active</label>
         <select id="comp-active"><option value="true">Yes</option><option value="false">No</option></select>
       </div>
@@ -93,6 +112,37 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('comp')">Cancel</button>
       <button class="btn btn-primary" data-perm="Settings" onclick="saveComponent()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Raise one-time charge modal -->
+<div class="modal-overlay" id="modal-onetime">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h3>Raise one-time charge</h3>
+      <button class="modal-close" onclick="closeModal('onetime')">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full"><label>One-time category *</label>
+        <select id="ot-category" onchange="onOneTimeCategoryChange()"></select>
+      </div>
+      <div class="form-group"><label>Amount override (₹)</label>
+        <input type="number" step="0.01" min="0" id="ot-amount" placeholder="Use category amount">
+      </div>
+      <div class="form-group"><label>Due date</label>
+        <input type="date" id="ot-due">
+      </div>
+      <div class="form-group full">
+        <small class="muted" style="color:var(--muted,#8a94a6);">
+          Charges all active flats. Members already charged for this category are skipped, so re-running
+          is safe. Residents pay it from their normal payments page alongside the monthly invoice.
+        </small>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('onetime')">Cancel</button>
+      <button class="btn btn-primary" data-perm="Settings" onclick="saveOneTimeCharge()">💰 Raise charge</button>
     </div>
   </div>
 </div>

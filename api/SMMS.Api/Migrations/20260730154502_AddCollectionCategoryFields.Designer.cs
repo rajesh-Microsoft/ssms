@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SMMS.Api.Data;
 
@@ -11,9 +12,11 @@ using SMMS.Api.Data;
 namespace SMMS.Api.Migrations
 {
     [DbContext(typeof(SmmsDbContext))]
-    partial class SmmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260730154502_AddCollectionCategoryFields")]
+    partial class AddCollectionCategoryFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -68,16 +71,6 @@ namespace SMMS.Api.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(12,2)");
 
-                    b.Property<int?>("CategoryId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CollectionType")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("Monthly");
-
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
 
@@ -109,10 +102,6 @@ namespace SMMS.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("Title")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("Year")
                         .HasColumnType("int");

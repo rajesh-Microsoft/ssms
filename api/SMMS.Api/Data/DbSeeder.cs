@@ -30,8 +30,9 @@ public static class DbSeeder
             db.Users.Add(admin);
         }
 
-        // Seed a starter set of maintenance components so the rule engine produces invoices
-        // out of the box. Admins can add/edit/remove these from the Maintenance tab.
+        // Seed a starter set of recurring collection categories so the rule engine produces invoices
+        // out of the box. Core charges are active; optional ones are seeded inactive for the admin
+        // to configure and enable from the Collections tab.
         if (!db.MaintenanceComponents.Any())
         {
             db.MaintenanceComponents.AddRange(
@@ -56,7 +57,13 @@ public static class DbSeeder
                     Amount = 300,
                     ApplyToAllFlats = false,
                     SortOrder = 30
-                });
+                },
+                new MaintenanceComponent { Name = "Water Charges", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 40 },
+                new MaintenanceComponent { Name = "Club House Fee", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 50 },
+                new MaintenanceComponent { Name = "Lift Maintenance", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 60 },
+                new MaintenanceComponent { Name = "Security Charges", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 70 },
+                new MaintenanceComponent { Name = "Generator Charges", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 80 },
+                new MaintenanceComponent { Name = "Common Electricity", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 90 });
         }
 
         db.SaveChanges();

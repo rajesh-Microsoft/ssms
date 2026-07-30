@@ -62,9 +62,13 @@ public class MemberPaymentsController(
         var dtos = charges.Select(c =>
         {
             var due = PaymentNumbering.DueDate(c, dueDay);
+            // One-time charges show their friendly title; monthly invoices show the month/year label.
+            var label = c.CollectionType == "OneTime" && !string.IsNullOrWhiteSpace(c.Title)
+                ? c.Title!
+                : PaymentNumbering.BillingLabel(c.Month, c.Year);
             return new PendingInvoiceDto(
                 c.Id, PaymentNumbering.InvoiceNumber(c), c.Amount, c.Status, c.Month, c.Year,
-                PaymentNumbering.BillingLabel(c.Month, c.Year), due, due.Date < today,
+                label, due, due.Date < today,
                 pendingProofCollectionIds.Contains(c.Id));
         });
         return Ok(dtos);

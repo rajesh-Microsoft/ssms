@@ -13,7 +13,7 @@ public class MaintenanceCalculationService(SmmsDbContext db, ChargeStrategyResol
 {
     public async Task<List<MaintenanceComponent>> LoadComponentsAsync() =>
         await db.MaintenanceComponents
-            .Where(c => c.IsActive)
+            .Where(c => c.IsActive && c.CategoryType == CollectionCategoryType.Recurring)
             .Include(c => c.Rates)
             .Include(c => c.FlatOverrides)
             .OrderBy(c => c.SortOrder).ThenBy(c => c.Id)

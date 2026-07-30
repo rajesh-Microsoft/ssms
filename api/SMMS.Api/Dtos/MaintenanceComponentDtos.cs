@@ -6,11 +6,13 @@ public record ComponentFlatOverrideDto(int MemberId, bool IsApplicable, decimal?
 public record MaintenanceComponentDto(int Id, string Name, string? Description, string Method,
     decimal Amount, decimal? PercentageValue, int? PercentageBaseComponentId,
     bool ApplyToAllFlats, bool IsActive, int SortOrder,
+    string CategoryType, string Frequency, bool TaxApplicable, bool LateFeeApplicable,
     ComponentRateDto[] Rates, ComponentFlatOverrideDto[] FlatOverrides);
 
 public record MaintenanceComponentUpsertRequest(string Name, string? Description, string Method,
     decimal Amount, decimal? PercentageValue, int? PercentageBaseComponentId,
     bool ApplyToAllFlats, bool IsActive, int SortOrder,
+    string? CategoryType, string? Frequency, bool TaxApplicable, bool LateFeeApplicable,
     ComponentRateDto[] Rates, ComponentFlatOverrideDto[] FlatOverrides);
 
 /// <summary>One line of a previewed/persisted invoice breakdown.</summary>

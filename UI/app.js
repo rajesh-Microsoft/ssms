@@ -479,7 +479,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Maintenance Rule Engine',admin:'Admin Panel',payments:'Payment Verifications',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 

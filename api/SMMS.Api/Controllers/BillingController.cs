@@ -10,7 +10,7 @@ namespace SMMS.Api.Controllers;
 [ApiController]
 [Route("api/admin/billing")]
 [Authorize(Roles = "Admin")]
-public class BillingController(BillingService billing) : ControllerBase
+public class BillingController(BillingService billing, OneTimeChargeService oneTime) : ControllerBase
 {
     [HttpPost("generate")]
     public async Task<ActionResult<BillingRunResult>> Generate(GenerateBillingRequest request)
@@ -21,5 +21,23 @@ public class BillingController(BillingService billing) : ControllerBase
 
         var result = await billing.GenerateForMonthAsync(request.Month, request.Year, request.Amount);
         return Ok(result);
+    }
+
+    [HttpPost("onetime")]
+    public async Task<ActionResult<OneTimeChargeResult>> RaiseOneTime(OneTimeChargeRequest request)
+    {
+        if (request.CategoryId <= 0) return BadRequest(new { message = "A category is required." });
+        if (request.Amount is < 0) return BadRequest(new { message = "Amount cannot be negative." });
+
+        try
+        {
+            var result = await oneTime.GenerateAsync(
+                request.CategoryId, request.Amount, request.DueDate, request.MemberIds);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

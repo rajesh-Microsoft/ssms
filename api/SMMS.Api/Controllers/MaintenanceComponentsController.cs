@@ -20,6 +20,7 @@ public class MaintenanceComponentsController(
     private static MaintenanceComponentDto ToDto(MaintenanceComponent c) => new(
         c.Id, c.Name, c.Description, c.Method.ToString(), c.Amount, c.PercentageValue,
         c.PercentageBaseComponentId, c.ApplyToAllFlats, c.IsActive, c.SortOrder,
+        c.CategoryType.ToString(), c.Frequency.ToString(), c.TaxApplicable, c.LateFeeApplicable,
         c.Rates.Select(r => new ComponentRateDto(r.Key, r.Amount)).ToArray(),
         c.FlatOverrides.Select(o => new ComponentFlatOverrideDto(o.MemberId, o.IsApplicable, o.Amount)).ToArray());
 
@@ -112,6 +113,16 @@ public class MaintenanceComponentsController(
             error = "Percentage must be between 0 and 100.";
             return false;
         }
+        if (req.CategoryType is not null && !Enum.TryParse<CollectionCategoryType>(req.CategoryType, out _))
+        {
+            error = "Unknown category type.";
+            return false;
+        }
+        if (req.Frequency is not null && !Enum.TryParse<BillingFrequency>(req.Frequency, out _))
+        {
+            error = "Unknown billing frequency.";
+            return false;
+        }
         return true;
     }
 
@@ -126,6 +137,10 @@ public class MaintenanceComponentsController(
         c.ApplyToAllFlats = req.ApplyToAllFlats;
         c.IsActive = req.IsActive;
         c.SortOrder = req.SortOrder;
+        c.CategoryType = Enum.TryParse<CollectionCategoryType>(req.CategoryType, out var ct) ? ct : CollectionCategoryType.Recurring;
+        c.Frequency = Enum.TryParse<BillingFrequency>(req.Frequency, out var fr) ? fr : BillingFrequency.Monthly;
+        c.TaxApplicable = req.TaxApplicable;
+        c.LateFeeApplicable = req.LateFeeApplicable;
         c.Rates = req.Rates
             .Where(r => !string.IsNullOrWhiteSpace(r.Key))
             .Select(r => new MaintenanceComponentRate { Key = r.Key.Trim(), Amount = r.Amount })

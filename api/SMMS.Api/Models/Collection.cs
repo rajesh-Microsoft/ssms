@@ -47,6 +47,20 @@ public class Collection
     /// never double-charges the same invoice.</summary>
     public bool LateFeeApplied { get; set; } = false;
 
+    /// <summary>"Monthly" for the recurring maintenance invoice, or "OneTime" for a special
+    /// one-off charge (e.g. a festival fund) raised from a OneTime collection category.</summary>
+    [Required, MaxLength(20)]
+    public string CollectionType { get; set; } = "Monthly";
+
+    /// <summary>For one-time charges: the originating collection category. Loose reference
+    /// (no FK) so deleting a category never blocks or cascades into raised charges.</summary>
+    public int? CategoryId { get; set; }
+
+    /// <summary>Friendly label shown to residents for one-time charges (e.g. "Diwali Fund").
+    /// Null for monthly invoices, which fall back to the month/year billing label.</summary>
+    [MaxLength(100)]
+    public string? Title { get; set; }
+
     /// <summary>Per-component breakdown produced by the maintenance rule engine.</summary>
     public ICollection<CollectionLine> Lines { get; set; } = new List<CollectionLine>();
 }

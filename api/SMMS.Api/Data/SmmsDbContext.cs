@@ -58,11 +58,33 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         modelBuilder.Entity<Collection>()
             .HasIndex(c => new { c.MemberId, c.Year, c.Month });
 
+        // Discriminates the monthly maintenance invoice from ad-hoc one-time charges.
+        modelBuilder.Entity<Collection>()
+            .Property(c => c.CollectionType)
+            .HasMaxLength(20)
+            .HasDefaultValue("Monthly");
+
         // Enum stored as string for admin readability and stability across enum reordering.
         modelBuilder.Entity<MaintenanceComponent>()
             .Property(c => c.Method)
             .HasConversion<string>()
             .HasMaxLength(30);
+
+        modelBuilder.Entity<MaintenanceComponent>()
+            .Property(c => c.CategoryType)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(CollectionCategoryType.Recurring);
+
+        modelBuilder.Entity<MaintenanceComponent>()
+            .Property(c => c.Frequency)
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .HasDefaultValue(BillingFrequency.Monthly);
+
+        modelBuilder.Entity<MaintenanceComponent>()
+            .Property(c => c.LateFeeApplicable)
+            .HasDefaultValue(true);
 
         modelBuilder.Entity<MaintenanceComponentRate>()
             .HasOne(r => r.Component)

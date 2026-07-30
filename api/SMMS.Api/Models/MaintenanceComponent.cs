@@ -17,6 +17,18 @@ public class MaintenanceComponent
 
     public CalculationMethod Method { get; set; } = CalculationMethod.FixedAmount;
 
+    /// <summary>Recurring (auto-billed each period), OneTime, or external Income.</summary>
+    public CollectionCategoryType CategoryType { get; set; } = CollectionCategoryType.Recurring;
+
+    /// <summary>Billing period for recurring categories (only Monthly is honoured today).</summary>
+    public BillingFrequency Frequency { get; set; } = BillingFrequency.Monthly;
+
+    /// <summary>Whether tax may apply to this charge (informational flag for now).</summary>
+    public bool TaxApplicable { get; set; } = false;
+
+    /// <summary>Whether the overdue late-fee job should apply to invoices from this category.</summary>
+    public bool LateFeeApplicable { get; set; } = true;
+
     /// <summary>FixedAmount → the amount; PerSquareFoot → rate/sq ft; CustomPerFlat → fallback amount.</summary>
     [Column(TypeName = "decimal(12,4)")]
     public decimal Amount { get; set; }

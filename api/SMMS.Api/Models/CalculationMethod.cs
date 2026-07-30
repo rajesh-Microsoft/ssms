@@ -9,5 +9,6 @@ public enum CalculationMethod
     PerFlatType = 3,
     PerTower = 4,
     PerFloor = 5,
-    CustomPerFlat = 6
+    CustomPerFlat = 6,
+    Manual = 7
 }
