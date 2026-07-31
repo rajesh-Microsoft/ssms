@@ -16,13 +16,27 @@ public class TenantResolutionMiddleware(RequestDelegate next)
 {
     private const string ControlPlaneKey = "admin";
 
+    // Product-portal & marketing hosts that carry NO tenant (e.g. ssms.yuvaansoft.shop,
+    // www.yuvaansoft.shop). They only serve public/anonymous endpoints such as society
+    // self-registration, so requests pass through with no tenant resolved.
+    private static readonly HashSet<string> PublicHostKeys =
+        new(StringComparer.OrdinalIgnoreCase) { "www", "ssms" };
+
     public async Task InvokeAsync(HttpContext context, ITenantStore tenantStore, ITenantContext tenantContext)
     {
         var host = context.Request.Host.Host; // host only, no port
         var labels = host.Split('.');
         var subdomain = labels.Length > 1 ? labels[0] : null;
 
-        var key = subdomain is not null && !string.Equals(subdomain, "www", StringComparison.OrdinalIgnoreCase)
+        // Public portal / marketing host: let anonymous endpoints (e.g. registration) through
+        // without a tenant, instead of rejecting "ssms" as an unknown society.
+        if (subdomain is not null && PublicHostKeys.Contains(subdomain))
+        {
+            await next(context);
+            return;
+        }
+
+        var key = subdomain is not null
             ? subdomain
             : context.Request.Headers["X-Tenant"].FirstOrDefault();
 
@@ -39,6 +53,17 @@ public class TenantResolutionMiddleware(RequestDelegate next)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
             await context.Response.WriteAsJsonAsync(new { message = "Unknown or unspecified society." });
+            return;
+        }
+
+        // Pending society: registered but not yet approved/provisioned (no database). Block serving.
+        if (string.Equals(tenant.Status, SocietyStatus.Pending, StringComparison.OrdinalIgnoreCase))
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                message = "This society registration is pending approval."
+            });
             return;
         }
 

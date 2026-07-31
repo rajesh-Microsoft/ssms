@@ -31,11 +31,28 @@ public class Society
 
     public int FlatCount { get; set; }
 
+    // ── Onboarding details captured at self-service registration ──
+    [MaxLength(150)]
+    public string? AdminName { get; set; }
+
+    [MaxLength(200)]
+    public string? AdminEmail { get; set; }
+
+    [MaxLength(30)]
+    public string? Phone { get; set; }
+
+    [MaxLength(300)]
+    public string? Address { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
 public static class SocietyStatus
 {
+    /// <summary>Self-registered but not yet approved/provisioned. Has NO tenant database yet, so the
+    /// resolution middleware blocks it until it becomes Active.</summary>
+    public const string Pending = "Pending";
+
     public const string Active = "Active";
     public const string Trial = "Trial";
     public const string Suspended = "Suspended";

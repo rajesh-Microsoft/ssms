@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>YuvaanSoft SMMS — Smart Society Management</title>
+<style>
+:root{--accent:#6c63ff;--text:#1a202c;--sub:#718096;--bg:#f0f2f5;--card:#fff;--border:#e2e8f0;--success:#38a169;--danger:#e53e3e;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+body{background:var(--bg);color:var(--text);line-height:1.55;}
+a{color:inherit;text-decoration:none;}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px;}
+.btn{padding:10px 18px;border-radius:9px;border:none;cursor:pointer;font-size:14px;font-weight:600;display:inline-flex;align-items:center;gap:6px;transition:.2s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-ghost{background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;}
+.btn-outline{background:#fff;border:1px solid var(--border);color:var(--text);}
+.btn:hover{opacity:.9;}
+/* nav */
+header{background:#1a1f36;color:#fff;position:sticky;top:0;z-index:50;}
+.nav{display:flex;align-items:center;justify-content:space-between;height:60px;}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;}
+.brand .ic{width:34px;height:34px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;}
+.nav-links{display:flex;gap:22px;font-size:14px;}
+.nav-links a:hover{color:#c9c4ff;}
+@media(max-width:760px){.nav-links{display:none;}}
+/* hero */
+.hero{background:linear-gradient(135deg,#1a1f36,#3a2f7a);color:#fff;padding:70px 0 80px;}
+.hero h1{font-size:40px;line-height:1.15;margin-bottom:16px;}
+.hero p{font-size:17px;color:#d5d8e8;max-width:620px;margin-bottom:26px;}
+.hero .cta{display:flex;gap:12px;flex-wrap:wrap;}
+/* sections */
+section{padding:56px 0;}
+h2.sec{font-size:26px;text-align:center;margin-bottom:8px;}
+.sec-sub{text-align:center;color:var(--sub);margin-bottom:34px;}
+.grid{display:grid;gap:18px;}
+.g3{grid-template-columns:repeat(3,1fr);}
+@media(max-width:760px){.g3{grid-template-columns:1fr;}}
+.feature{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;}
+.feature .fic{font-size:26px;margin-bottom:10px;}
+.feature h3{font-size:16px;margin-bottom:6px;}
+.feature p{font-size:13px;color:var(--sub);}
+/* pricing */
+.price{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:26px;text-align:center;}
+.price.popular{border:2px solid var(--accent);position:relative;}
+.price.popular::after{content:"Popular";position:absolute;top:-11px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:11px;padding:3px 12px;border-radius:20px;}
+.price h3{font-size:16px;margin-bottom:6px;}
+.price .amt{font-size:32px;font-weight:800;margin:8px 0;}
+.price .amt small{font-size:13px;color:var(--sub);font-weight:400;}
+.price ul{list-style:none;text-align:left;margin:16px 0;font-size:13px;color:var(--sub);}
+.price li{padding:5px 0;}
+.price li::before{content:"\2714  ";color:var(--success);}
+/* register */
+#register{background:#fff;}
+.form-card{max-width:640px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:30px;box-shadow:0 8px 30px rgba(0,0,0,.06);}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media(max-width:620px){.form-grid{grid-template-columns:1fr;}}
+.full{grid-column:1/-1;}
+label{font-size:12px;font-weight:600;color:var(--sub);display:block;margin-bottom:5px;}
+input,select,textarea{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:9px;font-size:14px;outline:none;background:var(--bg);color:var(--text);}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+.hint{font-size:11px;color:var(--sub);margin-top:4px;}
+.msg{margin-top:14px;padding:12px 14px;border-radius:9px;font-size:14px;display:none;}
+.msg.ok{background:#c6f6d5;color:#276749;display:block;}
+.msg.err{background:#fed7d7;color:#9b2c2c;display:block;}
+/* find */
+.find{max-width:480px;margin:22px auto 0;display:flex;gap:8px;}
+.find input{flex:1;}
+/* footer */
+footer{background:#1a1f36;color:#c9c4ff;padding:30px 0;text-align:center;font-size:13px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="brand"><span class="ic">&#127970;</span> YuvaanSoft <span style="color:var(--accent)">SMMS</span></div>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#how">How it works</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <a href="#register" class="btn btn-primary">Register Society</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="hero" id="top">
+  <div class="wrap">
+    <h1>Run your society<br>the smart way.</h1>
+    <p>SMMS is a complete Smart Society Management System — maintenance billing, online payments, complaints, notices, expenses and reports. One dedicated, branded portal per society.</p>
+    <div class="cta">
+      <a href="#register" class="btn btn-primary">Register your society</a>
+      <a href="#features" class="btn btn-ghost">See features</a>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="wrap">
+    <h2 class="sec">Everything a society needs</h2>
+    <p class="sec-sub">Built for managing committees, residents and finances in one place.</p>
+    <div class="grid g3">
+      <div class="feature"><div class="fic">&#129534;</div><h3>Maintenance Billing</h3><p>Auto-generate monthly bills per flat with configurable components and due dates.</p></div>
+      <div class="feature"><div class="fic">&#128179;</div><h3>Online Payments</h3><p>Residents pay via UPI and upload proof; admins verify and reconcile instantly.</p></div>
+      <div class="feature"><div class="fic">&#128226;</div><h3>Notices &amp; Complaints</h3><p>Broadcast notices and track resident complaints from raised to resolved.</p></div>
+      <div class="feature"><div class="fic">&#128202;</div><h3>Expenses &amp; Reports</h3><p>Record society expenses and see collection, dues and ledger reports at a glance.</p></div>
+      <div class="feature"><div class="fic">&#128101;</div><h3>Member Management</h3><p>Manage owners, tenants and flats with role-based access and permissions.</p></div>
+      <div class="feature"><div class="fic">&#128274;</div><h3>Your own branded portal</h3><p>Each society gets a dedicated secure URL — <b>yourcode.ssms.yuvaansoft.shop</b>.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" style="background:#fff;">
+  <div class="wrap">
+    <h2 class="sec">Simple pricing</h2>
+    <p class="sec-sub">Start free, upgrade when you grow.</p>
+    <div class="grid g3">
+      <div class="price"><h3>Trial</h3><div class="amt">&#8377;0<small>/30 days</small></div><ul><li>Up to 25 flats</li><li>Core billing &amp; payments</li><li>Email support</li></ul><a href="#register" class="btn btn-outline" style="width:100%;justify-content:center;">Get started</a></div>
+      <div class="price popular"><h3>Standard</h3><div class="amt">&#8377;999<small>/month</small></div><ul><li>Up to 150 flats</li><li>All features</li><li>Priority support</li></ul><a href="#register" class="btn btn-primary" style="width:100%;justify-content:center;">Register</a></div>
+      <div class="price"><h3>Premium</h3><div class="amt">&#8377;1,999<small>/month</small></div><ul><li>Unlimited flats</li><li>All features + custom branding</li><li>Dedicated support</li></ul><a href="#register" class="btn btn-outline" style="width:100%;justify-content:center;">Contact sales</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="wrap">
+    <h2 class="sec">How it works</h2>
+    <p class="sec-sub">From sign-up to a live portal in minutes after approval.</p>
+    <div class="grid g3">
+      <div class="feature"><div class="fic">1&#65039;&#8419;</div><h3>Register</h3><p>Fill the form with your society details and pick a plan.</p></div>
+      <div class="feature"><div class="fic">2&#65039;&#8419;</div><h3>Approval</h3><p>Our team reviews and approves — your database and admin account are created automatically.</p></div>
+      <div class="feature"><div class="fic">3&#65039;&#8419;</div><h3>Go live</h3><p>You receive your portal link and admin login at <b>yourcode.ssms.yuvaansoft.shop</b>.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- REGISTER -->
+<section id="register">
+  <div class="wrap">
+    <h2 class="sec">Register your society</h2>
+    <p class="sec-sub">Submit the details below. You'll be notified once your society is approved.</p>
+    <div class="form-card">
+      <div class="form-grid">
+        <div><label>Society Name *</label><input id="displayName" placeholder="e.g. NLC Aadya"></div>
+        <div><label>Society Code *</label><input id="key" placeholder="e.g. aadya" oninput="slug(this)"><div class="hint">lowercase letters, numbers, hyphens — becomes yourcode.ssms.yuvaansoft.shop</div></div>
+        <div><label>Admin Name *</label><input id="adminName" placeholder="Full name"></div>
+        <div><label>Admin Email *</label><input id="adminEmail" type="email" placeholder="you@example.com"></div>
+        <div><label>Phone</label><input id="phone" type="tel" placeholder="+91…"></div>
+        <div><label>No. of Flats *</label><input id="flatCount" type="number" min="1" value="50"></div>
+        <div class="full"><label>Address</label><textarea id="address" rows="2" placeholder="Society address"></textarea></div>
+        <div class="full"><label>Subscription Plan</label>
+          <select id="plan"><option value="Trial">Trial (30 days free)</option><option value="Standard" selected>Standard</option><option value="Premium">Premium</option></select>
+        </div>
+      </div>
+      <div class="msg" id="msg"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px;" id="submitBtn" onclick="submitReg()">Submit registration</button>
+    </div>
+  </div>
+</section>
+
+<!-- FIND MY SOCIETY -->
+<section id="contact" style="background:#fff;">
+  <div class="wrap">
+    <h2 class="sec">Already registered?</h2>
+    <p class="sec-sub">Enter your society code to go to your portal.</p>
+    <div class="find">
+      <input id="findCode" placeholder="your society code" oninput="slug(this)" onkeydown="if(event.key==='Enter')goToSociety()">
+      <button class="btn btn-primary" onclick="goToSociety()">Go &#8594;</button>
+    </div>
+    <p class="sec-sub" style="margin-top:28px;">Questions? Email <a href="mailto:support@yuvaansoft.shop" style="color:var(--accent)">support@yuvaansoft.shop</a></p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">&#169; 2026 YuvaanSoft · Smart Society Management System (SMMS)</div>
+</footer>
+
+<script>
+const BASE_DOMAIN = "ssms.yuvaansoft.shop";
+function slug(el){el.value = el.value.toLowerCase().replace(/[^a-z0-9-]/g,"");}
+function goToSociety(){
+  const c = document.getElementById("findCode").value.trim();
+  if(c) location.href = `https://${c}.${BASE_DOMAIN}`;
+}
+async function submitReg(){
+  const msg = document.getElementById("msg");
+  const btn = document.getElementById("submitBtn");
+  const body = {
+    key: document.getElementById("key").value.trim(),
+    displayName: document.getElementById("displayName").value.trim(),
+    adminName: document.getElementById("adminName").value.trim(),
+    adminEmail: document.getElementById("adminEmail").value.trim(),
+    phone: document.getElementById("phone").value.trim(),
+    address: document.getElementById("address").value.trim(),
+    plan: document.getElementById("plan").value,
+    flatCount: parseInt(document.getElementById("flatCount").value || "0", 10)
+  };
+  if(!body.key || !body.displayName || !body.adminName || !body.adminEmail){
+    msg.className = "msg err"; msg.textContent = "Please fill all required (*) fields."; return;
+  }
+  btn.disabled = true; btn.textContent = "Submitting…";
+  try{
+    const r = await fetch("/api/platform/societies/register", {
+      method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)
+    });
+    const data = await r.json().catch(()=>({}));
+    if(r.ok){
+      msg.className = "msg ok";
+      msg.textContent = data.message || "Registration received. You'll be notified once it's approved.";
+      btn.style.display = "none";
+    }else{
+      msg.className = "msg err";
+      msg.textContent = data.message || "Registration failed. Please try again.";
+      btn.disabled = false; btn.textContent = "Submit registration";
+    }
+  }catch(e){
+    msg.className = "msg err"; msg.textContent = "Network error. Please try again.";
+    btn.disabled = false; btn.textContent = "Submit registration";
+  }
+}
+</script>
+</body>
+</html>

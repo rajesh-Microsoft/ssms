@@ -12,6 +12,30 @@ public record OnboardSocietyRequest(
     int FlatCount,
     DateTime? ExpiryDate);
 
+/// <summary>Public self-service registration — creates a Pending request; no database yet.</summary>
+public record RegisterSocietyRequest(
+    string Key,
+    string DisplayName,
+    string? AdminName,
+    string? AdminEmail,
+    string? Phone,
+    string? Address,
+    string? Plan,
+    int FlatCount);
+
+/// <summary>Super-admin approval. Blank credentials => defaults (username "admin" + generated password).</summary>
+public record ApproveSocietyRequest(
+    string? AdminUsername,
+    string? AdminPassword,
+    DateTime? ExpiryDate);
+
+/// <summary>Approval result — includes the one-time admin credentials + the society's portal URL.</summary>
+public record ApproveSocietyResponse(
+    SocietyDto Society,
+    string AdminUsername,
+    string AdminPassword,
+    string PortalUrl);
+
 /// <summary>Payload to renew/extend a society's subscription (sets a new expiry and optional plan).</summary>
 public record RenewSocietyRequest(
     DateTime ExpiryDate,
@@ -29,7 +53,11 @@ public record SocietyDto(
     int MemberCount,
     DateTime CreatedAt,
     bool IsExpired,
-    int? DaysUntilExpiry);
+    int? DaysUntilExpiry,
+    string? AdminName = null,
+    string? AdminEmail = null,
+    string? Phone = null,
+    string? Address = null);
 
 public record PlatformDashboardDto(
     int TotalSocieties,
@@ -71,6 +99,7 @@ public static class SocietyMapping
 
         return new SocietyDto(
             s.Key, s.DisplayName, s.DbName, s.Status, s.Plan, s.ExpiryDate,
-            s.FlatCount, memberCount, s.CreatedAt, isExpired, daysUntilExpiry);
+            s.FlatCount, memberCount, s.CreatedAt, isExpired, daysUntilExpiry,
+            s.AdminName, s.AdminEmail, s.Phone, s.Address);
     }
 }

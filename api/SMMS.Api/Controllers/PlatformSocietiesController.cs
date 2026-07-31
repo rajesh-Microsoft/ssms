@@ -20,7 +20,8 @@ public class PlatformSocietiesController(
     IServiceScopeFactory scopeFactory,
     TenantProvisioningService provisioning,
     TokenService tokenService,
-    PlatformAuditService audit) : ControllerBase
+    PlatformAuditService audit,
+    IConfiguration config) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<SocietyDto>>> List()
@@ -59,6 +60,86 @@ public class PlatformSocietiesController(
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    /// <summary>Public self-service registration. Records a Pending society (no database yet) for a
+    /// super-admin to approve. Anonymous — all input is untrusted and validated in the service.</summary>
+    [AllowAnonymous]
+    [HttpPost("register")]
+    public async Task<IActionResult> Register(RegisterSocietyRequest req)
+    {
+        try
+        {
+            var society = await provisioning.RegisterPendingAsync(
+                req.Key, req.DisplayName, req.AdminName, req.AdminEmail,
+                req.Phone, req.Address, req.Plan, req.FlatCount);
+
+            await audit.LogAsync("SocietyRegister", "Society", society.Key,
+                $"Self-registration for '{society.DisplayName}' (pending approval).");
+
+            return Ok(new { message = "Registration received. You'll be notified once it's approved." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Pending registrations awaiting approval (contact details included via the DTO).</summary>
+    [HttpGet("pending")]
+    public async Task<ActionResult<IEnumerable<SocietyDto>>> PendingList()
+    {
+        var pending = await controlDb.Societies.AsNoTracking()
+            .Where(s => s.Status == SocietyStatus.Pending)
+            .OrderBy(s => s.CreatedAt)
+            .ToListAsync();
+
+        return Ok(pending.Select(ToDto));
+    }
+
+    /// <summary>Approves a pending registration: provisions + seeds its database and returns the
+    /// initial admin credentials (shown once) plus the society's portal URL.</summary>
+    [HttpPost("{key}/approve")]
+    public async Task<ActionResult<ApproveSocietyResponse>> Approve(string key, ApproveSocietyRequest req)
+    {
+        try
+        {
+            var (society, username, password) = await provisioning.ApproveAsync(
+                key, req.AdminUsername, req.AdminPassword, req.ExpiryDate);
+
+            await audit.LogAsync("SocietyApprove", "Society", society.Key,
+                $"Approved '{society.DisplayName}' (db {society.DbName}); admin '{username}'.");
+
+            return Ok(new ApproveSocietyResponse(ToDto(society), username, password, BuildPortalUrl(society.Key)));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Rejects (deletes) a pending registration. Only allowed while still Pending.</summary>
+    [HttpPost("{key}/reject")]
+    public async Task<IActionResult> Reject(string key)
+    {
+        var society = await controlDb.Societies.FirstOrDefaultAsync(s => s.Key == key);
+        if (society is null) return NotFound();
+
+        if (!string.Equals(society.Status, SocietyStatus.Pending, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { message = "Only a pending registration can be rejected." });
+
+        controlDb.Societies.Remove(society);
+        await controlDb.SaveChangesAsync();
+
+        await audit.LogAsync("SocietyReject", "Society", key,
+            $"Rejected pending registration '{society.DisplayName}'.");
+        return Ok(new { message = "Registration rejected." });
+    }
+
+    private string BuildPortalUrl(string key)
+    {
+        var baseDomain = config["ControlPlane:TenantBaseDomain"] ?? "ssms.yuvaansoft.shop";
+        return $"https://{key}.{baseDomain}";
     }
 
     [HttpPost("{key}/suspend")]
