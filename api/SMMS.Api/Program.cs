@@ -75,6 +75,7 @@ builder.Services.AddSingleton<SMMS.Api.Services.QrService>();
 builder.Services.AddSingleton<SMMS.Api.Services.Storage.IFileStorage, SMMS.Api.Services.Storage.LocalFileStorage>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.IPaymentGateway, SMMS.Api.Services.Payments.ManualUpiPaymentGateway>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
+builder.Services.AddScoped<SMMS.Api.Services.Payments.BankReconciliationService>();
 
 // Maintenance billing module (manual monthly-invoice generation; scheduler added in a later phase).
 builder.Services.AddScoped<SMMS.Api.Services.Billing.BillingService>();

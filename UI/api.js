@@ -174,6 +174,13 @@ Api.getAdminProofScreenshot = (id) => apiFetchObjectUrl(`/admin/payment-proofs/$
 Api.getUpiSettings       = () => apiFetch('/admin/upi-settings');
 Api.saveUpiSettings      = (payload) => apiFetch('/admin/upi-settings', { method: 'PUT', body: JSON.stringify(payload) });
 
+// ── Bank statement reconciliation (admin) ───────────────────────
+Api.getReconSummary      = () => apiFetch('/admin/reconciliation/summary');
+Api.getBankTxns          = (status) => apiFetch('/admin/reconciliation/transactions' + (status ? '?status=' + encodeURIComponent(status) : ''));
+Api.importBankStatement  = (formData) => apiPostForm('/admin/reconciliation/import', formData);
+Api.confirmReconMatch    = (bankTransactionId, paymentProofId) => apiFetch('/admin/reconciliation/confirm', { method: 'POST', body: JSON.stringify({ bankTransactionId, paymentProofId }) });
+Api.ignoreBankTxn        = (id) => apiFetch(`/admin/reconciliation/transactions/${id}/ignore`, { method: 'POST' });
+
 /* ---- Tenant logo: shows /logo/<subdomain>.png, falls back to emoji+text ---- */
 function smmsTenantKey(){
   const h = (location.hostname || '').split('.')[0].toLowerCase();

@@ -2069,6 +2069,7 @@ async function renderPaymentsAdmin(){
   }catch(err){
     tbody.innerHTML = `<tr><td colspan="10" class="empty">${err.message}</td></tr>`;
   }
+  renderReconciliation();
 }
 
 async function approveProof(id){
@@ -2137,6 +2138,85 @@ async function refreshPayBadge(){
   if(!isAdmin()) return;
   try{ const d = await Api.getPaymentDashboard(); updatePayBadge(d.pendingCount); }
   catch(err){ /* non-critical */ }
+}
+
+// ── Bank statement reconciliation ───────────────────────────────
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function renderReconciliation(){
+  if(!isAdmin()) return;
+  const tbody = document.getElementById('recon-tbody');
+  if(!tbody) return;   // partial not loaded yet
+  try{
+    const s = await Api.getReconSummary();
+    document.getElementById('recon-summary').innerHTML =
+      `Unmatched: <b>${s.unmatchedCount}</b> (${mMoney(s.unmatchedAmount)}) &middot; Matched: <b>${s.matchedCount}</b> &middot; Pending proofs awaiting money: <b>${s.pendingProofCount}</b>`;
+  }catch(err){ /* non-critical */ }
+
+  const status = document.getElementById('reconStatusF').value;
+  tbody.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+  try{
+    const rows = await Api.getBankTxns(status);
+    tbody.innerHTML = rows.map(renderReconRow).join('') || '<tr><td colspan="6" class="empty">No transactions. Import a bank statement CSV to begin.</td></tr>';
+  }catch(err){
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">${err.message}</td></tr>`;
+  }
+}
+
+function renderReconRow(t){
+  let matchCell, actionCell;
+  if(t.status === 'Unmatched'){
+    if(t.candidates && t.candidates.length){
+      const opts = t.candidates.map(c=>{
+        const tag = c.confidence==='Exact' ? '✅ Exact' : '≈ Likely';
+        return `<option value="${c.paymentProofId}">${tag} · Flat ${escHtml(c.flat||'—')} · ${escHtml(c.invoiceNumber)} · ${mMoney(c.amount)}</option>`;
+      }).join('');
+      matchCell = `<select id="recon-sel-${t.id}" style="max-width:300px;">${opts}</select>`;
+      actionCell = `<button class="btn btn-primary btn-sm" onclick="confirmReconMatch(${t.id})">Confirm</button>
+                    <button class="btn btn-ghost btn-sm" onclick="ignoreBankTxn(${t.id})">Ignore</button>`;
+    } else {
+      matchCell = '<span class="mhint">No match found</span>';
+      actionCell = `<button class="btn btn-ghost btn-sm" onclick="ignoreBankTxn(${t.id})">Ignore</button>`;
+    }
+  } else {
+    matchCell = mStatusBadge(t.status);
+    actionCell = '—';
+  }
+  return `<tr>
+    <td>${mDate(t.txnDate)}</td>
+    <td class="mhint" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;">${escHtml(t.narration)}</td>
+    <td>${escHtml(t.reference)||'—'}</td>
+    <td>${mMoney(t.amount)}</td>
+    <td>${matchCell}</td>
+    <td>${actionCell}</td>
+  </tr>`;
+}
+
+async function importBankStatement(){
+  const input = document.getElementById('recon-file');
+  if(!input || !input.files || !input.files.length) return toast('Choose a bank statement CSV file first.','warn');
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  try{
+    const r = await Api.importBankStatement(fd);
+    toast(`Imported ${r.imported} credit(s); ${r.autoMatched} auto-matched, ${r.skippedDuplicates} duplicate(s) skipped.`);
+    input.value = '';
+    renderPaymentsAdmin();
+  }catch(err){ toast(err.message,'warn'); }
+}
+
+async function confirmReconMatch(id){
+  const sel = document.getElementById('recon-sel-'+id);
+  if(!sel || !sel.value) return toast('No match selected.','warn');
+  if(!confirm('Confirm this match? The resident payment will be approved and the invoice marked Paid.')) return;
+  try{ await Api.confirmReconMatch(id, parseInt(sel.value,10)); toast('Payment reconciled ✅'); renderPaymentsAdmin(); }
+  catch(err){ toast(err.message,'warn'); }
+}
+
+async function ignoreBankTxn(id){
+  if(!confirm('Ignore this bank transaction? It will no longer appear as unmatched.')) return;
+  try{ await Api.ignoreBankTxn(id); toast('Transaction ignored','info'); renderReconciliation(); }
+  catch(err){ toast(err.message,'warn'); }
 }
 
 // ── My Complaints ──

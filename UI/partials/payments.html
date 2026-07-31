@@ -28,3 +28,25 @@
     <tbody id="pay-tbody"></tbody></table>
   </div>
 </div>
+
+<div class="card">
+  <div class="card-hdr">
+    <h3>🏦 Bank Statement Reconciliation</h3>
+    <select id="reconStatusF" onchange="renderReconciliation()" style="width:auto;">
+      <option value="Unmatched">Unmatched</option>
+      <option value="Matched">Matched</option>
+      <option value="Ignored">Ignored</option>
+      <option value="">All</option>
+    </select>
+  </div>
+  <p class="mhint">Upload your bank statement CSV (incoming credits). Payments are auto-matched to residents by UTR reference; confirm or ignore the rest. Confirming a match approves the resident's payment and marks the invoice Paid.</p>
+  <div class="form-actions" style="align-items:center;gap:10px;">
+    <input type="file" id="recon-file" accept=".csv,text/csv" style="max-width:320px;">
+    <button class="btn btn-primary" onclick="importBankStatement()">⬆️ Import Statement</button>
+  </div>
+  <div id="recon-summary" class="mhint" style="margin:8px 0;"></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Date</th><th>Narration</th><th>UTR Ref</th><th>Amount</th><th>Suggested Match</th><th>Action</th></tr></thead>
+    <tbody id="recon-tbody"></tbody></table>
+  </div>
+</div>

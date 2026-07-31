@@ -17,6 +17,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<MaintenanceComponentRate> MaintenanceComponentRates => Set<MaintenanceComponentRate>();
     public DbSet<MaintenanceComponentFlatOverride> MaintenanceComponentFlatOverrides => Set<MaintenanceComponentFlatOverride>();
     public DbSet<CollectionLine> CollectionLines => Set<CollectionLine>();
+    public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -117,5 +118,11 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .WithMany(c => c.Lines)
             .HasForeignKey(l => l.CollectionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Speeds up unmatched-transaction scans and UTR-based reconciliation lookups.
+        modelBuilder.Entity<BankTransaction>()
+            .HasIndex(t => new { t.Status, t.TxnDate });
+        modelBuilder.Entity<BankTransaction>()
+            .HasIndex(t => t.Reference);
     }
 }
