@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SMMS.Api.Data;
@@ -11,6 +12,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+// Behind nginx (TLS terminator) the app receives plain HTTP; honor X-Forwarded-Proto/For so
+// Request.Scheme becomes https and generated URLs/redirects are correct. nginx runs in a separate
+// container, so its source IP isn't loopback — clear the default known proxy/network allowlist.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -183,6 +195,9 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// Must run first so downstream middleware sees the client's real scheme/IP from nginx.
+app.UseForwardedHeaders();
 
 app.UseHttpsRedirection();
 
