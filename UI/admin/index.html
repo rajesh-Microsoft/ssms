@@ -45,9 +45,20 @@
       </div>
       <nav class="side-nav">
         <a class="nav-item active" data-view="dashboard" onclick="showView('dashboard', this)">📊 <span>Dashboard</span></a>
-        <a class="nav-item" data-view="societies" onclick="showView('societies', this)">🏢 <span>Societies</span></a>
-        <a class="nav-item" data-view="onboard" onclick="showView('onboard', this)">✨ <span>Onboard Society</span></a>
-        <a class="nav-item" data-view="audit" onclick="showView('audit', this)">📜 <span>Audit Log</span></a>
+
+        <div class="side-label">Societies</div>
+        <a class="nav-item" data-view="pending" onclick="showView('pending', this)">📥 <span>Pending Requests</span><b id="pendingCount" class="nav-badge" hidden>0</b></a>
+        <a class="nav-item" data-view="societies" onclick="showView('societies', this)">🏢 <span>Approved Societies</span></a>
+
+        <div class="side-label">Billing</div>
+        <a class="nav-item" data-view="subscriptions" onclick="showView('subscriptions', this)">🧾 <span>Subscriptions</span></a>
+        <a class="nav-item" data-view="payments" onclick="showView('payments', this)">💳 <span>Payments</span></a>
+
+        <div class="side-label">Operations</div>
+        <a class="nav-item" data-view="users" onclick="showView('users', this)">👤 <span>Users</span></a>
+        <a class="nav-item" data-view="support" onclick="showView('support', this)">🛟 <span>Support</span></a>
+        <a class="nav-item" data-view="settings" onclick="showView('settings', this)">⚙ <span>Settings</span></a>
+        <a class="nav-item" data-view="audit" onclick="showView('audit', this)">📜 <span>Audit Logs</span></a>
       </nav>
       <div class="side-foot">
         <div class="side-user">
@@ -76,11 +87,20 @@
         </div>
       </section>
 
+      <!-- PENDING REQUESTS -->
+      <section id="view-pending" class="view">
+        <div class="card">
+          <div class="card-head"><h3>Pending Society Requests</h3>
+            <button class="btn btn-light" onclick="loadPending()">↻ Refresh</button></div>
+          <div id="pendingList" class="pending-wrap"></div>
+        </div>
+      </section>
+
       <!-- SOCIETIES -->
       <section id="view-societies" class="view">
         <div class="card">
           <div class="card-head">
-            <h3>All Societies</h3>
+            <h3>Approved Societies</h3>
             <button class="btn btn-primary" onclick="showView('onboard', document.querySelector('[data-view=onboard]'))">✨ Onboard New</button>
           </div>
           <div id="societiesTable" class="table-wrap"></div>
@@ -142,9 +162,36 @@
           <div id="auditTable" class="table-wrap"></div>
         </div>
       </section>
+
+      <!-- SUBSCRIPTIONS (Phase 2) -->
+      <section id="view-subscriptions" class="view">
+        <div class="coming-soon"><div class="cs-icon">🧾</div><h3>Subscriptions</h3>
+          <p>Plan catalogue and per-society subscriptions. Tables (<code>SubscriptionPlans</code>) are ready — UI arrives in Phase 2.</p></div>
+      </section>
+      <!-- PAYMENTS (Phase 2) -->
+      <section id="view-payments" class="view">
+        <div class="coming-soon"><div class="cs-icon">💳</div><h3>Payments</h3>
+          <p>Platform invoices and payment status per society. Backing table (<code>PlatformInvoices</code>) exists — UI arrives in Phase 2.</p></div>
+      </section>
+      <!-- USERS (Phase 2) -->
+      <section id="view-users" class="view">
+        <div class="coming-soon"><div class="cs-icon">👤</div><h3>Users</h3>
+          <p>Manage super-admin operators (add, deactivate, reset). Uses the existing <code>PlatformUsers</code> table — Phase 2.</p></div>
+      </section>
+      <!-- SUPPORT (Phase 3) -->
+      <section id="view-support" class="view">
+        <div class="coming-soon"><div class="cs-icon">🛟</div><h3>Support</h3>
+          <p>Support tickets raised by societies. New feature — Phase 3.</p></div>
+      </section>
+      <!-- SETTINGS (Phase 3) -->
+      <section id="view-settings" class="view">
+        <div class="coming-soon"><div class="cs-icon">⚙</div><h3>Platform Settings</h3>
+          <p>Branding, default plan, SMTP and expiry-warning window. New feature — Phase 3.</p></div>
+      </section>
     </main>
   </div>
 
+  <div id="modalRoot" class="modal-root"></div>
   <div id="toast" class="toast"></div>
 
   <script src="admin.js"></script>

@@ -59,6 +59,9 @@ const Platform = {
   renew:  (key, expiryDate, plan) => pfetch(`/platform/societies/${encodeURIComponent(key)}/renew`, { method:'POST', body: JSON.stringify({ expiryDate, plan }) }),
   impersonate:(key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/impersonate`, { method:'POST' }),
   audit: (take = 100) => pfetch(`/platform/audit?take=${take}`),
+  pending: () => pfetch('/platform/societies/pending'),
+  approve: (key, payload) => pfetch(`/platform/societies/${encodeURIComponent(key)}/approve`, { method:'POST', body: JSON.stringify(payload || {}) }),
+  reject:  (key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/reject`, { method:'POST' }),
 };
 
 // ─── toast ───
@@ -113,11 +116,12 @@ function enterApp(){
   document.getElementById('userAvatar').textContent = (user?.displayName || user?.username || 'S').charAt(0).toUpperCase();
   document.body.classList.remove('logged-out');
   showView('dashboard', document.querySelector('[data-view=dashboard]'));
+  refreshPendingBadge();
 }
 
 // ─── view routing ───
 let currentView = 'dashboard';
-const TITLES = { dashboard:'Dashboard', societies:'Societies', onboard:'Onboard Society', audit:'Audit Log' };
+const TITLES = { dashboard:'Dashboard', pending:'Pending Society Requests', societies:'Approved Societies', onboard:'Onboard Society', subscriptions:'Subscriptions', payments:'Payments', users:'Users', support:'Support', settings:'Settings', audit:'Audit Logs' };
 
 function showView(view, navEl){
   currentView = view;
@@ -134,8 +138,10 @@ function refreshCurrentView(){ loadView(currentView); }
 
 function loadView(view){
   if(view === 'dashboard') return loadDashboard();
+  if(view === 'pending')   return loadPending();
   if(view === 'societies') return loadSocieties();
-  if(view === 'audit') return loadAudit();
+  if(view === 'audit')     return loadAudit();
+  // subscriptions / payments / users / support / settings are static placeholders (Phase 2/3)
 }
 
 // ─── dashboard ───
@@ -169,7 +175,8 @@ async function loadSocieties(){
   el.innerHTML = '<div class="empty">Loading…</div>';
   try{
     const list = await Platform.societies();
-    el.innerHTML = societyTable(list, true);
+    const approved = (list || []).filter(s => String(s.status).toLowerCase() !== 'pending');
+    el.innerHTML = societyTable(approved, true);
   }catch(e){
     el.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
@@ -318,6 +325,107 @@ async function loadAudit(){
   }
 }
 function fmtDateTime(d){ const t = new Date(d); return isNaN(t) ? '—' : t.toLocaleString(); }
+
+// ─── pending society requests ───
+async function loadPending(){
+  const el = document.getElementById('pendingList');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const list = await Platform.pending();
+    updatePendingBadge(list.length);
+    if(!list.length){ el.innerHTML = '<div class="empty">🎉 No pending requests — all caught up.</div>'; return; }
+    el.innerHTML = list.map(pendingCard).join('');
+  }catch(e){ el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+function pendingCard(s){
+  const nm = esc(s.displayName).replace(/'/g, "\\'");
+  return `<div class="pending-card">
+    <div class="pc-head">
+      <div><div class="society-name">${esc(s.displayName)}</div>
+        <div class="sub-key">${esc(s.key)}.ssms.yuvaansoft.shop</div></div>
+      ${statusBadge('Pending')}
+    </div>
+    <div class="pc-grid">
+      <div><span class="pc-l">Contact</span>${esc(s.adminName || '—')}</div>
+      <div><span class="pc-l">Email</span>${esc(s.adminEmail || '—')}</div>
+      <div><span class="pc-l">Phone</span>${esc(s.phone || '—')}</div>
+      <div><span class="pc-l">Plan</span>${esc(s.plan || '—')}</div>
+      <div><span class="pc-l">Flats</span>${s.flatCount ?? 0}</div>
+      <div><span class="pc-l">Requested</span>${fmtDate(s.createdAt)}</div>
+      ${s.address ? `<div class="pc-wide"><span class="pc-l">Address</span>${esc(s.address)}</div>` : ''}
+    </div>
+    <div class="pc-actions">
+      <button class="btn btn-primary btn-sm" onclick="openApprove('${esc(s.key)}','${nm}')">✔ Approve &amp; provision</button>
+      <button class="btn btn-light btn-sm" onclick="doReject('${esc(s.key)}','${nm}')">✖ Reject</button>
+    </div>
+  </div>`;
+}
+
+function openApprove(key, name){
+  const ny = new Date(); ny.setFullYear(ny.getFullYear() + 1);
+  openModal(`
+    <h3>Approve “${esc(name)}”</h3>
+    <p class="modal-sub">Provisions an isolated database and admin account. Leave credentials blank to use the default username <code>admin</code> with an auto-generated password.</p>
+    <div class="field"><label>Admin username</label><input id="ap-user" placeholder="admin (default)" autocomplete="off"></div>
+    <div class="field"><label>Admin password</label><input id="ap-pass" placeholder="auto-generated" autocomplete="off"></div>
+    <div class="field"><label>Subscription expiry</label><input id="ap-exp" type="date" value="${ny.toISOString().slice(0,10)}"></div>
+    <p id="ap-status" class="form-status"></p>
+    <div class="modal-actions">
+      <button class="btn btn-light" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="ap-go" onclick="doApprove('${esc(key)}')">Approve &amp; provision</button>
+    </div>`);
+}
+
+async function doApprove(key){
+  const btn = document.getElementById('ap-go');
+  const status = document.getElementById('ap-status');
+  const payload = {
+    adminUsername: document.getElementById('ap-user').value.trim() || null,
+    adminPassword: document.getElementById('ap-pass').value || null,
+    expiryDate: document.getElementById('ap-exp').value || null,
+  };
+  btn.disabled = true; status.className = 'form-status'; status.textContent = 'Provisioning database…';
+  try{
+    const r = await Platform.approve(key, payload);
+    openModal(`
+      <h3>✅ ${esc(r.society.displayName)} is live</h3>
+      <p class="modal-sub">Share these one-time credentials with the society admin — they won't be shown again.</p>
+      <div class="cred"><span>Portal</span><code>${esc(r.portalUrl)}</code><button class="btn btn-light btn-sm" onclick="copyText('${esc(r.portalUrl)}')">Copy</button></div>
+      <div class="cred"><span>Username</span><code>${esc(r.adminUsername)}</code><button class="btn btn-light btn-sm" onclick="copyText('${esc(r.adminUsername)}')">Copy</button></div>
+      <div class="cred"><span>Password</span><code>${esc(r.adminPassword)}</code><button class="btn btn-light btn-sm" onclick="copyText('${esc(r.adminPassword)}')">Copy</button></div>
+      <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>`);
+    toast(`Approved ${key}`, 'ok');
+    refreshPendingBadge();
+  }catch(e){
+    btn.disabled = false; status.className = 'form-status err'; status.textContent = '❌ ' + e.message;
+  }
+}
+
+async function doReject(key, name){
+  if(!confirm(`Reject and delete the pending request for “${name || key}”? This cannot be undone.`)) return;
+  try{ await Platform.reject(key); toast(`Rejected ${key}`, 'warn'); loadPending(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+
+async function refreshPendingBadge(){
+  try{ const list = await Platform.pending(); updatePendingBadge(list.length); }
+  catch(e){ /* silent — badge is best-effort */ }
+}
+function updatePendingBadge(n){
+  const b = document.getElementById('pendingCount');
+  if(!b) return;
+  b.textContent = n; b.hidden = !n;
+}
+
+// ─── modal + clipboard ───
+function openModal(html){
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal-card">${html}</div></div>`;
+  root.classList.add('show');
+}
+function closeModal(){ const r = document.getElementById('modalRoot'); r.classList.remove('show'); r.innerHTML = ''; }
+function copyText(t){ if(navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Copied', 'ok')); }
 
 // ─── boot ───
 (function init(){
