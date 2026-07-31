@@ -30,6 +30,15 @@ public static class ControlDbSeeder
         SeedSociety(db, "aadya", "NLC Aadya", "SmmsDb_Aadya");
         SeedSociety(db, "aaradya", "NLC Aaradya", "SmmsDb_Aaradya");
 
+        // 3. Default subscription plans (only if the catalogue is empty).
+        if (!db.SubscriptionPlans.Any())
+        {
+            db.SubscriptionPlans.AddRange(
+                new SubscriptionPlan { Code = "TRIAL", Name = "Trial", Price = 0m, BillingPeriodMonths = 1, Currency = "INR", IsActive = true },
+                new SubscriptionPlan { Code = "STANDARD", Name = "Standard", Price = 4999m, BillingPeriodMonths = 12, Currency = "INR", IsActive = true },
+                new SubscriptionPlan { Code = "PREMIUM", Name = "Premium", Price = 9999m, BillingPeriodMonths = 12, Currency = "INR", IsActive = true });
+        }
+
         db.SaveChanges();
     }
 

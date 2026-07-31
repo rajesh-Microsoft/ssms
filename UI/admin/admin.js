@@ -62,6 +62,19 @@ const Platform = {
   pending: () => pfetch('/platform/societies/pending'),
   approve: (key, payload) => pfetch(`/platform/societies/${encodeURIComponent(key)}/approve`, { method:'POST', body: JSON.stringify(payload || {}) }),
   reject:  (key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/reject`, { method:'POST' }),
+  plans:            () => pfetch('/platform/plans'),
+  createPlan:       (p) => pfetch('/platform/plans', { method:'POST', body: JSON.stringify(p) }),
+  updatePlan:       (id, p) => pfetch(`/platform/plans/${id}`, { method:'PUT', body: JSON.stringify(p) }),
+  togglePlan:       (id) => pfetch(`/platform/plans/${id}/toggle`, { method:'POST' }),
+  invoices:         (q = '') => pfetch('/platform/invoices' + q),
+  invoiceSummary:   () => pfetch('/platform/invoices/summary'),
+  generateInvoice:  (p) => pfetch('/platform/invoices', { method:'POST', body: JSON.stringify(p) }),
+  payInvoice:       (id, ref) => pfetch(`/platform/invoices/${id}/pay`, { method:'POST', body: JSON.stringify({ paymentReference: ref }) }),
+  voidInvoice:      (id) => pfetch(`/platform/invoices/${id}/void`, { method:'POST' }),
+  users:            () => pfetch('/platform/users'),
+  createUser:       (p) => pfetch('/platform/users', { method:'POST', body: JSON.stringify(p) }),
+  toggleUser:       (id) => pfetch(`/platform/users/${id}/toggle`, { method:'POST' }),
+  resetUserPassword:(id, pw) => pfetch(`/platform/users/${id}/reset-password`, { method:'POST', body: JSON.stringify({ newPassword: pw }) }),
 };
 
 // ─── toast ───
@@ -140,8 +153,11 @@ function loadView(view){
   if(view === 'dashboard') return loadDashboard();
   if(view === 'pending')   return loadPending();
   if(view === 'societies') return loadSocieties();
+  if(view === 'subscriptions') return loadPlans();
+  if(view === 'payments')  return loadPayments();
+  if(view === 'users')     return loadUsers();
   if(view === 'audit')     return loadAudit();
-  // subscriptions / payments / users / support / settings are static placeholders (Phase 2/3)
+  // support / settings are static placeholders (Phase 3)
 }
 
 // ─── dashboard ───
@@ -426,6 +442,226 @@ function openModal(html){
 }
 function closeModal(){ const r = document.getElementById('modalRoot'); r.classList.remove('show'); r.innerHTML = ''; }
 function copyText(t){ if(navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Copied', 'ok')); }
+function fmtMoney(v, cur){ const n = Number(v || 0); return (cur || 'INR') + ' ' + n.toLocaleString(undefined, { minimumFractionDigits:0, maximumFractionDigits:2 }); }
+
+// ══════════════ SUBSCRIPTIONS (plans) ══════════════
+let _plans = [];
+async function loadPlans(){
+  const el = document.getElementById('plansTable');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    _plans = await Platform.plans();
+    if(!_plans.length){ el.innerHTML = '<div class="empty">No plans yet. Create your first plan.</div>'; return; }
+    el.innerHTML = `<table>
+      <thead><tr><th>Code</th><th>Name</th><th>Price</th><th>Billing</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${_plans.map(planRow).join('')}</tbody></table>`;
+  }catch(e){ el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function planRow(p){
+  return `<tr>
+    <td><code>${esc(p.code)}</code></td>
+    <td>${esc(p.name)}</td>
+    <td>${fmtMoney(p.price, p.currency)}</td>
+    <td>${p.billingPeriodMonths} mo</td>
+    <td>${p.isActive ? '<span class="badge active">Active</span>' : '<span class="badge suspended">Inactive</span>'}</td>
+    <td><div class="row-actions">
+      <button class="btn btn-light btn-sm" onclick="openPlanModal(${p.id})">✎ Edit</button>
+      <button class="btn btn-light btn-sm" onclick="doTogglePlan(${p.id})">${p.isActive ? '⏸ Deactivate' : '▶ Activate'}</button>
+    </div></td></tr>`;
+}
+function openPlanModal(id){
+  const p = id ? _plans.find(x => x.id === id) : null;
+  openModal(`
+    <h3>${p ? 'Edit plan' : 'New plan'}</h3>
+    <div class="field"><label>Code ${p ? '(locked)' : ''}</label><input id="pl-code" value="${p ? esc(p.code) : ''}" placeholder="STANDARD" ${p ? 'disabled' : ''}></div>
+    <div class="field"><label>Name</label><input id="pl-name" value="${p ? esc(p.name) : ''}" placeholder="Standard"></div>
+    <div class="grid2">
+      <div class="field"><label>Price</label><input id="pl-price" type="number" min="0" step="0.01" value="${p ? p.price : 0}"></div>
+      <div class="field"><label>Billing months</label><input id="pl-months" type="number" min="1" value="${p ? p.billingPeriodMonths : 12}"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Currency</label><input id="pl-cur" value="${p ? esc(p.currency) : 'INR'}" maxlength="3"></div>
+      <div class="field"><label>Status</label><select id="pl-active"><option value="true" ${(!p || p.isActive) ? 'selected' : ''}>Active</option><option value="false" ${(p && !p.isActive) ? 'selected' : ''}>Inactive</option></select></div>
+    </div>
+    <p id="pl-status" class="form-status"></p>
+    <div class="modal-actions">
+      <button class="btn btn-light" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="pl-go" onclick="savePlan(${p ? p.id : 'null'})">${p ? 'Save' : 'Create'}</button>
+    </div>`);
+}
+async function savePlan(id){
+  const status = document.getElementById('pl-status'), btn = document.getElementById('pl-go');
+  const payload = {
+    code: document.getElementById('pl-code').value.trim(),
+    name: document.getElementById('pl-name').value.trim(),
+    price: parseFloat(document.getElementById('pl-price').value) || 0,
+    billingPeriodMonths: parseInt(document.getElementById('pl-months').value, 10) || 12,
+    currency: document.getElementById('pl-cur').value.trim() || 'INR',
+    isActive: document.getElementById('pl-active').value === 'true',
+  };
+  status.className = 'form-status'; status.textContent = 'Saving…'; btn.disabled = true;
+  try{
+    if(id) await Platform.updatePlan(id, payload); else await Platform.createPlan(payload);
+    closeModal(); toast('Plan saved', 'ok'); loadPlans();
+  }catch(e){ btn.disabled = false; status.className = 'form-status err'; status.textContent = '❌ ' + e.message; }
+}
+async function doTogglePlan(id){
+  try{ await Platform.togglePlan(id); toast('Plan updated', 'ok'); loadPlans(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+
+// ══════════════ PAYMENTS (invoices) ══════════════
+async function loadPayments(){
+  const kp = document.getElementById('payKpis'), el = document.getElementById('invoicesTable');
+  kp.innerHTML = ''; el.innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const [sum, list] = await Promise.all([Platform.invoiceSummary(), Platform.invoices()]);
+    kp.innerHTML = `
+      ${kpi(fmtMoney(sum.collectedAmount, sum.currency), 'Collected', 'green')}
+      ${kpi(fmtMoney(sum.outstandingAmount, sum.currency), 'Outstanding', 'amber')}
+      ${kpi(sum.paid, 'Paid', 'green')}
+      ${kpi(sum.overdue, 'Overdue', 'red')}
+      ${kpi(sum.issued, 'Issued', '')}
+      ${kpi(sum.total, 'Total invoices', '')}`;
+    if(!list.length){ el.innerHTML = '<div class="empty">No invoices yet. Generate one to bill a society.</div>'; return; }
+    el.innerHTML = `<table>
+      <thead><tr><th>Invoice</th><th>Society</th><th>Plan</th><th>Amount</th><th>Period</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${list.map(invoiceRow).join('')}</tbody></table>`;
+  }catch(e){ el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function invoiceRow(i){
+  const st = String(i.status).toLowerCase();
+  const actionable = st !== 'paid' && st !== 'void';
+  return `<tr>
+    <td><code>${esc(i.invoiceNumber)}</code></td>
+    <td>${esc(i.societyName || i.societyKey)}</td>
+    <td>${esc(i.planName)}</td>
+    <td>${fmtMoney(i.amount, i.currency)}</td>
+    <td>${fmtDate(i.periodStart)} → ${fmtDate(i.periodEnd)}</td>
+    <td>${fmtDate(i.dueDate)}</td>
+    <td><span class="badge ${st}">${esc(i.status)}</span></td>
+    <td><div class="row-actions">
+      ${actionable ? `<button class="btn btn-primary btn-sm" onclick="doPayInvoice(${i.id})">✔ Mark paid</button>
+                      <button class="btn btn-light btn-sm" onclick="doVoidInvoice(${i.id})">✖ Void</button>` : ''}
+      ${st === 'paid' && i.paymentReference ? `<span class="pill green">ref: ${esc(i.paymentReference)}</span>` : ''}
+    </div></td></tr>`;
+}
+async function openInvoiceModal(){
+  openModal('<h3>Generate invoice</h3><p class="empty">Loading…</p>');
+  try{
+    const [socs, plans] = await Promise.all([Platform.societies(), Platform.plans()]);
+    const active = (socs || []).filter(s => String(s.status).toLowerCase() !== 'pending');
+    const activePlans = (plans || []).filter(p => p.isActive);
+    openModal(`
+      <h3>Generate invoice</h3>
+      <div class="field"><label>Society</label><select id="in-soc">${active.map(s => `<option value="${esc(s.key)}">${esc(s.displayName)} (${esc(s.key)})</option>`).join('')}</select></div>
+      <div class="field"><label>Plan</label><select id="in-plan">${activePlans.map(p => `<option value="${p.id}">${esc(p.name)} — ${fmtMoney(p.price, p.currency)}/${p.billingPeriodMonths}mo</option>`).join('')}</select></div>
+      <div class="grid2">
+        <div class="field"><label>Period start</label><input id="in-start" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="field"><label>Due in (days)</label><input id="in-due" type="number" min="1" value="14"></div>
+      </div>
+      <div class="field"><label>Notes</label><input id="in-notes" placeholder="optional"></div>
+      <p id="in-status" class="form-status"></p>
+      <div class="modal-actions">
+        <button class="btn btn-light" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="in-go" onclick="doGenerateInvoice()">Generate</button>
+      </div>`);
+    if(!active.length || !activePlans.length){
+      const s = document.getElementById('in-status'); s.className = 'form-status err';
+      s.textContent = !activePlans.length ? 'No active plans — create one under Subscriptions first.' : 'No societies available.';
+      document.getElementById('in-go').disabled = true;
+    }
+  }catch(e){
+    openModal(`<h3>Generate invoice</h3><p class="form-status err">${esc(e.message)}</p><div class="modal-actions"><button class="btn btn-light" onclick="closeModal()">Close</button></div>`);
+  }
+}
+async function doGenerateInvoice(){
+  const status = document.getElementById('in-status'), btn = document.getElementById('in-go');
+  const payload = {
+    societyKey: document.getElementById('in-soc').value,
+    planId: parseInt(document.getElementById('in-plan').value, 10),
+    periodStart: document.getElementById('in-start').value || null,
+    dueInDays: parseInt(document.getElementById('in-due').value, 10) || 14,
+    notes: document.getElementById('in-notes').value.trim() || null,
+  };
+  if(!payload.societyKey || !payload.planId){ status.className = 'form-status err'; status.textContent = 'Select a society and plan.'; return; }
+  status.className = 'form-status'; status.textContent = 'Generating…'; btn.disabled = true;
+  try{ await Platform.generateInvoice(payload); closeModal(); toast('Invoice generated', 'ok'); loadPayments(); }
+  catch(e){ btn.disabled = false; status.className = 'form-status err'; status.textContent = '❌ ' + e.message; }
+}
+async function doPayInvoice(id){
+  const ref = prompt('Payment reference (optional — UPI txn id, cheque no, etc.):', '');
+  if(ref === null) return;
+  try{ await Platform.payInvoice(id, ref.trim() || null); toast('Marked paid', 'ok'); loadPayments(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+async function doVoidInvoice(id){
+  if(!confirm('Void this invoice? This cannot be undone.')) return;
+  try{ await Platform.voidInvoice(id); toast('Invoice voided', 'warn'); loadPayments(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+
+// ══════════════ USERS (platform operators) ══════════════
+async function loadUsers(){
+  const el = document.getElementById('usersTable');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const users = await Platform.users();
+    el.innerHTML = `<table>
+      <thead><tr><th>Username</th><th>Display name</th><th>Status</th><th>Created</th><th>Last login</th><th>Actions</th></tr></thead>
+      <tbody>${users.map(userRow).join('')}</tbody></table>`;
+  }catch(e){ el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function userRow(u){
+  const me = getUser();
+  const isMe = me && me.username && me.username.toLowerCase() === u.username.toLowerCase();
+  return `<tr>
+    <td>${esc(u.username)}${isMe ? ' <span class="pill neutral">you</span>' : ''}</td>
+    <td>${esc(u.displayName || '—')}</td>
+    <td>${u.isActive ? '<span class="badge active">Active</span>' : '<span class="badge suspended">Inactive</span>'}</td>
+    <td>${fmtDate(u.createdAt)}</td>
+    <td>${u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : '—'}</td>
+    <td><div class="row-actions">
+      <button class="btn btn-light btn-sm" onclick="doResetPassword(${u.id})">🔑 Reset password</button>
+      <button class="btn btn-light btn-sm" onclick="doToggleUser(${u.id})" ${isMe ? 'disabled title="You cannot deactivate yourself"' : ''}>${u.isActive ? '⏸ Deactivate' : '▶ Activate'}</button>
+    </div></td></tr>`;
+}
+function openUserModal(){
+  openModal(`
+    <h3>Add super-admin</h3>
+    <div class="field"><label>Username</label><input id="us-name" placeholder="username" autocomplete="off"></div>
+    <div class="field"><label>Display name</label><input id="us-disp" placeholder="Full name (optional)" autocomplete="off"></div>
+    <div class="field"><label>Password</label><input id="us-pass" type="text" placeholder="min 6 characters" autocomplete="off"></div>
+    <p id="us-status" class="form-status"></p>
+    <div class="modal-actions">
+      <button class="btn btn-light" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="us-go" onclick="saveUser()">Create</button>
+    </div>`);
+}
+async function saveUser(){
+  const status = document.getElementById('us-status'), btn = document.getElementById('us-go');
+  const payload = {
+    username: document.getElementById('us-name').value.trim(),
+    displayName: document.getElementById('us-disp').value.trim() || null,
+    password: document.getElementById('us-pass').value,
+  };
+  if(!payload.username){ status.className = 'form-status err'; status.textContent = 'Username is required.'; return; }
+  if(!payload.password || payload.password.length < 6){ status.className = 'form-status err'; status.textContent = 'Password must be at least 6 characters.'; return; }
+  status.className = 'form-status'; status.textContent = 'Creating…'; btn.disabled = true;
+  try{ await Platform.createUser(payload); closeModal(); toast('User created', 'ok'); loadUsers(); }
+  catch(e){ btn.disabled = false; status.className = 'form-status err'; status.textContent = '❌ ' + e.message; }
+}
+async function doToggleUser(id){
+  try{ await Platform.toggleUser(id); toast('User updated', 'ok'); loadUsers(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+async function doResetPassword(id){
+  const pw = prompt('New password (min 6 characters):', '');
+  if(pw === null) return;
+  if(pw.length < 6){ toast('Password must be at least 6 characters.', 'warn'); return; }
+  try{ await Platform.resetUserPassword(id, pw); toast('Password reset', 'ok'); }
+  catch(e){ toast(e.message, 'warn'); }
+}
 
 // ─── boot ───
 (function init(){

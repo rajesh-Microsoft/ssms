@@ -163,20 +163,30 @@
         </div>
       </section>
 
-      <!-- SUBSCRIPTIONS (Phase 2) -->
+      <!-- SUBSCRIPTIONS -->
       <section id="view-subscriptions" class="view">
-        <div class="coming-soon"><div class="cs-icon">🧾</div><h3>Subscriptions</h3>
-          <p>Plan catalogue and per-society subscriptions. Tables (<code>SubscriptionPlans</code>) are ready — UI arrives in Phase 2.</p></div>
+        <div class="card">
+          <div class="card-head"><h3>Subscription Plans</h3>
+            <button class="btn btn-primary" onclick="openPlanModal()">＋ New plan</button></div>
+          <div id="plansTable" class="table-wrap"></div>
+        </div>
       </section>
-      <!-- PAYMENTS (Phase 2) -->
+      <!-- PAYMENTS -->
       <section id="view-payments" class="view">
-        <div class="coming-soon"><div class="cs-icon">💳</div><h3>Payments</h3>
-          <p>Platform invoices and payment status per society. Backing table (<code>PlatformInvoices</code>) exists — UI arrives in Phase 2.</p></div>
+        <div id="payKpis" class="kpi-grid"></div>
+        <div class="card">
+          <div class="card-head"><h3>Platform Invoices</h3>
+            <button class="btn btn-primary" onclick="openInvoiceModal()">＋ Generate invoice</button></div>
+          <div id="invoicesTable" class="table-wrap"></div>
+        </div>
       </section>
-      <!-- USERS (Phase 2) -->
+      <!-- USERS -->
       <section id="view-users" class="view">
-        <div class="coming-soon"><div class="cs-icon">👤</div><h3>Users</h3>
-          <p>Manage super-admin operators (add, deactivate, reset). Uses the existing <code>PlatformUsers</code> table — Phase 2.</p></div>
+        <div class="card">
+          <div class="card-head"><h3>Super-Admin Users</h3>
+            <button class="btn btn-primary" onclick="openUserModal()">＋ Add user</button></div>
+          <div id="usersTable" class="table-wrap"></div>
+        </div>
       </section>
       <!-- SUPPORT (Phase 3) -->
       <section id="view-support" class="view">
