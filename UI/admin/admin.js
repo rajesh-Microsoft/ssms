@@ -75,6 +75,14 @@ const Platform = {
   createUser:       (p) => pfetch('/platform/users', { method:'POST', body: JSON.stringify(p) }),
   toggleUser:       (id) => pfetch(`/platform/users/${id}/toggle`, { method:'POST' }),
   resetUserPassword:(id, pw) => pfetch(`/platform/users/${id}/reset-password`, { method:'POST', body: JSON.stringify({ newPassword: pw }) }),
+  tickets:          (q = '') => pfetch('/platform/support' + q),
+  ticket:           (id) => pfetch(`/platform/support/${id}`),
+  ticketSummary:    () => pfetch('/platform/support/summary'),
+  createTicket:     (p) => pfetch('/platform/support', { method:'POST', body: JSON.stringify(p) }),
+  ticketStatus:     (id, status, note) => pfetch(`/platform/support/${id}/status`, { method:'POST', body: JSON.stringify({ status, note }) }),
+  ticketReply:      (id, body) => pfetch(`/platform/support/${id}/messages`, { method:'POST', body: JSON.stringify({ body }) }),
+  settings:         () => pfetch('/platform/settings'),
+  saveSettings:     (p) => pfetch('/platform/settings', { method:'PUT', body: JSON.stringify(p) }),
 };
 
 // ─── toast ───
@@ -156,8 +164,9 @@ function loadView(view){
   if(view === 'subscriptions') return loadPlans();
   if(view === 'payments')  return loadPayments();
   if(view === 'users')     return loadUsers();
+  if(view === 'support')   return loadSupport();
+  if(view === 'settings')  return loadSettings();
   if(view === 'audit')     return loadAudit();
-  // support / settings are static placeholders (Phase 3)
 }
 
 // ─── dashboard ───
@@ -661,6 +670,205 @@ async function doResetPassword(id){
   if(pw.length < 6){ toast('Password must be at least 6 characters.', 'warn'); return; }
   try{ await Platform.resetUserPassword(id, pw); toast('Password reset', 'ok'); }
   catch(e){ toast(e.message, 'warn'); }
+}
+
+// ══════════════ SUPPORT (tickets) ══════════════
+let _tickets = [];
+const TICKET_STATUS_LABEL = { Open:'Open', InProgress:'In progress', Resolved:'Resolved', Closed:'Closed' };
+function ticketStatusClass(s){ return String(s || '').toLowerCase(); }
+
+async function loadSupport(){
+  const kp = document.getElementById('supportKpis'), el = document.getElementById('ticketsTable');
+  kp.innerHTML = ''; el.innerHTML = '<div class="empty">Loading…</div>';
+  const status = document.getElementById('supportStatusFilter')?.value || '';
+  try{
+    const [sum, list] = await Promise.all([
+      Platform.ticketSummary(),
+      Platform.tickets(status ? `?status=${encodeURIComponent(status)}` : ''),
+    ]);
+    kp.innerHTML = `
+      ${kpi(sum.open, 'Open', 'amber')}
+      ${kpi(sum.inProgress, 'In progress', '')}
+      ${kpi(sum.resolved, 'Resolved', 'green')}
+      ${kpi(sum.closed, 'Closed', '')}
+      ${kpi(sum.total, 'Total', '')}`;
+    _tickets = list || [];
+    if(!_tickets.length){ el.innerHTML = '<div class="empty">No tickets found.</div>'; return; }
+    el.innerHTML = `<table>
+      <thead><tr><th>Ticket</th><th>Subject</th><th>Society</th><th>Category</th><th>Priority</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+      <tbody>${_tickets.map(ticketRow).join('')}</tbody></table>`;
+  }catch(e){ el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function ticketRow(t){
+  const pr = String(t.priority || '').toLowerCase();
+  return `<tr>
+    <td><code>${esc(t.ticketNumber)}</code></td>
+    <td>${esc(t.subject)}</td>
+    <td>${t.societyName ? esc(t.societyName) : '<span class="pill neutral">General</span>'}</td>
+    <td>${esc(t.category)}</td>
+    <td><span class="pill ${pr}">${esc(t.priority)}</span></td>
+    <td><span class="badge ${ticketStatusClass(t.status)}">${esc(TICKET_STATUS_LABEL[t.status] || t.status)}</span></td>
+    <td>${fmtDate(t.updatedAt)}</td>
+    <td><button class="btn btn-light btn-sm" onclick="openTicketDetail(${t.id})">Open</button></td></tr>`;
+}
+async function openTicketModal(){
+  openModal('<h3>New ticket</h3><p class="empty">Loading…</p>');
+  try{
+    const socs = await Platform.societies();
+    const active = (socs || []).filter(s => String(s.status).toLowerCase() !== 'pending');
+    const opt = (v, l) => `<option value="${esc(v)}">${esc(l)}</option>`;
+    openModal(`
+      <h3>New ticket</h3>
+      <div class="field"><label>Society</label><select id="tk-soc">
+        <option value="">— General / platform —</option>
+        ${active.map(s => `<option value="${esc(s.key)}">${esc(s.displayName)} (${esc(s.key)})</option>`).join('')}
+      </select></div>
+      <div class="field"><label>Subject</label><input id="tk-subj" placeholder="Short summary" autocomplete="off"></div>
+      <div class="field"><label>Description</label><textarea id="tk-desc" rows="4" placeholder="What's the issue?"></textarea></div>
+      <div class="grid2">
+        <div class="field"><label>Category</label><select id="tk-cat">
+          ${opt('General','General')}${opt('Billing','Billing')}${opt('Technical','Technical')}${opt('Onboarding','Onboarding')}</select></div>
+        <div class="field"><label>Priority</label><select id="tk-pri">
+          ${opt('Low','Low')}${opt('Normal','Normal')}${opt('High','High')}${opt('Urgent','Urgent')}</select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Contact name</label><input id="tk-cname" placeholder="optional" autocomplete="off"></div>
+        <div class="field"><label>Contact email</label><input id="tk-cmail" placeholder="optional" autocomplete="off"></div>
+      </div>
+      <p id="tk-status" class="form-status"></p>
+      <div class="modal-actions">
+        <button class="btn btn-light" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="tk-go" onclick="doCreateTicket()">Create</button>
+      </div>`);
+    document.getElementById('tk-pri').value = 'Normal';
+  }catch(e){
+    openModal(`<h3>New ticket</h3><p class="form-status err">${esc(e.message)}</p><div class="modal-actions"><button class="btn btn-light" onclick="closeModal()">Close</button></div>`);
+  }
+}
+async function doCreateTicket(){
+  const status = document.getElementById('tk-status'), btn = document.getElementById('tk-go');
+  const payload = {
+    societyKey: document.getElementById('tk-soc').value || null,
+    subject: document.getElementById('tk-subj').value.trim(),
+    description: document.getElementById('tk-desc').value.trim(),
+    category: document.getElementById('tk-cat').value,
+    priority: document.getElementById('tk-pri').value,
+    contactName: document.getElementById('tk-cname').value.trim() || null,
+    contactEmail: document.getElementById('tk-cmail').value.trim() || null,
+  };
+  if(!payload.subject){ status.className = 'form-status err'; status.textContent = 'Subject is required.'; return; }
+  if(!payload.description){ status.className = 'form-status err'; status.textContent = 'Description is required.'; return; }
+  status.className = 'form-status'; status.textContent = 'Creating…'; btn.disabled = true;
+  try{ await Platform.createTicket(payload); closeModal(); toast('Ticket created', 'ok'); loadSupport(); }
+  catch(e){ btn.disabled = false; status.className = 'form-status err'; status.textContent = '❌ ' + e.message; }
+}
+async function openTicketDetail(id){
+  openModal('<h3>Ticket</h3><p class="empty">Loading…</p>');
+  try{
+    const t = await Platform.ticket(id);
+    renderTicketDetail(t);
+  }catch(e){
+    openModal(`<h3>Ticket</h3><p class="form-status err">${esc(e.message)}</p><div class="modal-actions"><button class="btn btn-light" onclick="closeModal()">Close</button></div>`);
+  }
+}
+function renderTicketDetail(t){
+  const pr = String(t.priority || '').toLowerCase();
+  const thread = (t.messages || []).map(m => `
+    <div class="msg"><div class="msg-meta">${esc(m.authorUsername)} · ${fmtDateTime(m.createdAt)}</div>${esc(m.body)}</div>`).join('')
+    || '<div class="empty">No replies yet.</div>';
+  const statusBtn = (val, label) => t.status === val ? '' :
+    `<button class="btn btn-light btn-sm" onclick="doTicketStatus(${t.id},'${val}')">${label}</button>`;
+  openModal(`
+    <h3>${esc(t.ticketNumber)} <span class="badge ${ticketStatusClass(t.status)}">${esc(TICKET_STATUS_LABEL[t.status] || t.status)}</span></h3>
+    <p style="margin:.2rem 0 .6rem"><b>${esc(t.subject)}</b></p>
+    <div class="cred" style="margin-bottom:.6rem">
+      <div><span>Society</span><code>${t.societyName ? esc(t.societyName) : 'General'}</code></div>
+      <div><span>Category</span><code>${esc(t.category)}</code></div>
+      <div><span>Priority</span><span class="pill ${pr}">${esc(t.priority)}</span></div>
+      ${t.contactEmail ? `<div><span>Contact</span><code>${esc(t.contactName || '')} ${esc(t.contactEmail)}</code></div>` : ''}
+    </div>
+    <p style="white-space:pre-wrap;margin:0 0 .6rem">${esc(t.description)}</p>
+    <div class="thread">${thread}</div>
+    <div class="field"><label>Add reply / note</label><textarea id="tk-reply" rows="2" placeholder="Type a message…"></textarea></div>
+    <p id="tk-dstatus" class="form-status"></p>
+    <div class="modal-actions" style="flex-wrap:wrap;gap:6px">
+      ${statusBtn('Open','Reopen')}${statusBtn('InProgress','In progress')}${statusBtn('Resolved','Resolve')}${statusBtn('Closed','Close')}
+      <span style="flex:1"></span>
+      <button class="btn btn-light" onclick="closeModal()">Close</button>
+      <button class="btn btn-primary" id="tk-reply-go" onclick="doTicketReply(${t.id})">Send reply</button>
+    </div>`);
+}
+async function doTicketReply(id){
+  const body = document.getElementById('tk-reply').value.trim();
+  const status = document.getElementById('tk-dstatus');
+  if(!body){ status.className = 'form-status err'; status.textContent = 'Enter a message.'; return; }
+  document.getElementById('tk-reply-go').disabled = true;
+  try{ const t = await Platform.ticketReply(id, body); renderTicketDetail(t); toast('Reply added', 'ok'); loadSupport(); }
+  catch(e){ status.className = 'form-status err'; status.textContent = '❌ ' + e.message; document.getElementById('tk-reply-go').disabled = false; }
+}
+async function doTicketStatus(id, status){
+  try{ const t = await Platform.ticketStatus(id, status, null); renderTicketDetail(t); toast('Status updated', 'ok'); loadSupport(); }
+  catch(e){ toast(e.message, 'warn'); }
+}
+
+// ══════════════ SETTINGS (platform config) ══════════════
+async function loadSettings(){
+  const el = document.getElementById('settingsForm');
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  try{
+    const s = await Platform.settings();
+    const plans = await Platform.plans().catch(() => []);
+    const planOpts = (plans || []).map(p =>
+      `<option value="${esc(p.code)}" ${s.defaultPlanCode === p.code ? 'selected' : ''}>${esc(p.name)} (${esc(p.code)})</option>`).join('');
+    el.innerHTML = `
+      <div class="section-label">Branding</div>
+      <div class="grid2">
+        <div class="field"><label>Brand name</label><input id="st-brand" value="${esc(s.brandName || '')}"></div>
+        <div class="field"><label>Support email</label><input id="st-supmail" value="${esc(s.supportEmail || '')}"></div>
+      </div>
+      <div class="section-label">Billing</div>
+      <div class="grid2">
+        <div class="field"><label>Default plan</label><select id="st-plan"><option value="">— none —</option>${planOpts}</select></div>
+        <div class="field"><label>Expiry warning (days)</label><input id="st-warn" type="number" min="0" max="365" value="${s.expiryWarningDays}"></div>
+      </div>
+      <div class="section-label">Email (SMTP)</div>
+      <div class="grid2">
+        <div class="field"><label>Host</label><input id="st-smtphost" value="${esc(s.smtpHost || '')}"></div>
+        <div class="field"><label>Port</label><input id="st-smtpport" type="number" min="1" max="65535" value="${s.smtpPort ?? ''}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>From email</label><input id="st-smtpfrom" value="${esc(s.smtpFromEmail || '')}"></div>
+        <div class="field"><label>Username</label><input id="st-smtpuser" value="${esc(s.smtpUsername || '')}" autocomplete="off"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Password ${s.smtpPasswordSet ? '<span class="pill green">set</span>' : ''}</label><input id="st-smtppass" type="password" placeholder="${s.smtpPasswordSet ? 'leave blank to keep' : 'not set'}" autocomplete="new-password"></div>
+        <div class="field"><label>Use SSL/TLS</label><select id="st-smtpssl"><option value="true" ${s.smtpEnableSsl ? 'selected' : ''}>Yes</option><option value="false" ${!s.smtpEnableSsl ? 'selected' : ''}>No</option></select></div>
+      </div>
+      <p id="st-status" class="form-status"></p>
+      <div class="modal-actions" style="justify-content:flex-end">
+        <button class="btn btn-primary" id="st-go" onclick="saveSettings()">Save settings</button>
+      </div>`;
+  }catch(e){ el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+async function saveSettings(){
+  const status = document.getElementById('st-status'), btn = document.getElementById('st-go');
+  const portVal = document.getElementById('st-smtpport').value.trim();
+  const payload = {
+    brandName: document.getElementById('st-brand').value.trim() || null,
+    supportEmail: document.getElementById('st-supmail').value.trim() || null,
+    defaultPlanCode: document.getElementById('st-plan').value || null,
+    expiryWarningDays: parseInt(document.getElementById('st-warn').value, 10),
+    smtpHost: document.getElementById('st-smtphost').value.trim() || null,
+    smtpPort: portVal ? parseInt(portVal, 10) : null,
+    smtpUsername: document.getElementById('st-smtpuser').value.trim() || null,
+    smtpFromEmail: document.getElementById('st-smtpfrom').value.trim() || null,
+    smtpEnableSsl: document.getElementById('st-smtpssl').value === 'true',
+    smtpPassword: document.getElementById('st-smtppass').value || null,
+  };
+  if(isNaN(payload.expiryWarningDays)) payload.expiryWarningDays = null;
+  status.className = 'form-status'; status.textContent = 'Saving…'; btn.disabled = true;
+  try{ await Platform.saveSettings(payload); toast('Settings saved', 'ok'); loadSettings(); }
+  catch(e){ btn.disabled = false; status.className = 'form-status err'; status.textContent = '❌ ' + e.message; }
 }
 
 // ─── boot ───

@@ -39,6 +39,16 @@ public static class ControlDbSeeder
                 new SubscriptionPlan { Code = "PREMIUM", Name = "Premium", Price = 9999m, BillingPeriodMonths = 12, Currency = "INR", IsActive = true });
         }
 
+        // 4. Default platform settings (only if none set yet).
+        if (!db.PlatformSettings.Any())
+        {
+            db.PlatformSettings.AddRange(
+                new PlatformSetting { Key = PlatformSettingKeys.BrandName, Value = "YuvaanSoft" },
+                new PlatformSetting { Key = PlatformSettingKeys.DefaultPlanCode, Value = "STANDARD" },
+                new PlatformSetting { Key = PlatformSettingKeys.ExpiryWarningDays, Value = "15" },
+                new PlatformSetting { Key = PlatformSettingKeys.SmtpEnableSsl, Value = "true" });
+        }
+
         db.SaveChanges();
     }
 

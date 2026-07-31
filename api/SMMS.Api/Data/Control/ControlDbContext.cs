@@ -12,6 +12,9 @@ public class ControlDbContext(DbContextOptions<ControlDbContext> options) : DbCo
     public DbSet<PlatformAuditLog> PlatformAuditLogs => Set<PlatformAuditLog>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<PlatformInvoice> PlatformInvoices => Set<PlatformInvoice>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
+    public DbSet<SupportTicketMessage> SupportTicketMessages => Set<SupportTicketMessage>();
+    public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,5 +53,25 @@ public class ControlDbContext(DbContextOptions<ControlDbContext> options) : DbCo
             .WithMany()
             .HasForeignKey(i => i.SubscriptionPlanId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupportTicket>()
+            .HasIndex(t => t.TicketNumber)
+            .IsUnique();
+
+        modelBuilder.Entity<SupportTicket>()
+            .HasOne(t => t.Society)
+            .WithMany()
+            .HasForeignKey(t => t.SocietyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SupportTicketMessage>()
+            .HasOne(m => m.Ticket)
+            .WithMany(t => t.Messages)
+            .HasForeignKey(m => m.TicketId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PlatformSetting>()
+            .HasIndex(s => s.Key)
+            .IsUnique();
     }
 }
