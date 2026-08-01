@@ -26,6 +26,7 @@
     <div class="nav-item admin-only" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
     <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
+    <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
     <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Collections</div>
     <div class="nav-sec admin-only">Management</div>
     <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
@@ -94,6 +95,9 @@
 
     <!-- EXPENSES (lazy-loaded from partials/expenses.html) -->
     <div id="tab-expenses" class="tab-content" data-partial="expenses"></div>
+
+    <!-- SOCIETY LIABILITIES (lazy-loaded from partials/liabilities.html) -->
+    <div id="tab-liabilities" class="tab-content" data-partial="liabilities"></div>
 
     <!-- MEMBERS (lazy-loaded from partials/members.html) -->
     <div id="tab-members" class="tab-content" data-partial="members"></div>
@@ -263,6 +267,47 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('exp')">Cancel</button>
       <button class="btn btn-primary" onclick="saveExpense()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-liab">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Record Society Liability</h3><button class="modal-close" onclick="closeModal('liab')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Source *</label><select id="liab-source" onchange="onLiabSourceChange()">
+        <option value="MemberContribution">Member Contribution</option>
+        <option value="TreasurerAdvance">Treasurer Advance</option>
+      </select></div>
+      <div class="form-group"><label>Member</label><select id="liab-member"></select></div>
+      <div class="form-group full" id="liab-contributor-row"><label>Contributor name (if external / non-member)</label><input type="text" id="liab-contributor" placeholder="Leave blank if a member is selected"></div>
+      <div class="form-group"><label>Date *</label><input type="date" id="liab-date"></div>
+      <div class="form-group"><label>Amount (₹) *</label><input type="number" id="liab-amount"></div>
+      <div class="form-group full"><label>Purpose</label><input type="text" id="liab-purpose" placeholder="e.g. Paid electrician bill from own pocket"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('liab')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLiability()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-stl">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Settle Liability</h3><button class="modal-close" onclick="closeModal('stl')">✕</button></div>
+    <p id="stl-info" style="color:var(--sub);font-size:13px;margin:0 0 6px;padding:0 4px;"></p>
+    <div class="form-grid">
+      <div class="form-group"><label>Amount (₹) *</label><input type="number" id="stl-amount"></div>
+      <div class="form-group"><label>Method *</label><select id="stl-method" onchange="onSettleMethodChange()">
+        <option value="Repaid">Repay cash (books an expense)</option>
+        <option value="ConvertedToAdvance">Convert to member's advance wallet</option>
+      </select></div>
+      <div class="form-group" id="stl-mode-row"><label>Payment Mode</label><select id="stl-mode"><option>Cash</option><option>UPI</option><option>Cheque</option><option>NEFT</option></select></div>
+      <div class="form-group full"><label>Note</label><input type="text" id="stl-note"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('stl')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSettlement()">💸 Settle</button>
     </div>
   </div>
 </div>

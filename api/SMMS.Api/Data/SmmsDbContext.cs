@@ -19,6 +19,8 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<CollectionLine> CollectionLines => Set<CollectionLine>();
     public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
     public DbSet<AdvanceLedgerEntry> AdvanceLedger => Set<AdvanceLedgerEntry>();
+    public DbSet<SocietyLiability> SocietyLiabilities => Set<SocietyLiability>();
+    public DbSet<SocietyLiabilitySettlement> SocietyLiabilitySettlements => Set<SocietyLiabilitySettlement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -136,8 +138,39 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         modelBuilder.Entity<AdvanceLedgerEntry>()
             .HasIndex(e => new { e.MemberId, e.Date });
 
+        // Enums stored as strings for readability + stability across enum reordering.
+        modelBuilder.Entity<SocietyLiability>()
+            .Property(l => l.Source).HasConversion<string>().HasMaxLength(30);
+        modelBuilder.Entity<SocietyLiability>()
+            .Property(l => l.Status).HasConversion<string>().HasMaxLength(20);
+        modelBuilder.Entity<SocietyLiabilitySettlement>()
+            .Property(s => s.Method).HasConversion<string>().HasMaxLength(30);
+
+        modelBuilder.Entity<SocietyLiability>()
+            .HasOne(l => l.Member)
+            .WithMany()
+            .HasForeignKey(l => l.MemberId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SocietyLiabilitySettlement>()
+            .HasOne(s => s.Liability)
+            .WithMany(l => l.Settlements)
+            .HasForeignKey(s => s.LiabilityId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SocietyLiabilitySettlement>()
+            .HasOne(s => s.Expense)
+            .WithMany()
+            .HasForeignKey(s => s.ExpenseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Speeds up the outstanding-liabilities dashboard/list scans.
+        modelBuilder.Entity<SocietyLiability>()
+            .HasIndex(l => new { l.Status, l.Date });
+
         // Soft delete: hide logically-deleted rows from every query automatically.
         modelBuilder.Entity<Expense>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Complaint>().HasQueryFilter(c => !c.IsDeleted);
+        modelBuilder.Entity<SocietyLiability>().HasQueryFilter(l => !l.IsDeleted);
     }
 }

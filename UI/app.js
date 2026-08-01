@@ -33,7 +33,7 @@ const COMPLAINT_CATEGORIES = ['Plumbing','Electrical','Security','Housekeeping',
 // DATA STORE
 // ═══════════════════════════════════════════════
 let DB = {
-  members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [],
+  members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [], liabilities: [],
   settings: {
     societyName:'', address:'', email:'', phone:'',
     registrationNumber:'', gst:'', pan:'', logoBase64:'',
@@ -43,8 +43,8 @@ let DB = {
     primaryColor:'#6c63ff', secondaryColor:'#1a1f36', applicationTitle:''
   }
 };
-let editId   = {col:null, exp:null, mem:null, cmp:null, user:null};
-let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1};
+let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null};
+let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1, liab:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
 // Resident self-service snapshot from GET /api/me (profile + payments + dues + complaint counts).
@@ -60,7 +60,7 @@ function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
 
 // Grantable module permission system — mirrors api/SMMS.Api/Services/PermissionService.cs.
 // Users/AuditLog are deliberately NOT grantable (stay Admin-only).
-const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings'];
+const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities'];
 function canView(module){ return isAdmin() || (currentUser && currentUser.permissions && ['View','Edit'].includes(currentUser.permissions[module])); }
 function canEdit(module){ return isAdmin() || (currentUser && currentUser.permissions && currentUser.permissions[module]==='Edit'); }
 
@@ -118,6 +118,13 @@ async function loadExpenses(){
     year: e.year,
     remarks: e.remarks || ''
   }));
+}
+
+async function loadLiabilities(){
+  try{
+    const data = await Api.getLiabilities();
+    DB.liabilities = Array.isArray(data) ? data : [];
+  }catch(err){ DB.liabilities = []; }
 }
 
 async function loadSettingsData(){
@@ -212,7 +219,7 @@ async function loadCoreData(){
   if(isAdmin()){
     await Promise.all([loadMembers(), loadSettingsData()]);
     await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
-    await Promise.all([loadUsers(), loadAuditLogData()]);
+    await Promise.all([loadUsers(), loadAuditLogData(), loadLiabilities()]);
   } else {
     // Residents get their self-service snapshot (/api/me) plus a READ-ONLY view
     // of society-wide finances (Dashboard/Collections/Expenses). Members hold
@@ -481,7 +488,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -509,7 +516,7 @@ async function showTab(t, el){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -647,6 +654,11 @@ function renderDashboard(){
   const advHolders = DB.members.filter(m=> (+fld(m,'advanceBalance','AdvanceBalance')||0) > 0).length;
   setText('kpi-adv','₹'+advTotal.toLocaleString('en-IN'));
   setText('kpi-adv-sub', advHolders+' member'+(advHolders===1?'':'s')+' hold credit');
+
+  const openLiabs = (DB.liabilities||[]).filter(l=>l.status!=='Settled');
+  const liabTotal = openLiabs.reduce((s,l)=>s+(l.outstanding||0), 0);
+  setText('kpi-liab','₹'+liabTotal.toLocaleString('en-IN'));
+  setText('kpi-liab-sub', openLiabs.length+' open item'+(openLiabs.length===1?'':'s'));
 
   document.getElementById('dash-col-tbody').innerHTML = [...DB.collections].reverse().slice(0,6).map(c=>{
     const st=getStatus(c)||'Unknown'; const stk=st.toLowerCase();
@@ -969,6 +981,164 @@ async function deleteExpense(id){
     await Api.deleteExpense(id);
     await loadExpenses();
     renderExpenses(); renderDashboard(); toast('Deleted!','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
+}
+
+// ═══════════════════════════════════════════════
+// SOCIETY LIABILITIES (money the society owes contributors)
+// ═══════════════════════════════════════════════
+const LIAB_SOURCES = { MemberContribution:'Member Contribution', TreasurerAdvance:'Treasurer Advance' };
+
+function renderLiabilities(){
+  if(!document.getElementById('liab-tbody')) return;   // partial not loaded yet
+  const stF = (document.getElementById('liabStatusF')||{}).value || '';
+  const search = ((document.getElementById('liabSearch')||{}).value || '').toLowerCase();
+  const data = DB.liabilities.filter(l=>{
+    return (!stF || l.status===stF)
+      && (!search || (l.contributorLabel||'').toLowerCase().includes(search) || (l.purpose||'').toLowerCase().includes(search));
+  });
+
+  const outstanding = DB.liabilities.filter(l=>l.status!=='Settled').reduce((s,l)=>s+(l.outstanding||0),0);
+  const openCount   = DB.liabilities.filter(l=>l.status!=='Settled').length;
+  const sumEl = document.getElementById('liab-summary');
+  if(sumEl) sumEl.innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);width:100%;">
+      <span style="font-size:12px;font-weight:700;color:var(--sub);">🏦 Society Liabilities</span>
+      <span style="margin-left:auto"></span>
+      <div style="text-align:center;padding:6px 16px;background:#fef3c7;border-radius:8px;">
+        <div style="font-size:10px;color:#92400e;margin-bottom:2px;">Outstanding</div>
+        <div style="font-size:16px;font-weight:800;color:#92400e;">₹${outstanding.toLocaleString('en-IN')}</div>
+      </div>
+      <div style="text-align:center;padding:6px 16px;background:var(--card);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--sub);margin-bottom:2px;">Open Items</div>
+        <div style="font-size:16px;font-weight:800;">${openCount}</div>
+      </div>
+    </div>`;
+
+  renderPage('liab', data, renderLiabRow);
+}
+
+function renderLiabRow(l, i){
+  const badge = { Open:'b-unpaid', PartiallySettled:'b-partial', Settled:'b-paid' }[l.status] || 'b-unpaid';
+  const daysPending = l.status==='Settled' ? '-' : Math.max(0, Math.floor((Date.now()-new Date(l.date).getTime())/86400000)) + 'd';
+  const canSettle = canEdit('Liabilities') && l.status!=='Settled';
+  const canDel    = canEdit('Liabilities') && (l.settledAmount||0)===0;
+  return `<tr>
+    <td>${i+1}</td>
+    <td>${l.contributorLabel||'—'}</td>
+    <td>${LIAB_SOURCES[l.source]||l.source}</td>
+    <td>${(l.date||'').split('T')[0]}</td>
+    <td>₹${(l.amount||0).toLocaleString('en-IN')}</td>
+    <td>₹${(l.outstanding||0).toLocaleString('en-IN')}</td>
+    <td>${daysPending}</td>
+    <td>${l.purpose||'-'}</td>
+    <td><span class="badge ${badge}">${l.status==='PartiallySettled'?'Partial':l.status}</span></td>
+    <td><div class="act-btns">
+      ${canSettle?`<button class="ic-btn" title="Settle" onclick="openSettleLiability(${l.id})">💸</button>`:''}
+      ${canDel?`<button class="ic-btn" title="Delete" onclick="deleteLiability(${l.id})">🗑️</button>`:''}
+    </div></td>
+  </tr>`;
+}
+
+function openLiabilityModal(){
+  if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
+  populateLiabMemberDropdown();
+  document.getElementById('liab-source').value = 'MemberContribution';
+  document.getElementById('liab-member').value = '';
+  document.getElementById('liab-contributor').value = '';
+  document.getElementById('liab-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('liab-amount').value = '';
+  document.getElementById('liab-purpose').value = '';
+  onLiabSourceChange();
+  document.getElementById('modal-liab').classList.add('open');
+}
+
+function populateLiabMemberDropdown(){
+  const sel = document.getElementById('liab-member');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">— External / non-member —</option>' +
+    DB.members.map(m=>`<option value="${m.id||m.Id}">${fld(m,'name','Name')} (${fld(m,'flat','Flat')})</option>`).join('');
+}
+
+function onLiabSourceChange(){
+  // Treasurer advances are always tied to a member; member contributions may be external.
+  const src = document.getElementById('liab-source').value;
+  const contribRow = document.getElementById('liab-contributor-row');
+  if(contribRow) contribRow.style.display = src==='MemberContribution' ? '' : 'none';
+}
+
+async function saveLiability(){
+  if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
+  const amount = +document.getElementById('liab-amount').value;
+  const memberId = document.getElementById('liab-member').value;
+  const contributor = document.getElementById('liab-contributor').value.trim();
+  if(!amount || amount<=0) return toast('Enter a valid amount','warn');
+  if(!memberId && !contributor) return toast('Pick a member or enter a contributor name','warn');
+  const payload = {
+    source: document.getElementById('liab-source').value,
+    memberId: memberId ? +memberId : null,
+    contributorName: memberId ? null : contributor,
+    date: document.getElementById('liab-date').value,
+    amount,
+    purpose: document.getElementById('liab-purpose').value.trim()
+  };
+  try{
+    await Api.createLiability(payload);
+    await loadLiabilities();
+    closeModal('liab'); renderLiabilities(); renderDashboard(); toast('Liability recorded!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+
+function openSettleLiability(id){
+  if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
+  const l = DB.liabilities.find(x=>x.id===id); if(!l) return;
+  editId.liab = id;
+  document.getElementById('stl-info').textContent =
+    `${l.contributorLabel} · Outstanding ₹${(l.outstanding||0).toLocaleString('en-IN')}`;
+  document.getElementById('stl-amount').value = l.outstanding || 0;
+  const methodSel = document.getElementById('stl-method');
+  // "Convert to advance" only makes sense for a linked member.
+  const advOpt = methodSel.querySelector('option[value="ConvertedToAdvance"]');
+  if(advOpt) advOpt.disabled = !l.memberId;
+  methodSel.value = 'Repaid';
+  document.getElementById('stl-mode').value = 'UPI';
+  document.getElementById('stl-note').value = '';
+  onSettleMethodChange();
+  document.getElementById('modal-stl').classList.add('open');
+}
+
+function onSettleMethodChange(){
+  const repaid = document.getElementById('stl-method').value === 'Repaid';
+  const modeRow = document.getElementById('stl-mode-row');
+  if(modeRow) modeRow.style.display = repaid ? '' : 'none';
+}
+
+async function saveSettlement(){
+  if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
+  const id = editId.liab; if(!id) return;
+  const amount = +document.getElementById('stl-amount').value;
+  if(!amount || amount<=0) return toast('Enter a valid amount','warn');
+  const method = document.getElementById('stl-method').value;
+  const payload = {
+    amount,
+    method,
+    paymentMode: method==='Repaid' ? document.getElementById('stl-mode').value : null,
+    note: document.getElementById('stl-note').value.trim()
+  };
+  try{
+    await Api.settleLiability(id, payload);
+    await Promise.all([loadLiabilities(), loadExpenses(), loadMembers()]);
+    closeModal('stl'); renderLiabilities(); renderDashboard(); toast('Settlement recorded!');
+  }catch(err){ toast(err.message || 'Settlement failed','warn'); }
+}
+
+async function deleteLiability(id){
+  if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
+  if(!confirm('Delete this liability?')) return;
+  try{
+    await Api.deleteLiability(id);
+    await loadLiabilities();
+    renderLiabilities(); renderDashboard(); toast('Deleted!','warn');
   }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
 
@@ -1517,7 +1687,7 @@ function renderPage(key, data, rowFn){
 }
 function changePage(k,d){ pages[k]+=d; refreshSection(k); }
 function setPage(k,p)   { pages[k]=p;  refreshSection(k); }
-function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')renderExpenses(); else if(k==='mem')renderMembers(); else if(k==='audit')renderAudit(); else if(k==='cmp')renderComplaints(); }
+function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')renderExpenses(); else if(k==='mem')renderMembers(); else if(k==='audit')renderAudit(); else if(k==='cmp')renderComplaints(); else if(k==='liab')renderLiabilities(); }
 
 // ═══════════════════════════════════════════════
 // MODAL HELPERS

@@ -128,6 +128,13 @@ const Api = {
   updateExpense: (id, payload) => apiFetch(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteExpense: (id) => apiFetch(`/expenses/${id}`, { method: 'DELETE' }),
 
+  // Society liabilities (money the society owes contributors)
+  getLiabilities: (status) => apiFetch('/society-liabilities' + (status ? `?status=${encodeURIComponent(status)}` : '')),
+  getLiabilitySummary: () => apiFetch('/society-liabilities/summary'),
+  createLiability: (payload) => apiFetch('/society-liabilities', { method: 'POST', body: JSON.stringify(payload) }),
+  settleLiability: (id, payload) => apiFetch(`/society-liabilities/${id}/settle`, { method: 'POST', body: JSON.stringify(payload) }),
+  deleteLiability: (id) => apiFetch(`/society-liabilities/${id}`, { method: 'DELETE' }),
+
   // Settings
   getSettings: () => apiFetch('/settings'),
   updateSettings: (payload) => apiFetch('/settings', { method: 'PUT', body: JSON.stringify(payload) }),
