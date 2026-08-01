@@ -1,9 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
-public class Complaint
+public class Complaint : IAuditable, ISoftDelete
 {
     public int Id { get; set; }
 
@@ -48,4 +49,11 @@ public class Complaint
 
     [MaxLength(150)]
     public string? AssignedTo { get; set; }
+
+    // ── Audit (IAuditable) + soft delete (ISoftDelete) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
+    public bool IsDeleted { get; set; }
 }

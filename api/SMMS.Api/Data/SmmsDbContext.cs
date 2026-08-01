@@ -135,5 +135,9 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         // Speeds up per-member ledger reads (Member Ledger / Advance Deduction History reports).
         modelBuilder.Entity<AdvanceLedgerEntry>()
             .HasIndex(e => new { e.MemberId, e.Date });
+
+        // Soft delete: hide logically-deleted rows from every query automatically.
+        modelBuilder.Entity<Expense>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Complaint>().HasQueryFilter(c => !c.IsDeleted);
     }
 }

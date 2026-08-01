@@ -1,10 +1,18 @@
 version: "3.9"
 
+# Cap every container's log file so runaway logs can never fill the VM disk.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
+    logging: *default-logging
 
     environment:
       ACCEPT_EULA: "Y"
@@ -22,6 +30,7 @@ services:
       context: ./api/SMMS.Api
 
     container_name: smms-api
+    logging: *default-logging
 
     depends_on:
       - sqlserver
@@ -60,6 +69,7 @@ services:
   smms-ui:
     image: nginx:alpine
     container_name: smms-ui
+    logging: *default-logging
 
     ports:
       - "80:80"

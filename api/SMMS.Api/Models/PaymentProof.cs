@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
@@ -10,7 +11,7 @@ namespace SMMS.Api.Models;
 /// ICICI Smart Collect) can populate <see cref="GatewayName"/>/<see cref="GatewayReference"/>
 /// on the same table without a schema change.
 /// </summary>
-public class PaymentProof
+public class PaymentProof : IAuditable
 {
     public int Id { get; set; }
 
@@ -69,4 +70,10 @@ public class PaymentProof
 
     [MaxLength(120)]
     public string? GatewayReference { get; set; }
+
+    // ── Audit (IAuditable) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
 }

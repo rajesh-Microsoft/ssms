@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
 /// <summary>Single-row table holding society-wide configuration.</summary>
-public class SocietySettings
+public class SocietySettings : IAuditable
 {
     public int Id { get; set; }
 
@@ -111,4 +112,10 @@ public class SocietySettings
 
     [MaxLength(20)]
     public string? BankIfsc { get; set; }
+
+    // ── Audit (IAuditable) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
 }

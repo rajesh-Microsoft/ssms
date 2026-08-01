@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
-public class User
+public class User : IAuditable
 {
     public int Id { get; set; }
 
@@ -65,5 +66,15 @@ public class User
     /// <summary>JSON object of notification preferences: {"sms":true,"email":true,"whatsapp":false}.</summary>
     public string? NotifyPrefsJson { get; set; }
 
+    /// <summary>When true, the user is forced to set a new password on their next login before
+    /// entering the app. Set for bulk-onboarded accounts seeded with a default (mobile-number) password.</summary>
+    public bool MustChangePassword { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // ── Audit (IAuditable) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
 }

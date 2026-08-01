@@ -35,7 +35,8 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
             return Unauthorized(new { message = "Invalid username or password." });
 
         var token = tokenService.CreateToken(user, tenantContext.Current!.Key);
-        return Ok(new LoginResponse(token, user.Id, user.Username, user.Role, PermissionHelper.Parse(user.Permissions)));
+        return Ok(new LoginResponse(token, user.Id, user.Username, user.Role,
+            PermissionHelper.Parse(user.Permissions), user.MustChangePassword));
     }
 
     [HttpPost("signup")]

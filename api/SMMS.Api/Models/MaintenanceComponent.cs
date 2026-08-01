@@ -1,11 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
 /// <summary>A single billable head (e.g. "Sinking Fund"). Data-driven: admins add/edit/remove
 /// these without code changes. The Method decides which calculation strategy runs.</summary>
-public class MaintenanceComponent
+public class MaintenanceComponent : IAuditable
 {
     public int Id { get; set; }
 
@@ -50,4 +51,10 @@ public class MaintenanceComponent
 
     public ICollection<MaintenanceComponentRate> Rates { get; set; } = new List<MaintenanceComponentRate>();
     public ICollection<MaintenanceComponentFlatOverride> FlatOverrides { get; set; } = new List<MaintenanceComponentFlatOverride>();
+
+    // ── Audit (IAuditable) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
 }

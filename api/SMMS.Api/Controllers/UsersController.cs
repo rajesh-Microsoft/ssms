@@ -47,7 +47,8 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
             Mobile = request.Mobile,
             Flat = request.Flat,
             Floor = request.Floor,
-            Permissions = request.Permissions is null ? null : PermissionHelper.Serialize(request.Permissions)
+            Permissions = request.Permissions is null ? null : PermissionHelper.Serialize(request.Permissions),
+            MustChangePassword = request.MustChangePassword
         };
         user.PasswordHash = Hasher.HashPassword(user, request.Password);
 

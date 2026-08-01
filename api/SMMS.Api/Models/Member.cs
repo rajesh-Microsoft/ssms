@@ -1,9 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
-public class Member
+public class Member : IAuditable
 {
     public int Id { get; set; }
 
@@ -47,4 +48,10 @@ public class Member
     public string AdvanceMode { get; set; } = "Auto";
 
     public ICollection<Collection> Collections { get; set; } = new List<Collection>();
+
+    // ── Audit (IAuditable) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
 }

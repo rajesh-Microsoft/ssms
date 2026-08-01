@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -40,6 +41,8 @@ builder.Services.AddSingleton<DbTenantStore>();
 builder.Services.AddSingleton<ITenantStore>(sp => sp.GetRequiredService<DbTenantStore>());
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
+builder.Services.AddScoped<SMMS.Api.Data.Interceptors.AuditSaveChangesInterceptor>();
+
 builder.Services.AddDbContext<SmmsDbContext>((sp, options) =>
 {
     var tenant = sp.GetRequiredService<ITenantContext>().Current
@@ -47,6 +50,7 @@ builder.Services.AddDbContext<SmmsDbContext>((sp, options) =>
             "Tenant has not been resolved yet. Ensure TenantResolutionMiddleware runs (or " +
             "ITenantContext.Current is set) before the DbContext is used.");
     options.UseSqlServer(tenant.ConnectionString);
+    options.AddInterceptors(sp.GetRequiredService<SMMS.Api.Data.Interceptors.AuditSaveChangesInterceptor>());
 });
 
 var jwtSettings = new JwtSettings
@@ -199,6 +203,34 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// Lightweight liveness/readiness probe. Runs first so it needs no token or resolved subdomain —
+// safe for Azure availability tests / uptime pollers. Reports control-DB connectivity + uptime.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/api/health")
+    {
+        bool dbOk;
+        try
+        {
+            var controlDb = context.RequestServices.GetRequiredService<ControlDbContext>();
+            dbOk = await controlDb.Database.CanConnectAsync();
+        }
+        catch { dbOk = false; }
+
+        var uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime.ToUniversalTime();
+        context.Response.StatusCode = dbOk ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            status = dbOk ? "Healthy" : "Unhealthy",
+            database = dbOk ? "Connected" : "Unreachable",
+            uptime = $"{(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m",
+            timestamp = DateTime.UtcNow
+        });
+        return;
+    }
+    await next(context);
+});
 
 // Must run first so downstream middleware sees the client's real scheme/IP from nginx.
 app.UseForwardedHeaders();

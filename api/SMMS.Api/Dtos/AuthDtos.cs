@@ -11,7 +11,8 @@ public record LoginResponse(
     int UserId,
     string Username,
     string Role,
-    Dictionary<string, string> Permissions);
+    Dictionary<string, string> Permissions,
+    bool MustChangePassword);
 
 public record SignupRequest(
     [Required, MaxLength(150)] string Name,

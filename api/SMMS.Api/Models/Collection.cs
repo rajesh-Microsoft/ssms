@@ -1,9 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using SMMS.Api.Models.Auditing;
 
 namespace SMMS.Api.Models;
 
-public class Collection
+public class Collection : IAuditable
 {
     public int Id { get; set; }
 
@@ -68,4 +69,10 @@ public class Collection
 
     /// <summary>Per-component breakdown produced by the maintenance rule engine.</summary>
     public ICollection<CollectionLine> Lines { get; set; } = new List<CollectionLine>();
+
+    // ── Audit (IAuditable) ──
+    public DateTime CreatedOn { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTime? ModifiedOn { get; set; }
+    public string? ModifiedBy { get; set; }
 }

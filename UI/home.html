@@ -112,6 +112,20 @@
   </div>
 </div>
 
+<!-- Forced first-login password change: shown when the API returns mustChangePassword=true.
+     No back/close button on purpose — the member must set a new password to continue. -->
+<div class="login-screen" id="forcepwScreen">
+  <div class="login-card">
+    <div class="auth-logo"><div class="logo-icon">🔐</div></div>
+    <h2 style="text-align:center;margin-bottom:4px;">Set a New Password</h2>
+    <p style="text-align:center;font-size:12px;color:var(--sub);margin-bottom:16px;">For your security, please choose a new password before continuing.</p>
+    <div class="setting-row"><label>New Password</label><input type="password" id="force-newpw" placeholder="Min 4 characters"></div>
+    <div class="setting-row"><label>Confirm New Password</label><input type="password" id="force-newpw2" onkeydown="if(event.key==='Enter')submitForcedPasswordChange()"></div>
+    <div class="login-error" id="forceError"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:6px;" onclick="submitForcedPasswordChange()">Save &amp; Continue</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- ============ HERO ============ -->
@@ -513,6 +527,21 @@ async function attemptLogin(){
 
   try{
     const res = await Api.login(username, password);
+    // Bulk-onboarded members start with a default (mobile-number) password and
+    // must set a new one before entering the app. Hold only the token in the
+    // session so this authenticated /me call works, but withhold the full
+    // session (so index.html can't be reached) until the change succeeds.
+    if(res.mustChangePassword){
+      forcePwState = { token: res.token, res, currentPassword: password };
+      sessionStorage.setItem('smms_token', res.token);
+      closeAuthOverlay();
+      document.getElementById('forcepwScreen').style.display = 'flex';
+      document.getElementById('forceError').textContent = '';
+      document.getElementById('force-newpw').value = '';
+      document.getElementById('force-newpw2').value = '';
+      document.getElementById('force-newpw').focus();
+      return;
+    }
     // Hand the authenticated session (JWT + user info) off to index.html
     // (the dashboard) — we only ever navigate away from home.html after a
     // successful login.
@@ -520,6 +549,28 @@ async function attemptLogin(){
     window.location.href = 'index.html';
   }catch(err){
     errEl.textContent = '❌ ' + (err.message || 'Invalid username or password.');
+  }
+}
+
+// Forced first-login password change. `forcePwState` carries the login result
+// captured in attemptLogin() so we can complete the session once the password
+// is changed via the (token-authenticated) /me/change-password endpoint.
+let forcePwState = null;
+async function submitForcedPasswordChange(){
+  const pw = document.getElementById('force-newpw').value;
+  const pw2 = document.getElementById('force-newpw2').value;
+  const errEl = document.getElementById('forceError');
+  errEl.textContent = '';
+  if(!pw || pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
+  if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
+  if(pw === forcePwState.currentPassword){ errEl.textContent = 'Please choose a password different from the default.'; return; }
+  try{
+    await Api.changeMyPassword(forcePwState.currentPassword, pw);
+    const r = forcePwState.res;
+    apiSetSession(r.token, r.userId, r.username, r.role, r.permissions);
+    window.location.href = 'index.html';
+  }catch(err){
+    errEl.textContent = '❌ ' + (err.message || 'Could not update password.');
   }
 }
 </script>

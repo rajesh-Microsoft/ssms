@@ -145,6 +145,7 @@ public class MeController(SmmsDbContext db, AuditService audit, MaintenanceCalcu
             return BadRequest(new { message = "Current password is incorrect." });
 
         user.PasswordHash = Hasher.HashPassword(user, request.NewPassword);
+        user.MustChangePassword = false;
         await db.SaveChangesAsync();
         await audit.LogAsync("Users", "ChangePassword", $"{user.Username} changed their password");
         return NoContent();

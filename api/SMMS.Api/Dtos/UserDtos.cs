@@ -14,7 +14,8 @@ public record UserCreateRequest(
     string? Flat,
     string? Floor,
     string Status = "Active",
-    Dictionary<string, string>? Permissions = null);
+    Dictionary<string, string>? Permissions = null,
+    bool MustChangePassword = false);
 
 public record UserUpdateRequest(
     [Required, MaxLength(50)] string Username,
