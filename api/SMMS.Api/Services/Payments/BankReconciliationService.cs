@@ -1,9 +1,11 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using ExcelDataReader;
 using Microsoft.EntityFrameworkCore;
 using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
+using UglyToad.PdfPig;
 
 namespace SMMS.Api.Services.Payments;
 
@@ -16,6 +18,10 @@ namespace SMMS.Api.Services.Payments;
 /// </summary>
 public class BankReconciliationService(SmmsDbContext db, PaymentService payments, AuditService audit)
 {
+    // ExcelDataReader needs legacy code pages registered to read older .xls files.
+    static BankReconciliationService() =>
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
     private static readonly string[] DateHeaders = { "transaction date", "value date", "txn date", "date", "tran date" };
     private static readonly string[] NarrationHeaders = { "transaction remarks", "transaction description", "narration", "description", "particulars", "remarks" };
     private static readonly string[] CreditHeaders = { "deposit amount(inr)", "deposit amount", "credit amount", "credit(inr)", "credit", "deposit", "cr amount" };
@@ -24,9 +30,9 @@ public class BankReconciliationService(SmmsDbContext db, PaymentService payments
     private const int DateWindowDays = 5;
 
     // ── Import ──────────────────────────────────────────────────────────────
-    public async Task<ImportResultDto> ImportCsvAsync(Stream csv, CancellationToken ct = default)
+    public async Task<ImportResultDto> ImportAsync(Stream input, string fileName, CancellationToken ct = default)
     {
-        var parsed = ParseCsv(csv);
+        var parsed = ParseFile(input, fileName);
         var batch = "BATCH-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
 
         // Existing keys for idempotent re-imports of overlapping statements.
@@ -202,6 +208,42 @@ public class BankReconciliationService(SmmsDbContext db, PaymentService payments
     private sealed record CreditRow(DateTime Date, string Narration, decimal Amount);
     private sealed record ParsedStatement(int TotalRows, int SkippedDebits, List<CreditRow> Credits);
 
+    // Dispatch on file type (CSV / Excel / PDF), sniffing content when the extension is unknown.
+    private static ParsedStatement ParseFile(Stream input, string fileName)
+    {
+        using var ms = new MemoryStream();
+        input.CopyTo(ms);
+        if (ms.Length == 0) throw new InvalidOperationException("The uploaded file is empty.");
+        ms.Position = 0;
+
+        var ext = Path.GetExtension(fileName ?? "").ToLowerInvariant();
+        var kind = ext switch
+        {
+            ".pdf" => "pdf",
+            ".xls" or ".xlsx" or ".xlsm" => "excel",
+            ".csv" or ".txt" or "" => "csv",
+            _ => SniffKind(ms)
+        };
+        ms.Position = 0;
+        return kind switch
+        {
+            "pdf" => ParsePdf(ms),
+            "excel" => ParseExcel(ms),
+            _ => ParseCsv(ms)
+        };
+    }
+
+    private static string SniffKind(MemoryStream ms)
+    {
+        Span<byte> head = stackalloc byte[8];
+        int n = ms.Read(head);
+        ms.Position = 0;
+        if (n >= 4 && head[0] == 0x25 && head[1] == 0x50 && head[2] == 0x44 && head[3] == 0x46) return "pdf";  // %PDF
+        if (n >= 2 && head[0] == 0x50 && head[1] == 0x4B) return "excel";                                       // PK zip -> .xlsx
+        if (n >= 4 && head[0] == 0xD0 && head[1] == 0xCF && head[2] == 0x11 && head[3] == 0xE0) return "excel";  // OLE -> .xls
+        return "csv";
+    }
+
     private static ParsedStatement ParseCsv(Stream csv)
     {
         using var reader = new StreamReader(csv, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
@@ -212,9 +254,42 @@ public class BankReconciliationService(SmmsDbContext db, PaymentService payments
             if (string.IsNullOrWhiteSpace(line)) continue;
             lines.Add(SplitCsvLine(line));
         }
+        return BuildFromRows(lines);
+    }
+
+    private static ParsedStatement ParseExcel(Stream excel)
+    {
+        using var reader = ExcelReaderFactory.CreateReader(excel);
+        var lines = new List<string[]>();
+        do
+        {
+            while (reader.Read())
+            {
+                var row = new string[reader.FieldCount];
+                bool any = false;
+                for (int c = 0; c < reader.FieldCount; c++)
+                {
+                    var v = reader.GetValue(c);
+                    row[c] = v switch
+                    {
+                        null => "",
+                        DateTime dt => dt.ToString("dd/MM/yyyy"),
+                        double d => d.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        _ => v.ToString() ?? ""
+                    };
+                    if (row[c].Trim().Length > 0) any = true;
+                }
+                if (any) lines.Add(row);
+            }
+        } while (reader.NextResult());
+        return BuildFromRows(lines);
+    }
+
+    // Shared header-detection + credit extraction for row-based sources (CSV, Excel).
+    private static ParsedStatement BuildFromRows(List<string[]> lines)
+    {
         if (lines.Count == 0) throw new InvalidOperationException("The file appears to be empty.");
 
-        // Find the header row (first row that has a narration + a credit/debit column).
         int headerIdx = -1;
         Dictionary<string, int> idx = new();
         for (int i = 0; i < lines.Count; i++)
@@ -226,7 +301,7 @@ public class BankReconciliationService(SmmsDbContext db, PaymentService payments
             }
         }
         if (headerIdx < 0)
-            throw new InvalidOperationException("Could not find recognizable columns (narration + deposit/withdrawal). Please upload a bank statement CSV.");
+            throw new InvalidOperationException("Could not find recognizable columns (narration + deposit/withdrawal). Please upload a bank statement CSV, Excel or PDF.");
 
         int total = 0, skippedDebits = 0;
         var credits = new List<CreditRow>();
@@ -245,6 +320,115 @@ public class BankReconciliationService(SmmsDbContext db, PaymentService payments
         }
         return new ParsedStatement(total, skippedDebits, credits);
     }
+
+    // ── PDF (ICICI 'OpTransactionHistory' layout) ─────────────────────────────
+    // Rows are located by an S.No + date "anchor" line; the deposit/withdrawal is picked by the
+    // amount word's column (its right edge), and the wrapped UPI remark lines below are stitched
+    // back together so the 12-digit UTR survives.
+    private sealed record PdfWord(string Text, double Left, double Right, double Top);
+    private static readonly Regex PdfAmount = new(@"^[\d,]+\.\d{2}$", RegexOptions.Compiled);
+    private static readonly Regex PdfDate = new(@"^\d{2}\.\d{2}\.\d{4}$", RegexOptions.Compiled);
+
+    private static ParsedStatement ParsePdf(Stream pdf)
+    {
+        var credits = new List<CreditRow>();
+        int total = 0, skippedDebits = 0;
+
+        using var doc = PdfDocument.Open(pdf);
+        foreach (var page in doc.GetPages())
+        {
+            var words = page.GetWords()
+                .Select(w => new PdfWord(w.Text, w.BoundingBox.Left, w.BoundingBox.Right, w.BoundingBox.Top))
+                .ToList();
+
+            var anchors = new List<(PdfWord sno, PdfWord date)>();
+            foreach (var w in words)
+            {
+                if (w.Left < 60 && int.TryParse(w.Text, out _))
+                {
+                    var date = words.FirstOrDefault(d => Math.Abs(d.Top - w.Top) < 3 && PdfDate.IsMatch(d.Text));
+                    if (date is not null) anchors.Add((w, date));
+                }
+            }
+            anchors = anchors.OrderByDescending(a => a.sno.Top).ToList(); // page reading order: top -> bottom
+
+            for (int i = 0; i < anchors.Count; i++)
+            {
+                var (sno, date) = anchors[i];
+                double lineTop = sno.Top;
+
+                decimal deposit = 0m, withdrawal = 0m;
+                foreach (var w in words.Where(w => Math.Abs(w.Top - lineTop) < 3 && PdfAmount.IsMatch(w.Text)))
+                {
+                    var val = ToDecimal(w.Text);
+                    switch (PdfColumn(w.Right))
+                    {
+                        case "deposit": deposit = val; break;
+                        case "withdrawal": withdrawal = val; break;
+                    }
+                }
+
+                double lowerBound = i + 1 < anchors.Count ? anchors[i + 1].sno.Top : lineTop - 60;
+                var remarkWords = words
+                    .Where(w => w.Top < lineTop - 1 && w.Top > lowerBound && w.Left < 395)
+                    .OrderByDescending(w => w.Top)
+                    .ToList();
+                var narration = string.Join(" ", CollectLines(remarkWords));
+
+                total++;
+                if (deposit > 0) credits.Add(new CreditRow(ParsePdfDate(date.Text), narration, deposit));
+                else if (withdrawal > 0) skippedDebits++;
+            }
+        }
+
+        if (total == 0)
+            throw new InvalidOperationException("Could not read any transactions from this PDF. Please upload the CSV or Excel version of the statement instead.");
+        return new ParsedStatement(total, skippedDebits, credits);
+    }
+
+    private static string PdfColumn(double right) => right switch
+    {
+        >= 448 and <= 458 => "withdrawal",
+        >= 514 and <= 524 => "deposit",
+        >= 566 and <= 576 => "balance",
+        _ => "?"
+    };
+
+    // Group remark words (already sorted top->bottom) into lines; stop at a large vertical gap.
+    private static IEnumerable<string> CollectLines(List<PdfWord> words)
+    {
+        var lines = new List<string>();
+        var current = new List<PdfWord>();
+        double lineTop = double.NaN;
+        foreach (var w in words)
+        {
+            if (current.Count == 0) { current.Add(w); lineTop = w.Top; continue; }
+            if (Math.Abs(lineTop - w.Top) < 3) { current.Add(w); continue; }
+            double gap = lineTop - w.Top;
+            lines.Add(string.Join(" ", current.OrderBy(x => x.Left).Select(x => x.Text)));
+            current.Clear();
+            if (gap > 16) return TrimTrailingName(lines); // footer / next block
+            current.Add(w); lineTop = w.Top;
+        }
+        if (current.Count > 0)
+            lines.Add(string.Join(" ", current.OrderBy(x => x.Left).Select(x => x.Text)));
+        return TrimTrailingName(lines);
+    }
+
+    // Drop a trailing bare-name line (the next row's payer fragment sitting above its anchor).
+    private static List<string> TrimTrailingName(List<string> lines)
+    {
+        if (lines.Count > 1)
+        {
+            var last = lines[^1];
+            if (!last.Contains('/') && !last.Any(char.IsDigit)) lines.RemoveAt(lines.Count - 1);
+        }
+        return lines;
+    }
+
+    private static DateTime ParsePdfDate(string ddmmyyyy) =>
+        DateTime.TryParseExact(ddmmyyyy, "dd.MM.yyyy", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var d) ? d : DateTime.UtcNow.Date;
 
     private static Dictionary<string, int> MapHeaders(string[] header)
     {

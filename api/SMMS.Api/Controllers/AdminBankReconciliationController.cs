@@ -6,16 +6,16 @@ using SMMS.Api.Services.Payments;
 namespace SMMS.Api.Controllers;
 
 /// <summary>
-/// Admin-only bank-statement reconciliation: upload a CSV export of incoming credits, auto-match
-/// them to pending payment proofs by UTR/amount, and confirm or ignore the remaining suggestions.
-/// Confirming a match approves the linked proof and marks its charge Paid.
+/// Admin-only bank-statement reconciliation: upload a CSV, Excel or PDF export of incoming credits,
+/// auto-match them to pending payment proofs by UTR/amount, and confirm or ignore the remaining
+/// suggestions. Confirming a match approves the linked proof and marks its charge Paid.
 /// </summary>
 [ApiController]
 [Route("api/admin/reconciliation")]
 [Authorize(Roles = "Admin")]
 public class AdminBankReconciliationController(BankReconciliationService recon) : ControllerBase
 {
-    private const long MaxUploadBytes = 5 * 1024 * 1024;
+    private const long MaxUploadBytes = 10 * 1024 * 1024;
 
     [HttpGet("summary")]
     public async Task<ActionResult<ReconciliationSummaryDto>> Summary(CancellationToken ct)
@@ -30,14 +30,14 @@ public class AdminBankReconciliationController(BankReconciliationService recon) 
     public async Task<ActionResult<ImportResultDto>> Import(IFormFile? file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
-            return BadRequest(new { message = "Please choose a bank statement CSV file to import." });
+            return BadRequest(new { message = "Please choose a bank statement file (CSV, Excel or PDF) to import." });
         if (file.Length > MaxUploadBytes)
-            return BadRequest(new { message = "File is too large (max 5 MB)." });
+            return BadRequest(new { message = "File is too large (max 10 MB)." });
 
         try
         {
             await using var stream = file.OpenReadStream();
-            var result = await recon.ImportCsvAsync(stream, ct);
+            var result = await recon.ImportAsync(stream, file.FileName, ct);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

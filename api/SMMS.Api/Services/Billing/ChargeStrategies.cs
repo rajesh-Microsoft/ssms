@@ -36,6 +36,14 @@ public sealed class PerFlatTypeStrategy : IChargeStrategy
         => RateLookup.ByKey(c, f.FlatType);
 }
 
+public sealed class PerSquareFootByFlatTypeStrategy : IChargeStrategy
+{
+    public CalculationMethod Method => CalculationMethod.PerSquareFootByFlatType;
+    // Rate/sq ft looked up by flat type, then multiplied by this flat's own carpet area.
+    public decimal Calculate(MaintenanceComponent c, FlatContext f, IReadOnlyDictionary<int, decimal> _)
+        => RateLookup.ByKey(c, f.FlatType) * f.AreaSqFt;
+}
+
 public sealed class PerTowerStrategy : IChargeStrategy
 {
     public CalculationMethod Method => CalculationMethod.PerTower;

@@ -11,6 +11,7 @@ let _components = [];
 const METHOD_LABELS = {
   FixedAmount: 'Fixed Amount',
   PerSquareFoot: 'Per Square Foot',
+  PerSquareFootByFlatType: 'Per Sq Ft by Flat Type',
   Percentage: 'Percentage',
   PerFlatType: 'Flat Type',
   PerTower: 'Tower / Block',
@@ -47,6 +48,7 @@ function keysForMethod(method, field){
   let configured = [];
   if(method === 'PerTower') configured = s.towers || [];
   else if(method === 'PerFloor') configured = s.floors || [];
+  else if(method === 'PerFlatType' || method === 'PerSquareFootByFlatType') configured = s.flatTypes || [];
   return [...new Set([...configured.map(String), ...mDistinct(field).map(String)])];
 }
 
@@ -88,6 +90,8 @@ function describeRate(c){
     case 'PerSquareFoot': return mMoney(c.amount) + ' / sq ft';
     case 'Percentage':    return (c.percentageValue ?? 0) + '%';
     case 'CustomPerFlat': return 'default ' + mMoney(c.amount);
+    case 'PerSquareFootByFlatType':
+      return (c.rates || []).map(r => `${mEsc(r.key)}: ${mMoney(r.amount)} / sq ft`).join(', ') || '—';
     default:              return (c.rates || []).map(r => `${mEsc(r.key)}: ${mMoney(r.amount)}`).join(', ') || '—';
   }
 }
@@ -141,7 +145,7 @@ function onComponentMethodChange(){
 
   const needsAmount = ['FixedAmount', 'PerSquareFoot', 'CustomPerFlat', 'Manual'].includes(method);
   const isPercent   = method === 'Percentage';
-  const isKeyed     = ['PerFlatType', 'PerTower', 'PerFloor'].includes(method);
+  const isKeyed     = ['PerFlatType', 'PerTower', 'PerFloor', 'PerSquareFootByFlatType'].includes(method);
 
   show('comp-amount-wrap', needsAmount);
   show('comp-percent-wrap', isPercent);
@@ -152,9 +156,11 @@ function onComponentMethodChange(){
     method === 'PerSquareFoot' ? 'Rate per sq ft (₹)' : (method === 'CustomPerFlat' ? 'Default amount (₹)' : 'Amount (₹)');
 
   if(isKeyed){
-    const field = method === 'PerFlatType' ? 'flatType' : (method === 'PerTower' ? 'tower' : 'floor');
+    const field = (method === 'PerFlatType' || method === 'PerSquareFootByFlatType') ? 'flatType'
+      : (method === 'PerTower' ? 'tower' : 'floor');
     document.getElementById('comp-rates-label').textContent =
-      (method === 'PerFlatType' ? 'Flat type' : method === 'PerTower' ? 'Tower' : 'Floor') + ' rates';
+      method === 'PerSquareFootByFlatType' ? 'Flat-type rate per sq ft (₹)'
+      : (method === 'PerFlatType' ? 'Flat type' : method === 'PerTower' ? 'Tower' : 'Floor') + ' rates';
     if(document.getElementById('comp-rates').children.length === 0){
       keysForMethod(method, field).forEach(k => addRateRow(k, 0));
       if(document.getElementById('comp-rates').children.length === 0) addRateRow('', 0);

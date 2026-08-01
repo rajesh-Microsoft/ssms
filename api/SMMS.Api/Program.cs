@@ -85,6 +85,7 @@ builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Ap
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerSquareFootStrategy>();
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PercentageStrategy>();
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerFlatTypeStrategy>();
+builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerSquareFootByFlatTypeStrategy>();
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerTowerStrategy>();
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.PerFloorStrategy>();
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Api.Services.Billing.CustomPerFlatStrategy>();

@@ -39,9 +39,9 @@
       <option value="">All</option>
     </select>
   </div>
-  <p class="mhint">Upload your bank statement CSV (incoming credits). Payments are auto-matched to residents by UTR reference; confirm or ignore the rest. Confirming a match approves the resident's payment and marks the invoice Paid.</p>
+  <p class="mhint">Upload your bank statement (CSV, Excel or PDF) of incoming credits. Payments are auto-matched to residents by UTR reference; confirm or ignore the rest. Confirming a match approves the resident's payment and marks the invoice Paid.</p>
   <div class="form-actions" style="align-items:center;gap:10px;">
-    <input type="file" id="recon-file" accept=".csv,text/csv" style="max-width:320px;">
+    <input type="file" id="recon-file" accept=".csv,.xls,.xlsx,.pdf,text/csv,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="max-width:320px;">
     <button class="btn btn-primary" onclick="importBankStatement()">⬆️ Import Statement</button>
   </div>
   <div id="recon-summary" class="mhint" style="margin:8px 0;"></div>

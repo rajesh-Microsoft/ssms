@@ -140,6 +140,7 @@ async function loadSettingsData(){
     financialYear: s.financialYear || '',
     floors: (s.floors && s.floors.length) ? s.floors : ['1','2','3','4','5'],
     towers: (s.towers && s.towers.length) ? s.towers : [],
+    flatTypes: (s.flatTypes && s.flatTypes.length) ? s.flatTypes : ['1 BHK','1.5 BHK','2 BHK','2.5 BHK','3 BHK'],
     maintenanceCalcMethod: s.maintenanceCalcMethod || 'FixedAmount',
     categories: (s.categories && s.categories.length) ? s.categories : DB.settings.categories,
     theme: s.theme || 'light',
@@ -168,6 +169,7 @@ function currentSettingsPayload(overrides = {}){
     financialYear: DB.settings.financialYear,
     floors: DB.settings.floors,
     towers: DB.settings.towers,
+    flatTypes: DB.settings.flatTypes,
     maintenanceCalcMethod: DB.settings.maintenanceCalcMethod,
     categories: DB.settings.categories,
     theme: DB.settings.theme || 'light',
@@ -1042,7 +1044,7 @@ function editMember(id){
   document.getElementById('mem-flat').value   = fld(m,'flat','Flat');
   document.getElementById('mem-floor').value  = fld(m,'floor','Floor');
   document.getElementById('mem-area').value     = fld(m,'areaSqFt','AreaSqFt')||'';
-  document.getElementById('mem-flattype').value = fld(m,'flatType','FlatType')||'';
+  populateFlatTypeDropdown(fld(m,'flatType','FlatType')||'');
   document.getElementById('mem-tower').value    = fld(m,'tower','Tower')||'';
   document.getElementById('mem-mobile').value = fld(m,'mobile','Mobile');
   document.getElementById('mem-email').value  = fld(m,'email','Email');
@@ -1206,6 +1208,7 @@ function loadSettingsUI(){
   document.getElementById('set-fy').value=s.financialYear||'';
   document.getElementById('set-wings').value=(s.floors||[]).join(',');
   if(document.getElementById('set-towers')) document.getElementById('set-towers').value=(s.towers||[]).join(',');
+  if(document.getElementById('set-flattypes')) document.getElementById('set-flattypes').value=(s.flatTypes||[]).join(',');
   document.getElementById('set-theme').value=s.theme||'light';
   document.getElementById('set-apptitle').value=s.applicationTitle||'';
   document.getElementById('set-primary').value=s.primaryColor||'#6c63ff';
@@ -1248,6 +1251,7 @@ async function saveSettings(){
     financialYear: document.getElementById('set-fy').value,
     floors: document.getElementById('set-wings').value.split(',').map(w=>w.trim()).filter(Boolean),
     towers: (document.getElementById('set-towers')?.value || '').split(',').map(w=>w.trim()).filter(Boolean),
+    flatTypes: (document.getElementById('set-flattypes')?.value || '').split(',').map(w=>w.trim()).filter(Boolean),
     applicationTitle: document.getElementById('set-apptitle').value,
     primaryColor: document.getElementById('set-primary').value,
     secondaryColor: document.getElementById('set-secondary').value
@@ -1463,7 +1467,7 @@ function openModal(type){
   editId[type]=null;
   if(type==='col'){ document.getElementById('col-modal-title').textContent='Add Collection'; populateMemberDropdown(); document.getElementById('col-date').value=new Date().toISOString().split('T')[0]; document.getElementById('col-month').value=new Date().getMonth()+1; document.getElementById('col-year').value=new Date().getFullYear(); document.getElementById('col-amount').value=''; document.getElementById('col-remarks').value=''; }
   if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; }
-  if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); populateTowerDatalist(); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-area').value=''; document.getElementById('mem-flattype').value=''; document.getElementById('mem-tower').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
+  if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); populateTowerDatalist(); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-area').value=''; populateFlatTypeDropdown(''); document.getElementById('mem-tower').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
   if(type==='cmp'){
     document.getElementById('cmp-modal-title').textContent='Raise Complaint';
     populateComplaintCatDropdown();
@@ -1522,6 +1526,14 @@ function populateMemberDropdown(){
 }
 function populateCatDropdown(){ document.getElementById('exp-cat').innerHTML=DB.settings.categories.map(c=>`<option>${c}</option>`).join(''); }
 function populateFloorDropdown(id){ document.getElementById(id).innerHTML=DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join(''); }
+function populateFlatTypeDropdown(selected){
+  const sel=document.getElementById('mem-flattype'); if(!sel) return;
+  const types=(DB.settings.flatTypes||[]).slice();
+  // Keep a legacy/free-text value visible so editing an old member doesn't silently blank it.
+  if(selected && !types.includes(selected)) types.unshift(selected);
+  sel.innerHTML='<option value="">\u2014 Select \u2014</option>'+types.map(t=>`<option value="${t}">${t}</option>`).join('');
+  sel.value=selected||'';
+}
 function populateTowerDatalist(){ const dl=document.getElementById('mem-tower-list'); if(dl) dl.innerHTML=(DB.settings.towers||[]).map(t=>`<option value="${t}">`).join(''); }
 function populateComplaintCatDropdown(){ document.getElementById('cmp-category').innerHTML=COMPLAINT_CATEGORIES.map(c=>`<option>${c}</option>`).join(''); }
 
@@ -2157,7 +2169,7 @@ async function renderReconciliation(){
   tbody.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
   try{
     const rows = await Api.getBankTxns(status);
-    tbody.innerHTML = rows.map(renderReconRow).join('') || '<tr><td colspan="6" class="empty">No transactions. Import a bank statement CSV to begin.</td></tr>';
+    tbody.innerHTML = rows.map(renderReconRow).join('') || '<tr><td colspan="6" class="empty">No transactions. Import a bank statement (CSV, Excel or PDF) to begin.</td></tr>';
   }catch(err){
     tbody.innerHTML = `<tr><td colspan="6" class="empty">${err.message}</td></tr>`;
   }
@@ -2194,7 +2206,7 @@ function renderReconRow(t){
 
 async function importBankStatement(){
   const input = document.getElementById('recon-file');
-  if(!input || !input.files || !input.files.length) return toast('Choose a bank statement CSV file first.','warn');
+  if(!input || !input.files || !input.files.length) return toast('Choose a bank statement file (CSV, Excel or PDF) first.','warn');
   const fd = new FormData();
   fd.append('file', input.files[0]);
   try{

@@ -69,6 +69,11 @@ public class SocietySettings
     [MaxLength(500)]
     public string Towers { get; set; } = string.Empty;
 
+    /// <summary>Comma-separated flat-type labels, e.g. "1 BHK,2 BHK,3 BHK". Sources the Flat Type
+    /// dropdown on the member form and the PerFlatType / PerSquareFootByFlatType rate keys.</summary>
+    [MaxLength(500)]
+    public string FlatTypes { get; set; } = "1 BHK,1.5 BHK,2 BHK,2.5 BHK,3 BHK";
+
     /// <summary>Comma-separated expense category names.</summary>
     [MaxLength(1000)]
     public string Categories { get; set; } = "Security,Housekeeping,Electricity,Water,Repairs,Lift Maintenance,Gardening,Festival,CCTV,Miscellaneous";

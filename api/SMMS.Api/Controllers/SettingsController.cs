@@ -20,7 +20,8 @@ public class SettingsController(SmmsDbContext db, AuditService audit) : Controll
         s.Categories.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
         s.Theme, s.PrimaryColor, s.SecondaryColor, s.ApplicationTitle,
         s.BillingDay, s.AutoGenerateInvoices, s.MaintenanceCalcMethod,
-        s.Towers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        s.Towers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+        s.FlatTypes.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
     // Public society branding (name/address/contact/floors) — needed by the pre-login
     // landing page (home.html) so it can render the correct society for the current
@@ -69,6 +70,7 @@ public class SettingsController(SmmsDbContext db, AuditService audit) : Controll
         settings.AutoGenerateInvoices = request.AutoGenerateInvoices;
         settings.MaintenanceCalcMethod = request.MaintenanceCalcMethod ?? settings.MaintenanceCalcMethod;
         settings.Towers = request.Towers is not null ? string.Join(',', request.Towers) : settings.Towers;
+        settings.FlatTypes = request.FlatTypes is not null ? string.Join(',', request.FlatTypes) : settings.FlatTypes;
 
         await db.SaveChangesAsync();
         await audit.LogAsync("Settings", "Update", "Updated society settings");
