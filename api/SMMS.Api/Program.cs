@@ -93,6 +93,7 @@ builder.Services.AddSingleton<SMMS.Api.Services.Billing.IChargeStrategy, SMMS.Ap
 builder.Services.AddSingleton<SMMS.Api.Services.Billing.ChargeStrategyResolver>();
 builder.Services.AddScoped<SMMS.Api.Services.Billing.MaintenanceCalculationService>();
 builder.Services.AddScoped<SMMS.Api.Services.Billing.OneTimeChargeService>();
+builder.Services.AddScoped<SMMS.Api.Services.Billing.AdvanceService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

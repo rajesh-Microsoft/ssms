@@ -5,6 +5,7 @@ using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
+using SMMS.Api.Services.Billing;
 using SMMS.Api.Services.Storage;
 
 namespace SMMS.Api.Controllers;
@@ -12,10 +13,10 @@ namespace SMMS.Api.Controllers;
 [ApiController]
 [Route("api/collections")]
 [Authorize]
-public class CollectionsController(SmmsDbContext db, AuditService audit, IFileStorage storage) : ControllerBase
+public class CollectionsController(SmmsDbContext db, AuditService audit, IFileStorage storage, AdvanceService advance) : ControllerBase
 {
     private static CollectionDto ToDto(Collection c) => new(
-        c.Id, c.MemberId, c.Member?.Name, c.Member?.Flat, c.Amount, c.Status, c.Month, c.Year, c.PaymentDate, c.PaymentMode, c.Remarks);
+        c.Id, c.MemberId, c.Member?.Name, c.Member?.Flat, c.Amount, c.Status, c.Month, c.Year, c.PaymentDate, c.PaymentMode, c.Remarks, c.AmountPaid);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<CollectionDto>>> GetAll([FromQuery] int? year, [FromQuery] int? month)
@@ -59,6 +60,36 @@ public class CollectionsController(SmmsDbContext db, AuditService audit, IFileSt
         await audit.LogAsync("Collections", "Add", $"Added collection of {collection.Amount} for member {collection.MemberId}");
         var saved = await db.Collections.Include(c => c.Member).FirstAsync(c => c.Id == collection.Id);
         return CreatedAtAction(nameof(GetById), new { id = collection.Id }, ToDto(saved));
+    }
+
+    /// <summary>Records a real payment received from a member, allocating it to dues (per PaymentType)
+    /// and crediting any surplus to the member's advance wallet.</summary>
+    [HttpPost("record-payment")]
+    public async Task<ActionResult<PaymentAllocationResult>> RecordPayment(RecordPaymentRequest request)
+    {
+        if (!User.CanEdit(PermissionModules.Collections)) return Forbid();
+        if (request.Amount <= 0) return BadRequest(new { message = "Amount must be greater than zero." });
+
+        var member = await db.Members.FindAsync(request.MemberId);
+        if (member is null) return BadRequest(new { message = "Member not found." });
+
+        var validTypes = new[] { "CurrentMonthOnly", "CurrentPlusArrears", "AdvancePayment" };
+        var type = validTypes.Contains(request.PaymentType) ? request.PaymentType : "CurrentPlusArrears";
+
+        var dues = await db.Collections
+            .Where(c => c.MemberId == member.Id &&
+                        (c.Status == "Unpaid" || c.Status == "Partial" || c.Status == "Overdue"))
+            .ToListAsync();
+
+        var date = request.PaymentDate ?? DateTime.UtcNow;
+        var result = advance.AllocatePayment(member, request.Amount, type,
+            request.PaymentMode, date, dues, request.Remarks);
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("Collections", "RecordPayment",
+            $"Recorded {request.Amount:0.00} for {member.Flat} ({type}): applied {result.AppliedToInvoices:0.00} to " +
+            $"{result.InvoicesSettled} invoice(s), advance +{result.CreditedToAdvance:0.00} (bal {result.NewAdvanceBalance:0.00}).");
+        return Ok(result);
     }
 
     [HttpPut("{id:int}")]

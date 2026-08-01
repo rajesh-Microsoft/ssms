@@ -18,3 +18,19 @@
     <canvas id="annualChart" style="max-height:200px;"></canvas>
   </div>
 </div>
+<div class="report-grid">
+  <div class="card">
+    <div class="card-hdr"><h3>👛 Advance Balances</h3><button class="btn btn-ghost" onclick="exportAdvanceReport('balances')">⬇ Export</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Member</th><th>Flat</th><th>Mode</th><th style="text-align:right">Balance</th></tr></thead><tbody id="report-adv-balances"></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-hdr"><h3>📉 Advance Deductions</h3><button class="btn btn-ghost" onclick="exportAdvanceReport('deductions')">⬇ Export</button></div>
+    <div class="filter-row" style="display:flex;gap:8px;padding:0 4px 10px;align-items:end;flex-wrap:wrap;">
+      <div class="form-group"><label>From</label><input type="date" id="adv-ded-from"></div>
+      <div class="form-group"><label>To</label><input type="date" id="adv-ded-to"></div>
+      <button class="btn btn-light" onclick="loadAdvanceDeductions()">Apply</button>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Member</th><th style="text-align:right">Amount</th><th>Source</th><th>Note</th></tr></thead><tbody id="report-adv-deductions"></tbody></table></div>
+  </div>
+</div>
+

@@ -189,6 +189,20 @@ body.role-member .member-only.ph-badges{display:flex;}
 .switch input:checked+.slider{background:var(--accent);}
 .switch input:checked+.slider:before{transform:translateX(18px);}
 
+/* Wallet (advance) modal + resident wallet card */
+.modal.modal-wide{width:720px;}
+.wal-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px;}
+.wal-bal{font-size:26px;font-weight:800;color:var(--accent);line-height:1;}
+.wal-mode{display:flex;flex-direction:column;align-items:flex-end;gap:6px;}
+.wal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.wal-adjust{border:1px solid var(--border);border-radius:10px;padding:14px;margin:6px 0 12px;background:var(--bg);}
+.wal-adj-title{font-weight:700;font-size:13px;margin-bottom:8px;}
+.muted{color:var(--sub);}
+.wallet-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success);margin-left:1px;vertical-align:top;}
+.mwallet-card{background:linear-gradient(135deg,#6c63ff,#8f7bff);color:#fff;border-radius:14px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow);}
+.mwallet-card .mw-bal{font-size:28px;font-weight:800;}
+.mwallet-card .mw-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.85;}
+
 @media(max-width:760px){.m-two-col{grid-template-columns:1fr !important;}}
 /* Per-row action buttons (edit/delete) are now conditionally rendered per-module
    based on granular permissions (see app.js canEdit()) instead of a blanket

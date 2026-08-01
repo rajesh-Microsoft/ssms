@@ -44,6 +44,11 @@ public class Society
     [MaxLength(300)]
     public string? Address { get; set; }
 
+    /// <summary>Marks a non-production sandbox tenant. The demo-data generator and the
+    /// destructive reset endpoint REFUSE to run unless this is true — a hard guard so real
+    /// customer databases can never be seeded or wiped by those tools.</summary>
+    public bool IsDemo { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

@@ -87,6 +87,30 @@ public class MeController(SmmsDbContext db, AuditService audit, MaintenanceCalcu
             maintenance, complaintSummary, payments));
     }
 
+    /// <summary>The resident's own advance (wallet) balance and ledger history (newest first).</summary>
+    [HttpGet("advance")]
+    public async Task<ActionResult<MeAdvanceDto>> GetAdvance()
+    {
+        var user = await db.Users.FindAsync(CurrentUserId);
+        if (user is null) return Unauthorized();
+
+        Member? member = null;
+        if (!string.IsNullOrWhiteSpace(user.Flat))
+        {
+            var flat = user.Flat!.ToLower();
+            member = await db.Members.FirstOrDefaultAsync(m => m.Flat.ToLower() == flat);
+        }
+        if (member is null) return Ok(new MeAdvanceDto(0m, "Auto", Array.Empty<MeAdvanceEntryDto>()));
+
+        var entries = await db.AdvanceLedger
+            .Where(e => e.MemberId == member.Id)
+            .OrderByDescending(e => e.Date).ThenByDescending(e => e.Id)
+            .Select(e => new MeAdvanceEntryDto(e.Id, e.Date, e.Type, e.Amount, e.BalanceAfter, e.Source, e.Note))
+            .ToListAsync();
+
+        return Ok(new MeAdvanceDto(member.AdvanceBalance, member.AdvanceMode, entries));
+    }
+
     [HttpPut]
     public async Task<IActionResult> Update(MeUpdateRequest request)
     {

@@ -643,6 +643,11 @@ function renderDashboard(){
   setText('kpi-mem', DB.members.length);
   setText('kpi-bal-sub', bal>=0?'✅ Surplus':'⚠️ Deficit');
 
+  const advTotal = DB.members.reduce((s,m)=> s + (+fld(m,'advanceBalance','AdvanceBalance')||0), 0);
+  const advHolders = DB.members.filter(m=> (+fld(m,'advanceBalance','AdvanceBalance')||0) > 0).length;
+  setText('kpi-adv','₹'+advTotal.toLocaleString('en-IN'));
+  setText('kpi-adv-sub', advHolders+' member'+(advHolders===1?'':'s')+' hold credit');
+
   document.getElementById('dash-col-tbody').innerHTML = [...DB.collections].reverse().slice(0,6).map(c=>{
     const st=getStatus(c)||'Unknown'; const stk=st.toLowerCase();
     return `<tr><td>${fld(c,'memberName','MemberName','name','Name')}</td><td>${fld(c,'flat','Flat')}</td><td>₹${getAmt(c).toLocaleString('en-IN')}</td><td><span class="badge b-${stk}">${st}</span></td></tr>`;
@@ -996,6 +1001,10 @@ function renderMemRow(m, i){
   const id  = m.id||m.Id||i;
   const st  = fld(m,'status','Status')||'Active';
   const stk = st.toLowerCase();
+  const bal = +fld(m,'advanceBalance','AdvanceBalance')||0;
+  const walletBtn = canView('Collections')
+    ? `<button class="ic-btn" title="Wallet${bal>0?' ₹'+bal.toLocaleString('en-IN'):''}" onclick="openWallet('${id}')">👛${bal>0?`<span class="wallet-dot"></span>`:''}</button>`
+    : '';
   return `<tr>
     <td>${i+1}</td>
     <td>${fld(m,'name','Name')}</td>
@@ -1004,10 +1013,11 @@ function renderMemRow(m, i){
     <td>${fld(m,'mobile','Mobile')}</td>
     <td>${fld(m,'email','Email')}</td>
     <td><span class="badge b-${stk}">${st}</span></td>
-    <td>${canEdit('Members') ? `<div class="act-btns">
-      <button class="ic-btn" onclick="editMember('${id}')">✏️</button>
-      <button class="ic-btn" onclick="deleteMember('${id}')">🗑️</button>
-    </div>` : ''}</td>
+    <td><div class="act-btns">
+      ${walletBtn}
+      ${canEdit('Members') ? `<button class="ic-btn" onclick="editMember('${id}')">✏️</button>
+      <button class="ic-btn" onclick="deleteMember('${id}')">🗑️</button>` : ''}
+    </div></td>
   </tr>`;
 }
 
@@ -1098,6 +1108,8 @@ function renderReports(){
     if(c||e){aL.push(MONTHS[mo].slice(0,3));aC.push(c);aE.push(e);}
   }
   annualChart=new Chart(document.getElementById('annualChart').getContext('2d'),{type:'line',data:{labels:aL,datasets:[{label:'Collection',data:aC,borderColor:'#6c63ff',fill:false,tension:.4,pointRadius:3},{label:'Expenses',data:aE,borderColor:'#fc8181',fill:false,tension:.4,pointRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>'₹'+(v/1000)+'k'}}}}});
+
+  renderAdvanceReports();
 }
 
 function exportReport(type){
@@ -1120,6 +1132,56 @@ function exportReport(type){
   }
   XLSX.utils.book_append_sheet(wb,ws,name);
   XLSX.writeFile(wb,`${name}_${y}.xlsx`);
+  toast('Exported!');
+}
+
+// ── Advance wallet reports ──
+let advBalancesCache=[], advDeductionsCache=[];
+async function renderAdvanceReports(){
+  if(!document.getElementById('report-adv-balances')) return;
+  if(!canView('Collections')){
+    document.getElementById('report-adv-balances').innerHTML='<tr><td colspan="4" class="empty">No access</td></tr>';
+    document.getElementById('report-adv-deductions').innerHTML='<tr><td colspan="5" class="empty">No access</td></tr>';
+    return;
+  }
+  try{
+    advBalancesCache=await Api.getAdvanceBalances();
+    const tot=advBalancesCache.reduce((s,r)=>s+(+fld(r,'balance','Balance')||0),0);
+    document.getElementById('report-adv-balances').innerHTML=advBalancesCache.length? advBalancesCache.map(r=>`
+      <tr><td>${fld(r,'name','Name')}</td><td>${fld(r,'flat','Flat')}</td><td>${fld(r,'mode','Mode')}</td>
+      <td style="text-align:right">₹${(+fld(r,'balance','Balance')||0).toLocaleString('en-IN')}</td></tr>`).join('')
+      +`<tr style="font-weight:700"><td colspan="3">Total</td><td style="text-align:right">₹${tot.toLocaleString('en-IN')}</td></tr>`
+      : '<tr><td colspan="4" class="empty">No members hold advance credit.</td></tr>';
+  }catch(err){ document.getElementById('report-adv-balances').innerHTML=`<tr><td colspan="4" class="empty">${err.message||'Failed'}</td></tr>`; }
+  loadAdvanceDeductions();
+}
+async function loadAdvanceDeductions(){
+  const el=document.getElementById('report-adv-deductions'); if(!el) return;
+  const from=document.getElementById('adv-ded-from').value||'';
+  const to=document.getElementById('adv-ded-to').value||'';
+  try{
+    advDeductionsCache=await Api.getAdvanceDeductions(from,to);
+    el.innerHTML=advDeductionsCache.length? advDeductionsCache.map(r=>`
+      <tr><td>${new Date(fld(r,'date','Date')).toLocaleDateString('en-IN')}</td>
+      <td>${fld(r,'memberName','MemberName')} (${fld(r,'flat','Flat')})</td>
+      <td style="text-align:right;color:var(--danger)">−₹${(+fld(r,'amount','Amount')||0).toLocaleString('en-IN')}</td>
+      <td>${walletSourceLabel(fld(r,'source','Source'))}</td>
+      <td class="muted">${fld(r,'note','Note')||''}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="empty">No deductions in this range.</td></tr>';
+  }catch(err){ el.innerHTML=`<tr><td colspan="5" class="empty">${err.message||'Failed'}</td></tr>`; }
+}
+function exportAdvanceReport(type){
+  const wb=XLSX.utils.book_new();
+  let ws,name;
+  if(type==='balances'){
+    const rows=[['Member','Flat','Mode','Balance'],...advBalancesCache.map(r=>[fld(r,'name','Name'),fld(r,'flat','Flat'),fld(r,'mode','Mode'),+fld(r,'balance','Balance')||0])];
+    ws=XLSX.utils.aoa_to_sheet(rows); name='Advance_Balances';
+  }else{
+    const rows=[['Date','Member','Flat','Amount','Balance After','Source','Note'],...advDeductionsCache.map(r=>[new Date(fld(r,'date','Date')).toLocaleDateString('en-IN'),fld(r,'memberName','MemberName'),fld(r,'flat','Flat'),+fld(r,'amount','Amount')||0,+fld(r,'balanceAfter','BalanceAfter')||0,fld(r,'source','Source'),fld(r,'note','Note')||''])];
+    ws=XLSX.utils.aoa_to_sheet(rows); name='Advance_Deductions';
+  }
+  XLSX.utils.book_append_sheet(wb,ws,name);
+  XLSX.writeFile(wb,`${name}.xlsx`);
   toast('Exported!');
 }
 
@@ -1537,6 +1599,163 @@ function populateFlatTypeDropdown(selected){
 function populateTowerDatalist(){ const dl=document.getElementById('mem-tower-list'); if(dl) dl.innerHTML=(DB.settings.towers||[]).map(t=>`<option value="${t}">`).join(''); }
 function populateComplaintCatDropdown(){ document.getElementById('cmp-category').innerHTML=COMPLAINT_CATEGORIES.map(c=>`<option>${c}</option>`).join(''); }
 
+// ── Record Payment (advance wallet) ──
+function memberOutstanding(memberId){
+  return DB.collections.filter(c=>{
+    const st=getStatus(c).toLowerCase();
+    return String(fld(c,'memberId','MemberId'))===String(memberId) && (st==='unpaid'||st==='partial'||st==='overdue');
+  });
+}
+function payableOf(c){ return Math.max(0, getAmt(c) - (+fld(c,'amountPaid','AmountPaid')||0)); }
+
+function openRecordPayment(){
+  if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
+  document.getElementById('rp-member').innerHTML=DB.members.filter(m=>(fld(m,'status','Status')||'Active')==='Active')
+    .map(m=>`<option value="${fld(m,'id','Id')}">${fld(m,'name','Name')} (${fld(m,'flat','Flat')})</option>`).join('');
+  document.getElementById('rp-amount').value='';
+  document.getElementById('rp-remarks').value='';
+  document.getElementById('rp-type').value='CurrentPlusArrears';
+  document.getElementById('rp-mode').value='UPI';
+  document.getElementById('rp-date').value=new Date().toISOString().split('T')[0];
+  onRpMemberChange();
+  document.getElementById('modal-rp').classList.add('open');
+}
+
+function onRpMemberChange(){
+  const mid=document.getElementById('rp-member').value;
+  const m=DB.members.find(x=>String(fld(x,'id','Id'))===String(mid));
+  const bal=m?(+fld(m,'advanceBalance','AdvanceBalance')||0):0;
+  const dues=memberOutstanding(mid);
+  const outstanding=dues.reduce((s,c)=>s+payableOf(c),0);
+  document.getElementById('rp-balance-hint').innerHTML=
+    `Wallet balance: <b>₹${bal.toLocaleString('en-IN')}</b> · Outstanding dues: <b>₹${outstanding.toLocaleString('en-IN')}</b> (${dues.length} invoice${dues.length===1?'':'s'})`;
+  renderRpPreview();
+}
+
+function renderRpPreview(){
+  const mid=document.getElementById('rp-member').value;
+  const amt=+document.getElementById('rp-amount').value||0;
+  const type=document.getElementById('rp-type').value;
+  const box=document.getElementById('rp-preview');
+  if(!amt){ box.innerHTML=''; return; }
+  let dues=memberOutstanding(mid).map(c=>({mo:getMonth(c),yr:getYear(c),payable:payableOf(c)})).filter(d=>d.payable>0);
+  if(type==='AdvancePayment') dues=[];
+  else if(type==='CurrentMonthOnly') dues=dues.sort((a,b)=> b.yr-a.yr || b.mo-a.mo).slice(0,1);
+  else dues=dues.sort((a,b)=> a.yr-b.yr || a.mo-b.mo);
+  let rem=amt, settled=0, part=0;
+  dues.forEach(d=>{ if(rem<=0) return; const ap=Math.min(rem,d.payable); rem-=ap; if(ap>=d.payable) settled++; else part++; });
+  box.innerHTML=`<div style="padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;">
+    Applies <b>₹${(amt-rem).toLocaleString('en-IN')}</b> to ${settled} invoice(s)${part?` (+${part} partial)`:''}, credits <b>₹${rem.toLocaleString('en-IN')}</b> to wallet.</div>`;
+}
+
+async function doRecordPayment(){
+  if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
+  const mid=document.getElementById('rp-member').value;
+  if(!mid) return toast('Select a member','warn');
+  const amt=+document.getElementById('rp-amount').value;
+  if(!amt||amt<=0) return toast('Enter a valid amount','warn');
+  const payload={
+    memberId:+mid,
+    amount:amt,
+    paymentType:document.getElementById('rp-type').value,
+    paymentMode:document.getElementById('rp-mode').value,
+    paymentDate:document.getElementById('rp-date').value||null,
+    remarks:document.getElementById('rp-remarks').value||null
+  };
+  try{
+    const r=await Api.recordPayment(payload);
+    closeModal('rp');
+    await loadMembers(); await loadCollections();
+    renderCollections(); renderDashboard();
+    toast(`Recorded ₹${amt.toLocaleString('en-IN')} — ₹${(r.appliedToInvoices||0).toLocaleString('en-IN')} to dues, ₹${(r.creditedToAdvance||0).toLocaleString('en-IN')} to wallet.`);
+  }catch(err){ toast(err.message||'Record failed','warn'); }
+}
+
+// ── Member wallet (advance ledger view + manual adjust + refund) ──
+let walletMemberId=null;
+async function openWallet(id){
+  if(!canView('Collections')) return toast('You do not have access to wallets.','warn');
+  walletMemberId=id;
+  document.getElementById('modal-wallet').classList.add('open');
+  document.getElementById('wal-body').innerHTML='<div class="empty">Loading…</div>';
+  document.getElementById('wal-adjust').style.display='none';
+  try{ renderWallet(await Api.getAdvanceLedger(id)); }
+  catch(err){ document.getElementById('wal-body').innerHTML=`<div class="empty">${err.message||'Failed to load'}</div>`; }
+}
+function walletSourceLabel(s){
+  return ({Payment:'Payment surplus',BillAdjustment:'Applied to invoice',ManualAdmin:'Manual adjustment',Refund:'Refund'})[s]||s;
+}
+function renderWallet(d){
+  const bal=+fld(d,'balance','Balance')||0;
+  const mode=fld(d,'mode','Mode')||'Auto';
+  const entries=fld(d,'entries','Entries')||[];
+  const editable=canEdit('Collections');
+  const rows=entries.length? entries.map(e=>{
+    const t=fld(e,'type','Type'); const cr=t==='Credit';
+    return `<tr>
+      <td>${new Date(fld(e,'date','Date')).toLocaleDateString('en-IN')}</td>
+      <td><span class="badge ${cr?'b-paid':'b-unpaid'}">${t}</span></td>
+      <td style="text-align:right;color:${cr?'var(--green,#1c8a4d)':'var(--red,#b23b3b)'}">${cr?'+':'−'}₹${(+fld(e,'amount','Amount')||0).toLocaleString('en-IN')}</td>
+      <td style="text-align:right">₹${(+fld(e,'balanceAfter','BalanceAfter')||0).toLocaleString('en-IN')}</td>
+      <td>${walletSourceLabel(fld(e,'source','Source'))}</td>
+      <td class="muted">${fld(e,'note','Note')||''}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="6" class="empty">No wallet activity yet.</td></tr>`;
+
+  document.getElementById('wal-title').textContent=`👛 ${fld(d,'memberName','MemberName')} · ${fld(d,'flat','Flat')}`;
+  document.getElementById('wal-body').innerHTML=`
+    <div class="wal-head">
+      <div><div class="wal-bal">₹${bal.toLocaleString('en-IN')}</div><div class="muted">Wallet balance</div></div>
+      <div class="wal-mode">
+        <label class="muted" style="font-size:12px">Auto-settle new invoices</label>
+        <label class="switch"><input type="checkbox" id="wal-mode-tgl" ${mode==='Auto'?'checked':''} ${editable?'':'disabled'} onchange="toggleWalletMode()"><span class="slider"></span></label>
+      </div>
+    </div>
+    ${editable?`<div class="wal-actions">
+      <button class="btn btn-light" onclick="showWalletAdjust('Credit')">➕ Add credit</button>
+      <button class="btn btn-light" onclick="showWalletAdjust('Debit')">➖ Remove</button>
+      <button class="btn btn-light" onclick="refundWallet()" ${bal>0?'':'disabled'}>↩️ Refund balance</button>
+    </div>`:''}
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th><th>Source</th><th>Note</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function showWalletAdjust(type){
+  const box=document.getElementById('wal-adjust');
+  box.style.display='block';
+  box.dataset.type=type;
+  document.getElementById('wal-adj-title').textContent=type==='Credit'?'Add credit to wallet':'Remove from wallet';
+  document.getElementById('wal-adj-amt').value='';
+  document.getElementById('wal-adj-note').value='';
+  document.getElementById('wal-adj-amt').focus();
+}
+async function doWalletAdjust(){
+  if(!canEdit('Collections')) return toast('You do not have edit access.','warn');
+  const type=document.getElementById('wal-adjust').dataset.type;
+  const amt=+document.getElementById('wal-adj-amt').value;
+  if(!amt||amt<=0) return toast('Enter a valid amount','warn');
+  try{
+    const d=await Api.adjustAdvance(walletMemberId,{ type, amount:amt, note:document.getElementById('wal-adj-note').value||null });
+    document.getElementById('wal-adjust').style.display='none';
+    renderWallet(d);
+    await loadMembers(); renderMembers(); renderDashboard();
+    toast(`${type==='Credit'?'Added':'Removed'} ₹${amt.toLocaleString('en-IN')}.`);
+  }catch(err){ toast(err.message||'Adjust failed','warn'); }
+}
+async function refundWallet(){
+  if(!canEdit('Collections')) return toast('You do not have edit access.','warn');
+  if(!confirm('Refund the full wallet balance? This zeroes the wallet and records a Refund entry.')) return;
+  try{
+    const d=await Api.refundAdvance(walletMemberId,{ note:'Refund on move-out' });
+    renderWallet(d);
+    await loadMembers(); renderMembers(); renderDashboard();
+    toast('Wallet refunded.');
+  }catch(err){ toast(err.message||'Refund failed','warn'); }
+}
+async function toggleWalletMode(){
+  const mode=document.getElementById('wal-mode-tgl').checked?'Auto':'Manual';
+  try{ await Api.setAdvanceMode(walletMemberId, mode); await loadMembers(); toast(`Advance mode: ${mode}.`); }
+  catch(err){ toast(err.message||'Failed','warn'); document.getElementById('wal-mode-tgl').checked=(mode!=='Auto'); }
+}
+
 // ═══════════════════════════════════════════════
 // COMPLAINTS
 // ═══════════════════════════════════════════════
@@ -1890,6 +2109,7 @@ function renderMemberPayments(){
     mKpi('📅','Next Due', mDate(mnt.nextDueDate), mMoney(mnt.maintenanceAmt));
 
   loadMemberPendingInvoices();
+  loadMyWallet();
 
   const f = document.getElementById('mPayStatusF').value;
   const rows = (ME.payments||[]).filter(p=>!f||p.status===f);
@@ -1904,6 +2124,37 @@ function renderMemberPayments(){
       <td>${p.status==='Paid' ? `<button class="ic-btn" title="Download receipt" onclick="downloadMemberReceipt(${p.id})">🧾</button>` : ''}</td>
     </tr>`
   ).join('') || '<tr><td colspan="7" class="empty">No maintenance records found</td></tr>';
+}
+
+// ── Resident advance wallet card (shown only when there's balance or history) ──
+async function loadMyWallet(){
+  const box=document.getElementById('m-wallet');
+  if(!box) return;
+  try{
+    const d=await Api.getMyAdvance();
+    const bal=+fld(d,'balance','Balance')||0;
+    const entries=fld(d,'entries','Entries')||[];
+    if(bal<=0 && !entries.length){ box.innerHTML=''; return; }
+    const rows=entries.slice(0,8).map(e=>{
+      const cr=fld(e,'type','Type')==='Credit';
+      return `<tr>
+        <td>${new Date(fld(e,'date','Date')).toLocaleDateString('en-IN')}</td>
+        <td>${cr?'Credit':'Applied'}</td>
+        <td style="text-align:right;color:${cr?'var(--success)':'var(--danger)'}">${cr?'+':'−'}${mMoney(+fld(e,'amount','Amount')||0)}</td>
+        <td style="text-align:right">${mMoney(+fld(e,'balanceAfter','BalanceAfter')||0)}</td>
+        <td class="muted">${fld(e,'note','Note')||''}</td>
+      </tr>`;
+    }).join('');
+    box.innerHTML=`
+      <div class="mwallet-card">
+        <div class="mw-lbl">👛 Advance in Wallet</div>
+        <div class="mw-bal">${mMoney(bal)}</div>
+        <div style="font-size:11px;opacity:.9;margin-top:4px;">Automatically adjusted against your upcoming maintenance bills.</div>
+      </div>
+      ${entries.length?`<div class="card"><div class="card-hdr"><h3>Wallet Activity</h3></div>
+        <div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Type</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th><th>Note</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`:''}`;
+  }catch(err){ box.innerHTML=''; }
 }
 
 // ── Receipts ──

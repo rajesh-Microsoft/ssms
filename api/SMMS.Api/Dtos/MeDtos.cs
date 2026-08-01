@@ -5,6 +5,11 @@ namespace SMMS.Api.Dtos;
 public record MePaymentDto(int Id, decimal Amount, string Status, int Month, int Year,
     DateTime? PaymentDate, string? PaymentMode, string? Remarks);
 
+public record MeAdvanceEntryDto(int Id, DateTime Date, string Type, decimal Amount,
+    decimal BalanceAfter, string Source, string? Note);
+
+public record MeAdvanceDto(decimal Balance, string Mode, IEnumerable<MeAdvanceEntryDto> Entries);
+
 public record MeComplaintSummaryDto(int Open, int Closed, int Total);
 
 public record MeMaintenanceSummaryDto(decimal TotalPaid, int TotalReceipts, decimal PendingAmount,

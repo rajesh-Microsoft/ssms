@@ -16,6 +16,11 @@ public class Collection
     [Column(TypeName = "decimal(12,2)")]
     public decimal Amount { get; set; }
 
+    /// <summary>Amount settled so far (from the advance wallet or partial payments). Balance still
+    /// payable is <c>Amount - AmountPaid</c>; drives the "Partial" status.</summary>
+    [Column(TypeName = "decimal(12,2)")]
+    public decimal AmountPaid { get; set; }
+
     /// <summary>"Paid", "Unpaid", "Partial", or "Overdue".</summary>
     [Required, MaxLength(20)]
     public string Status { get; set; } = "Paid";

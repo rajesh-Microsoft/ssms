@@ -99,12 +99,19 @@ const Api = {
   createMember: (payload) => apiFetch('/members', { method: 'POST', body: JSON.stringify(payload) }),
   updateMember: (id, payload) => apiFetch(`/members/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteMember: (id) => apiFetch(`/members/${id}`, { method: 'DELETE' }),
+  getAdvanceLedger: (id) => apiFetch(`/members/${id}/advance-ledger`),
+  adjustAdvance: (id, payload) => apiFetch(`/members/${id}/advance-adjust`, { method: 'POST', body: JSON.stringify(payload) }),
+  refundAdvance: (id, payload) => apiFetch(`/members/${id}/advance-refund`, { method: 'POST', body: JSON.stringify(payload || {}) }),
+  setAdvanceMode: (id, mode) => apiFetch(`/members/${id}/advance-mode`, { method: 'PUT', body: JSON.stringify({ mode }) }),
+  getAdvanceBalances: () => apiFetch('/members/advance/balances'),
+  getAdvanceDeductions: (from, to) => apiFetch('/members/advance/deductions' + (from||to ? `?from=${from||''}&to=${to||''}` : '')),
 
   // Collections
   getCollections: () => apiFetch('/collections'),
   createCollection: (payload) => apiFetch('/collections', { method: 'POST', body: JSON.stringify(payload) }),
   updateCollection: (id, payload) => apiFetch(`/collections/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteCollection: (id) => apiFetch(`/collections/${id}`, { method: 'DELETE' }),
+  recordPayment: (payload) => apiFetch('/collections/record-payment', { method: 'POST', body: JSON.stringify(payload) }),
   generateBilling: (payload) => apiFetch('/admin/billing/generate', { method: 'POST', body: JSON.stringify(payload) }),
   raiseOneTimeCharge: (payload) => apiFetch('/admin/billing/onetime', { method: 'POST', body: JSON.stringify(payload) }),
 
@@ -144,6 +151,7 @@ const Api = {
 
   // Me (resident self-service — works for any authenticated user)
   getMe: () => apiFetch('/me'),
+  getMyAdvance: () => apiFetch('/me/advance'),
   updateMe: (payload) => apiFetch('/me', { method: 'PUT', body: JSON.stringify(payload) }),
   changeMyPassword: (currentPassword, newPassword) =>
     apiFetch('/me/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })

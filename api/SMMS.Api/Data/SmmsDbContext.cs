@@ -18,6 +18,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<MaintenanceComponentFlatOverride> MaintenanceComponentFlatOverrides => Set<MaintenanceComponentFlatOverride>();
     public DbSet<CollectionLine> CollectionLines => Set<CollectionLine>();
     public DbSet<BankTransaction> BankTransactions => Set<BankTransaction>();
+    public DbSet<AdvanceLedgerEntry> AdvanceLedger => Set<AdvanceLedgerEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -124,5 +125,15 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .HasIndex(t => new { t.Status, t.TxnDate });
         modelBuilder.Entity<BankTransaction>()
             .HasIndex(t => t.Reference);
+
+        modelBuilder.Entity<AdvanceLedgerEntry>()
+            .HasOne(e => e.Member)
+            .WithMany()
+            .HasForeignKey(e => e.MemberId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Speeds up per-member ledger reads (Member Ledger / Advance Deduction History reports).
+        modelBuilder.Entity<AdvanceLedgerEntry>()
+            .HasIndex(e => new { e.MemberId, e.Date });
     }
 }

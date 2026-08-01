@@ -1,5 +1,6 @@
 using SMMS.Api.Data;
 using SMMS.Api.Models;
+using SMMS.Api.Services.Billing;
 using SMMS.Api.Services.Storage;
 
 namespace SMMS.Api.Services.Payments;
@@ -9,7 +10,7 @@ namespace SMMS.Api.Services.Payments;
 /// admin approves (marking the charge Paid) or rejects. Ownership/authorization is enforced by
 /// the calling controller; this service owns the state transitions, persistence and audit trail.
 /// </summary>
-public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService audit)
+public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService audit, AdvanceService advance)
 {
     /// <summary>Records a resident's payment proof for a charge in Pending state.</summary>
     public async Task<PaymentProof> SubmitProofAsync(
@@ -55,6 +56,17 @@ public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService
             charge.Status = "Paid";
             charge.PaymentDate = DateTime.UtcNow;
             charge.PaymentMode = "UPI";
+            charge.AmountPaid = charge.Amount;
+
+            // Any amount received beyond the invoice becomes advance credit (a liability, not income).
+            var surplus = proof.Amount - charge.Amount;
+            if (surplus > 0)
+            {
+                var member = await db.Members.FindAsync([proof.MemberId], ct);
+                if (member is not null)
+                    advance.Credit(member, surplus, "Payment",
+                        $"Advance from overpayment on invoice #{charge.Id}", charge.Id, proof.Id);
+            }
         }
         await db.SaveChangesAsync(ct);
         await audit.LogAsync("Payments", "Approve",

@@ -12,7 +12,7 @@ namespace SMMS.Api.Services.Billing;
 /// Each invoice's amount comes from the data-driven maintenance rule engine
 /// (<see cref="MaintenanceCalculationService"/>), with the per-component breakdown persisted as lines.
 /// </summary>
-public class BillingService(SmmsDbContext db, AuditService audit, MaintenanceCalculationService calc)
+public class BillingService(SmmsDbContext db, AuditService audit, MaintenanceCalculationService calc, AdvanceService advance)
 {
     public async Task<BillingRunResult> GenerateForMonthAsync(int month, int year, decimal? amountOverride = null)
     {
@@ -73,15 +73,32 @@ public class BillingService(SmmsDbContext db, AuditService audit, MaintenanceCal
         {
             db.Collections.AddRange(newInvoices);
             await db.SaveChangesAsync();
+
+            // Auto-settle each new invoice from the member's advance wallet (Auto mode only).
+            var membersById = activeMembers.ToDictionary(m => m.Id);
+            var settledFromAdvance = 0;
+            foreach (var inv in newInvoices)
+            {
+                if (membersById.TryGetValue(inv.MemberId, out var mem) && advance.ApplyToCharge(mem, inv) > 0)
+                    settledFromAdvance++;
+            }
+            if (settledFromAdvance > 0) await db.SaveChangesAsync();
+
+            var avg = newInvoices.Average(i => i.Amount);
+            await audit.LogAsync("Collections", "GenerateBilling",
+                $"Generated {newInvoices.Count} maintenance invoice(s) for {month:D2}/{year} via rule engine " +
+                $"(skipped {activeMembers.Count - newInvoices.Count} already billed; " +
+                $"{settledFromAdvance} settled from advance).");
+
+            return new BillingRunResult(month, year, avg, newInvoices.Count,
+                activeMembers.Count - newInvoices.Count, activeMembers.Count);
         }
 
-        var avgAmount = newInvoices.Count > 0 ? newInvoices.Average(i => i.Amount) : 0m;
-
         await audit.LogAsync("Collections", "GenerateBilling",
-            $"Generated {newInvoices.Count} maintenance invoice(s) for {month:D2}/{year} via rule engine " +
-            $"(skipped {activeMembers.Count - newInvoices.Count} already billed).");
+            $"Generated 0 maintenance invoice(s) for {month:D2}/{year} via rule engine " +
+            $"(skipped {activeMembers.Count} already billed).");
 
-        return new BillingRunResult(month, year, avgAmount, newInvoices.Count,
-            activeMembers.Count - newInvoices.Count, activeMembers.Count);
+        return new BillingRunResult(month, year, 0m, 0,
+            activeMembers.Count, activeMembers.Count);
     }
 }

@@ -175,6 +175,51 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-rp">
+  <div class="modal">
+    <div class="modal-hdr"><h3>💵 Record Payment</h3><button class="modal-close" onclick="closeModal('rp')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Member *</label><select id="rp-member" onchange="onRpMemberChange()"></select></div>
+      <div class="form-group full" id="rp-balance-hint" style="font-size:12px;color:var(--sub);margin-top:-4px;"></div>
+      <div class="form-group"><label>Amount Received (₹) *</label><input type="number" id="rp-amount" oninput="renderRpPreview()"></div>
+      <div class="form-group"><label>Payment Mode</label><select id="rp-mode"><option>UPI</option><option>PhonePe</option><option>Google Pay</option><option>Paytm</option><option>CRED</option><option>NEFT</option><option>Cash</option><option>Cheque</option><option>Manual Update</option></select></div>
+      <div class="form-group full"><label>Apply To</label><select id="rp-type" onchange="renderRpPreview()">
+        <option value="CurrentPlusArrears">Current + Arrears (oldest dues first)</option>
+        <option value="CurrentMonthOnly">Current Month Only</option>
+        <option value="AdvancePayment">Advance Payment (add to wallet)</option>
+      </select></div>
+      <div class="form-group"><label>Payment Date</label><input type="date" id="rp-date"></div>
+      <div class="form-group full"><label>Remarks</label><textarea id="rp-remarks"></textarea></div>
+      <div class="form-group full" id="rp-preview" style="font-size:12.5px;line-height:1.6;"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('rp')">Cancel</button>
+      <button class="btn btn-primary" onclick="doRecordPayment()">💾 Record</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-wallet">
+  <div class="modal modal-wide">
+    <div class="modal-hdr"><h3 id="wal-title">👛 Wallet</h3><button class="modal-close" onclick="closeModal('wallet')">✕</button></div>
+    <div id="wal-body" style="padding:4px 2px;"><div class="empty">Loading…</div></div>
+    <div id="wal-adjust" class="wal-adjust" style="display:none;">
+      <div class="wal-adj-title" id="wal-adj-title">Adjust wallet</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Amount (₹) *</label><input type="number" id="wal-adj-amt"></div>
+        <div class="form-group"><label>Note</label><input type="text" id="wal-adj-note" placeholder="Reason for this adjustment"></div>
+      </div>
+      <div class="form-actions" style="padding-top:0;">
+        <button class="btn btn-ghost" onclick="document.getElementById('wal-adjust').style.display='none'">Cancel</button>
+        <button class="btn btn-primary" onclick="doWalletAdjust()">💾 Apply</button>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('wallet')">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-genbill">
   <div class="modal">
     <div class="modal-hdr"><h3>Generate Monthly Maintenance</h3><button class="modal-close" onclick="closeModal('genbill')">✕</button></div>
