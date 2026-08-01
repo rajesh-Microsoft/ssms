@@ -57,7 +57,8 @@ public record SocietyDto(
     string? AdminName = null,
     string? AdminEmail = null,
     string? Phone = null,
-    string? Address = null);
+    string? Address = null,
+    bool IsDemo = false);
 
 public record PlatformDashboardDto(
     int TotalSocieties,
@@ -100,6 +101,6 @@ public static class SocietyMapping
         return new SocietyDto(
             s.Key, s.DisplayName, s.DbName, s.Status, s.Plan, s.ExpiryDate,
             s.FlatCount, memberCount, s.CreatedAt, isExpired, daysUntilExpiry,
-            s.AdminName, s.AdminEmail, s.Phone, s.Address);
+            s.AdminName, s.AdminEmail, s.Phone, s.Address, s.IsDemo);
     }
 }

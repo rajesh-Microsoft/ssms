@@ -21,6 +21,7 @@ public class PlatformSocietiesController(
     TenantProvisioningService provisioning,
     TokenService tokenService,
     PlatformAuditService audit,
+    DemoDataService demoData,
     IConfiguration config) : ControllerBase
 {
     [HttpGet]
@@ -225,6 +226,41 @@ public class PlatformSocietiesController(
             $"Logged in as society admin '{admin.Username}'.", impersonatedTenant: key);
 
         return Ok(new ImpersonateResponse(token, key, admin.Username));
+    }
+
+    /// <summary>Populates a DEMO society with a rich, realistic dataset (preset: small|medium|large).
+    /// Hard-guarded: refuses to run unless the society is flagged IsDemo.</summary>
+    [HttpPost("{key}/generate-demo")]
+    public async Task<ActionResult<DemoDataResult>> GenerateDemo(string key, [FromQuery] string preset = "small")
+    {
+        try
+        {
+            var result = await demoData.GenerateAsync(key, preset);
+            await audit.LogAsync("GenerateDemo", "Society", key,
+                $"Generated '{result.Preset}' demo data: {result.Members} members, {result.Collections} invoices.");
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Wipes all resident data from a DEMO society (keeps admin, settings, components).
+    /// Hard-guarded on IsDemo.</summary>
+    [HttpPost("{key}/reset-demo")]
+    public async Task<ActionResult<DemoDataResult>> ResetDemo(string key)
+    {
+        try
+        {
+            var result = await demoData.ResetAsync(key);
+            await audit.LogAsync("ResetDemo", "Society", key, "Wiped all demo data.");
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     private SocietyDto ToDto(Society s)

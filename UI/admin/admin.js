@@ -58,6 +58,8 @@ const Platform = {
   activate:(key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/activate`, { method:'POST' }),
   renew:  (key, expiryDate, plan) => pfetch(`/platform/societies/${encodeURIComponent(key)}/renew`, { method:'POST', body: JSON.stringify({ expiryDate, plan }) }),
   impersonate:(key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/impersonate`, { method:'POST' }),
+  generateDemo:(key, preset) => pfetch(`/platform/societies/${encodeURIComponent(key)}/generate-demo?preset=${encodeURIComponent(preset)}`, { method:'POST' }),
+  resetDemo:(key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/reset-demo`, { method:'POST' }),
   audit: (take = 100) => pfetch(`/platform/audit?take=${take}`),
   pending: () => pfetch('/platform/societies/pending'),
   approve: (key, payload) => pfetch(`/platform/societies/${encodeURIComponent(key)}/approve`, { method:'POST', body: JSON.stringify(payload || {}) }),
@@ -224,6 +226,7 @@ function societyTable(list, withActions){
             : `<button class="btn btn-light btn-sm" onclick="doRenew('${esc(s.key)}')">♻ Renew</button>
                <button class="btn btn-light btn-sm" onclick="doSuspend('${esc(s.key)}')">⏸ Suspend</button>`}
         <a class="btn btn-light btn-sm" href="${tenantUrl(s.key)}" target="_blank" rel="noopener">↗ Open</a>
+        ${s.isDemo ? `<button class="btn btn-light btn-sm" onclick="openDemoTools('${esc(s.key)}')">🧪 Demo Tools</button>` : ''}
       </div></td>` : '';
     return `<tr>
       <td><div class="society-name">${esc(s.displayName)}</div><div class="sub-key">${esc(s.key)}.localhost</div></td>
@@ -283,6 +286,46 @@ async function doImpersonate(key){
     const url = tenantUrl(key) + 'index.html#imp=' + encodeURIComponent(res.token);
     window.open(url, '_blank', 'noopener');
     toast(`Opened ${key} as ${res.adminUsername}`, 'ok');
+  }catch(e){ toast(e.message, 'warn'); }
+}
+
+// ══════════════ DEMO TOOLS (demo/sandbox societies only) ══════════════
+function openDemoTools(key){
+  openModal(`
+    <h3>🧪 Demo Data — ${esc(key)}</h3>
+    <p class="modal-sub">Generate a rich, realistic dataset for this <b>demo</b> society, or wipe it clean.
+    These tools only run against demo tenants — real societies are never touched.</p>
+    <div class="field"><label>Dataset size</label>
+      <select id="demoPreset">
+        <option value="small">Small — 40 flats</option>
+        <option value="medium">Medium — 120 flats</option>
+        <option value="large">Large — 400 flats</option>
+      </select>
+    </div>
+    <p class="modal-sub">⚠ Generating replaces all existing residents, invoices, expenses and complaints in this demo.</p>
+    <div class="modal-actions">
+      <button class="btn btn-light" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-light" onclick="doResetDemo('${esc(key)}')">🗑 Reset (wipe)</button>
+      <button class="btn btn-primary" onclick="doGenerateDemo('${esc(key)}')">✨ Generate</button>
+    </div>`);
+}
+async function doGenerateDemo(key){
+  const preset = document.getElementById('demoPreset')?.value || 'small';
+  toast(`Generating ${preset} demo data…`);
+  try{
+    const r = await Platform.generateDemo(key, preset);
+    closeModal();
+    toast(`Generated: ${r.members} members, ${r.collections} invoices, ${r.complaints} complaints`, 'ok');
+    refreshCurrentView();
+  }catch(e){ toast(e.message, 'warn'); }
+}
+async function doResetDemo(key){
+  if(!confirm(`Wipe ALL demo data for ${key}? This cannot be undone.`)) return;
+  try{
+    await Platform.resetDemo(key);
+    closeModal();
+    toast(`Demo data wiped for ${key}`, 'warn');
+    refreshCurrentView();
   }catch(e){ toast(e.message, 'warn'); }
 }
 
