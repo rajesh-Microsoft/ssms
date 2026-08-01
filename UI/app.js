@@ -1003,7 +1003,7 @@ function renderMemRow(m, i){
   const stk = st.toLowerCase();
   const bal = +fld(m,'advanceBalance','AdvanceBalance')||0;
   const walletBtn = canView('Collections')
-    ? `<button class="ic-btn" title="Wallet${bal>0?' ₹'+bal.toLocaleString('en-IN'):''}" onclick="openWallet('${id}')">👛${bal>0?`<span class="wallet-dot"></span>`:''}</button>`
+    ? `<button class="ic-btn" title="Wallet${bal>0?' ₹'+bal.toLocaleString('en-IN'):''}" onclick="openWallet('${id}')"><svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-.15em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>${bal>0?`<span class="wallet-dot"></span>`:''}</button>`
     : '';
   return `<tr>
     <td>${i+1}</td>
@@ -2147,7 +2147,7 @@ async function loadMyWallet(){
     }).join('');
     box.innerHTML=`
       <div class="mwallet-card">
-        <div class="mw-lbl">👛 Advance in Wallet</div>
+        <div class="mw-lbl"><svg viewBox="0 0 24 24" width="1em" height="1em" style="vertical-align:-.15em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg> Advance in Wallet</div>
         <div class="mw-bal">${mMoney(bal)}</div>
         <div style="font-size:11px;opacity:.9;margin-top:4px;">Automatically adjusted against your upcoming maintenance bills.</div>
       </div>
