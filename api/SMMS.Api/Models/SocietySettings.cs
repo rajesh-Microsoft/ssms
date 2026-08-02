@@ -79,6 +79,10 @@ public class SocietySettings : IAuditable
     [MaxLength(1000)]
     public string Categories { get; set; } = "Security,Housekeeping,Electricity,Water,Repairs,Lift Maintenance,Gardening,Festival,CCTV,Miscellaneous";
 
+    /// <summary>Comma-separated non-member income category names (ad/hoarding, shop rent, etc.).</summary>
+    [MaxLength(1000)]
+    public string IncomeCategories { get; set; } = "Advertisement,Shop Rent,Tower Rent,Hall Rental,Interest,Scrap Sale,Donation,Miscellaneous";
+
     [MaxLength(20)]
     public string Theme { get; set; } = "light";
 

@@ -40,11 +40,12 @@ let DB = {
     maintenanceAmt:2000, dueDay:5, lateFee:100, graceDays:5, billingDay:1, autoGenerateInvoices:false, financialYear:'',
     floors:['1','2','3','4','5'],
     categories:['Security','Housekeeping','Electricity','Water','Repairs','Lift Maintenance','Gardening','Festival','CCTV','Miscellaneous'],
+    incomeCategories:['Advertisement','Shop Rent','Tower Rent','Hall Rental','Interest','Scrap Sale','Donation','Miscellaneous'],
     primaryColor:'#6c63ff', secondaryColor:'#1a1f36', applicationTitle:''
   }
 };
-let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null};
-let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1, liab:1};
+let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null, inc:null};
+let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1, liab:1, inc:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
 // Resident self-service snapshot from GET /api/me (profile + payments + dues + complaint counts).
@@ -60,7 +61,7 @@ function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
 
 // Grantable module permission system — mirrors api/SMMS.Api/Services/PermissionService.cs.
 // Users/AuditLog are deliberately NOT grantable (stay Admin-only).
-const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities'];
+const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities','Income'];
 function canView(module){ return isAdmin() || (currentUser && currentUser.permissions && ['View','Edit'].includes(currentUser.permissions[module])); }
 function canEdit(module){ return isAdmin() || (currentUser && currentUser.permissions && currentUser.permissions[module]==='Edit'); }
 
@@ -120,6 +121,24 @@ async function loadExpenses(){
   }));
 }
 
+async function loadIncome(){
+  const data = await Api.getIncome();
+  DB.income = data.map(i => ({
+    id: i.id,
+    incomeDate: i.incomeDate ? i.incomeDate.split('T')[0] : '',
+    category: i.category,
+    description: i.description,
+    source: i.source || '',
+    amount: i.amount,
+    paymentMode: i.paymentMode || '',
+    reference: i.reference || '',
+    month: MONTHS[i.month] || '',
+    monthNum: i.month,
+    year: i.year,
+    remarks: i.remarks || ''
+  }));
+}
+
 async function loadLiabilities(){
   try{
     const data = await Api.getLiabilities();
@@ -150,6 +169,7 @@ async function loadSettingsData(){
     flatTypes: (s.flatTypes && s.flatTypes.length) ? s.flatTypes : ['1 BHK','1.5 BHK','2 BHK','2.5 BHK','3 BHK'],
     maintenanceCalcMethod: s.maintenanceCalcMethod || 'FixedAmount',
     categories: (s.categories && s.categories.length) ? s.categories : DB.settings.categories,
+    incomeCategories: (s.incomeCategories && s.incomeCategories.length) ? s.incomeCategories : DB.settings.incomeCategories,
     theme: s.theme || 'light',
     primaryColor: s.primaryColor || '#6c63ff',
     secondaryColor: s.secondaryColor || '#1a1f36',
@@ -179,6 +199,7 @@ function currentSettingsPayload(overrides = {}){
     flatTypes: DB.settings.flatTypes,
     maintenanceCalcMethod: DB.settings.maintenanceCalcMethod,
     categories: DB.settings.categories,
+    incomeCategories: DB.settings.incomeCategories,
     theme: DB.settings.theme || 'light',
     primaryColor: DB.settings.primaryColor || '#6c63ff',
     secondaryColor: DB.settings.secondaryColor,
@@ -219,7 +240,7 @@ async function loadCoreData(){
   if(isAdmin()){
     await Promise.all([loadMembers(), loadSettingsData()]);
     await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
-    await Promise.all([loadUsers(), loadAuditLogData(), loadLiabilities()]);
+    await Promise.all([loadUsers(), loadAuditLogData(), loadLiabilities(), loadIncome()]);
   } else {
     // Residents get their self-service snapshot (/api/me) plus a READ-ONLY view
     // of society-wide finances (Dashboard/Collections/Expenses). Members hold
@@ -488,14 +509,14 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
   // The shared month/year filter only applies to data-driven tabs; hide it
   // elsewhere (settings, profile, etc.). Members get the same read-only filter
   // on the society tabs they can view.
-  const FILTER_TABS = ['dashboard','collections','expenses','reports','notifications'];
+  const FILTER_TABS = ['dashboard','collections','expenses','income','reports','notifications'];
   const tf = document.getElementById('topFilters');
   if(tf) tf.style.display = FILTER_TABS.includes(t) ? 'flex' : 'none';
 
@@ -516,7 +537,7 @@ async function showTab(t, el){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -538,7 +559,7 @@ function onTopFilterChange(){
     if(yrSel) yrSel.value = bucket.year;
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, reports:renderReports, notifications:renderNotifications};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, reports:renderReports, notifications:renderNotifications};
   if(renders[t]) renders[t]();
 }
 
@@ -557,7 +578,7 @@ function filterBucketFor(tab){ return tab === 'dashboard' ? filterState.dashboar
 
 // Collections & Expenses always need one concrete year of data to manage —
 // "All Years" is only meaningful as a full-picture view on Dashboard/Reports/Notifications.
-const NO_ALL_YEARS_TABS = ['collections','expenses'];
+const NO_ALL_YEARS_TABS = ['collections','expenses','income'];
 function allYearsAllowed(tab){ return !NO_ALL_YEARS_TABS.includes(tab); }
 
 function syncFilterControls(tab){
@@ -589,6 +610,10 @@ function filteredExpenses(){
   const m = filterState.dashboard.month, y = filterState.dashboard.year;
   return DB.expenses.filter(e => (!m || getMonth(e)===m) && (!y || getYear(e)===y));
 }
+function filteredIncome(){
+  const m = filterState.dashboard.month, y = filterState.dashboard.year;
+  return (DB.income||[]).filter(i => (!m || getMonth(i)===m) && (!y || getYear(i)===y));
+}
 
 // ═══════════════════════════════════════════════
 // PILLS (shared builder)
@@ -607,6 +632,7 @@ function buildPills(containerId, onClickFn){
 
 function setColMonth(mo){ document.getElementById('topMonth').value = mo; filterState.general.month = mo; renderCollections(); }
 function setExpMonth(mo){ document.getElementById('topMonth').value = mo; filterState.general.month = mo; renderExpenses(); }
+function setIncMonth(mo){ document.getElementById('topMonth').value = mo; filterState.general.month = mo; renderIncome(); }
 
 // ═══════════════════════════════════════════════
 // DASHBOARD
@@ -615,11 +641,13 @@ function renderDashboard(){
   if(!document.getElementById('kpi-col')) return; // partial not loaded yet
   const cols = filteredCollections();
   const exps = filteredExpenses();
+  const incs = filteredIncome();
   // Total Collection should only reflect money actually received (Paid),
   // not amounts that are still pending/unpaid.
   const totalCol = cols.filter(c => getStatus(c).toLowerCase() === 'paid').reduce((s,c)=>s+getAmt(c),0);
   const totalExp = exps.reduce((s,e)=>s+getAmt(e),0);
-  const bal      = totalCol - totalExp;
+  const totalInc = incs.reduce((s,i)=>s+getAmt(i),0);
+  const bal      = totalCol + totalInc - totalExp;
 
   const unpaidRecords = cols.filter(c => getStatus(c).toLowerCase() !== 'paid');
   const pendAmt = unpaidRecords.reduce((s,c)=>s+getAmt(c),0);
@@ -644,6 +672,8 @@ function renderDashboard(){
 
   setText('kpi-col','₹'+totalCol.toLocaleString('en-IN'));
   setText('kpi-exp','₹'+totalExp.toLocaleString('en-IN'));
+  setText('kpi-inc','₹'+totalInc.toLocaleString('en-IN'));
+  setText('kpi-inc-sub', incs.length+' receipt'+(incs.length===1?'':'s'));
   setText('kpi-bal','₹'+bal.toLocaleString('en-IN'));
   setText('kpi-pend','₹'+pendAmt.toLocaleString('en-IN'));
   setText('kpi-pend-sub', pendingMembers.length+' members · '+unpaidRecords.length+' unpaid records');
@@ -981,6 +1011,137 @@ async function deleteExpense(id){
     await Api.deleteExpense(id);
     await loadExpenses();
     renderExpenses(); renderDashboard(); toast('Deleted!','warn');
+  }catch(err){ toast(err.message || 'Delete failed','warn'); }
+}
+
+// ═════════════════════════════════
+// OTHER INCOME (non-member society receipts)
+// ═════════════════════════════════
+function renderIncome(){
+  if(!document.getElementById('inc-tbody')) return;   // partial not loaded yet
+  const catSel = document.getElementById('incCatF');
+  const catCur = catSel.value;
+  catSel.innerHTML = '<option value="">All Categories</option>' + DB.settings.incomeCategories.map(c=>`<option>${c}</option>`).join('');
+  if(catCur) catSel.value = catCur;
+
+  buildPills('incMonthPills','setIncMonth');
+
+  const search = document.getElementById('incSearch').value.toLowerCase();
+  const cat    = document.getElementById('incCatF').value;
+  const m = topMonth(), y = topYear();
+
+  const data = (DB.income||[]).filter(e=>{
+    const mo   = getMonth(e);
+    const yr   = getYear(e);
+    const catV = fld(e,'category','Category','');
+    const desc = fld(e,'description','Description','').toLowerCase();
+    const src  = fld(e,'source','Source','').toLowerCase();
+    const catL = catV.toLowerCase();
+    return (!m||mo===m) && (!y||yr===y) && (!cat||catV===cat) && (!search||desc.includes(search)||src.includes(search)||catL.includes(search));
+  });
+
+  renderPage('inc', data, renderIncRow);
+
+  const totalInc  = data.reduce((s,e)=>s+getAmt(e),0);
+  const catTotals = {};
+  data.forEach(e=>{ const c=fld(e,'category','Category')||'Other'; catTotals[c]=(catTotals[c]||0)+getAmt(e); });
+  const topCats   = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const mo = topMonth();
+  const label = mo ? MONTHS[mo] : 'All Months';
+  document.getElementById('inc-summary').innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);width:100%;">
+      <span style="font-size:12px;font-weight:700;color:var(--sub);">📅 ${label} Summary</span>
+      <span style="margin-left:auto"></span>
+      <div style="text-align:center;padding:6px 16px;background:var(--card);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--sub);margin-bottom:2px;">Total Records</div>
+        <div style="font-size:16px;font-weight:800;">${data.length}</div>
+      </div>
+      <div style="text-align:center;padding:6px 16px;background:#c6f6d5;border-radius:8px;">
+        <div style="font-size:10px;color:#22543d;margin-bottom:2px;">💵 Total Income</div>
+        <div style="font-size:16px;font-weight:800;color:#22543d;">₹${totalInc.toLocaleString('en-IN')}</div>
+      </div>
+      ${topCats.map(([cat,amt])=>`
+      <div style="text-align:center;padding:6px 16px;background:rgba(108,99,255,.10);border-radius:8px;">
+        <div style="font-size:10px;color:var(--accent);margin-bottom:2px;">${cat}</div>
+        <div style="font-size:14px;font-weight:800;color:var(--accent);">₹${amt.toLocaleString('en-IN')}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+function renderIncRow(e, i){
+  const dt   = parseExcelDate(fld(e,'incomeDate','IncomeDate','date','Date'));
+  const cat  = fld(e,'category','Category');
+  const desc = fld(e,'description','Description');
+  const src  = fld(e,'source','Source') || '-';
+  const amt  = getAmt(e);
+  const mode = fld(e,'paymentMode','PaymentMode','mode','Mode') || '-';
+  const ref  = fld(e,'reference','Reference') || '-';
+  const mo   = getMonth(e);
+  const moN  = MONTHS[mo] || fld(e,'month','Month') || '';
+  const yr   = getYear(e) || fld(e,'year','Year') || '';
+  const rem  = fld(e,'remarks','Remarks') || '-';
+  const id   = e.id || e.Id || i;
+  return `<tr>
+    <td>${i+1}</td><td>${dt}</td><td>${cat}</td><td>${desc}</td><td>${src}</td>
+    <td>₹${amt.toLocaleString('en-IN')}</td><td>${mode}</td><td>${ref}</td><td>${moN}</td><td>${yr}</td><td>${rem}</td>
+    <td>${canEdit('Income') ? `<div class="act-btns">
+      <button class="ic-btn" onclick="editIncome('${id}')">✏️</button>
+      <button class="ic-btn" onclick="deleteIncome('${id}')">🗑️</button>
+    </div>` : ''}</td>
+  </tr>`;
+}
+
+async function saveIncome(){
+  if(!canEdit('Income')) return toast('You do not have edit access to Other Income.','warn');
+  const amt  = +document.getElementById('inc-amount').value;
+  const desc = document.getElementById('inc-desc').value.trim();
+  if(!amt||!desc) return toast('Fill required fields','warn');
+  const mo = +document.getElementById('inc-month').value;
+  const payload = {
+    incomeDate: document.getElementById('inc-date').value,
+    category: document.getElementById('inc-cat').value,
+    description: desc,
+    source: document.getElementById('inc-source').value,
+    amount: amt,
+    paymentMode: document.getElementById('inc-mode').value,
+    reference: document.getElementById('inc-reference').value,
+    month: mo,
+    year: +document.getElementById('inc-year').value,
+    remarks: document.getElementById('inc-remarks').value
+  };
+  try{
+    if(editId.inc){ await Api.updateIncome(editId.inc, payload); }
+    else { await Api.createIncome(payload); }
+    await loadIncome();
+    closeModal('inc'); renderIncome(); renderDashboard(); toast('Income saved!');
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+
+function editIncome(id){
+  const e = (DB.income||[]).find(x=>String(x.id||x.Id)===String(id)); if(!e) return;
+  editId.inc = id;
+  document.getElementById('inc-modal-title').textContent = 'Edit Income';
+  populateIncomeCatDropdown();
+  document.getElementById('inc-date').value      = fld(e,'incomeDate','IncomeDate','date','Date');
+  document.getElementById('inc-cat').value       = fld(e,'category','Category');
+  document.getElementById('inc-desc').value       = fld(e,'description','Description');
+  document.getElementById('inc-source').value     = fld(e,'source','Source');
+  document.getElementById('inc-amount').value     = getAmt(e);
+  document.getElementById('inc-mode').value        = fld(e,'paymentMode','PaymentMode','mode','Mode');
+  document.getElementById('inc-reference').value  = fld(e,'reference','Reference');
+  document.getElementById('inc-month').value       = getMonth(e);
+  document.getElementById('inc-year').value        = getYear(e);
+  document.getElementById('inc-remarks').value    = fld(e,'remarks','Remarks');
+  document.getElementById('modal-inc').classList.add('open');
+}
+
+async function deleteIncome(id){
+  if(!canEdit('Income')) return toast('You do not have edit access to Other Income.','warn');
+  if(!confirm('Delete this income record?')) return;
+  try{
+    await Api.deleteIncome(id);
+    await loadIncome();
+    renderIncome(); renderDashboard(); toast('Deleted!','warn');
   }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
 
@@ -1447,6 +1608,7 @@ function loadSettingsUI(){
   document.getElementById('set-secondary').value=s.secondaryColor||'#1a1f36';
   renderLogoPreview();
   renderCatList();
+  renderIncomeCatList();
 }
 function renderLogoPreview(){
   const el = document.getElementById('set-logo-preview');
@@ -1537,6 +1699,29 @@ async function removeCategory(i){
     await Api.updateSettings(currentSettingsPayload({categories}));
     await loadSettingsData();
     renderCatList();
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+
+function renderIncomeCatList(){ const el=document.getElementById('inc-cat-list'); if(!el) return; el.innerHTML=DB.settings.incomeCategories.map((c,i)=>`<span class="badge b-active" style="cursor:pointer" onclick="removeIncomeCategory(${i})">${c} ✕</span>`).join(''); }
+async function addIncomeCategory(){
+  if(!canEdit('Settings')) return toast('You do not have edit access to Settings.','warn');
+  const v=document.getElementById('new-inc-cat').value.trim();
+  if(!v) return;
+  if(DB.settings.incomeCategories.includes(v)) return toast('Category already exists','warn');
+  try{
+    await Api.updateSettings(currentSettingsPayload({incomeCategories:[...DB.settings.incomeCategories, v]}));
+    await loadSettingsData();
+    document.getElementById('new-inc-cat').value='';
+    renderIncomeCatList();
+  }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+async function removeIncomeCategory(i){
+  if(!canEdit('Settings')) return toast('You do not have edit access to Settings.','warn');
+  const incomeCategories = DB.settings.incomeCategories.filter((_,idx)=>idx!==i);
+  try{
+    await Api.updateSettings(currentSettingsPayload({incomeCategories}));
+    await loadSettingsData();
+    renderIncomeCatList();
   }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 
@@ -1687,18 +1872,19 @@ function renderPage(key, data, rowFn){
 }
 function changePage(k,d){ pages[k]+=d; refreshSection(k); }
 function setPage(k,p)   { pages[k]=p;  refreshSection(k); }
-function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')renderExpenses(); else if(k==='mem')renderMembers(); else if(k==='audit')renderAudit(); else if(k==='cmp')renderComplaints(); else if(k==='liab')renderLiabilities(); }
+function refreshSection(k){ if(k==='col')renderCollections(); else if(k==='exp')renderExpenses(); else if(k==='inc')renderIncome(); else if(k==='mem')renderMembers(); else if(k==='audit')renderAudit(); else if(k==='cmp')renderComplaints(); else if(k==='liab')renderLiabilities(); }
 
 // ═══════════════════════════════════════════════
 // MODAL HELPERS
 // ═══════════════════════════════════════════════
 function openModal(type){
-  const moduleMap = {col:'Collections', exp:'Expenses', mem:'Members'};
+  const moduleMap = {col:'Collections', exp:'Expenses', mem:'Members', inc:'Income'};
   if(moduleMap[type] && !canEdit(moduleMap[type])) return toast('You do not have edit access to '+moduleMap[type]+'.','warn');
   if(type==='user' && !isAdmin()) return toast('Read-only access — Admin only.','warn');
   editId[type]=null;
   if(type==='col'){ document.getElementById('col-modal-title').textContent='Add Collection'; populateMemberDropdown(); document.getElementById('col-date').value=new Date().toISOString().split('T')[0]; document.getElementById('col-month').value=new Date().getMonth()+1; document.getElementById('col-year').value=new Date().getFullYear(); document.getElementById('col-amount').value=''; document.getElementById('col-remarks').value=''; }
   if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; }
+  if(type==='inc'){ document.getElementById('inc-modal-title').textContent='Add Income'; populateIncomeCatDropdown(); document.getElementById('inc-date').value=new Date().toISOString().split('T')[0]; document.getElementById('inc-month').value=new Date().getMonth()+1; document.getElementById('inc-year').value=new Date().getFullYear(); document.getElementById('inc-amount').value=''; document.getElementById('inc-desc').value=''; document.getElementById('inc-source').value=''; document.getElementById('inc-reference').value=''; document.getElementById('inc-remarks').value=''; }
   if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); populateTowerDatalist(); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-area').value=''; populateFlatTypeDropdown(''); document.getElementById('mem-tower').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
   if(type==='cmp'){
     document.getElementById('cmp-modal-title').textContent='Raise Complaint';
@@ -1757,6 +1943,7 @@ function populateMemberDropdown(){
   document.getElementById('col-member').innerHTML=DB.members.filter(m=>(fld(m,'status','Status')||'Active')==='Active').map(m=>`<option value="${fld(m,'id','Id')}">${fld(m,'name','Name')} (${fld(m,'flat','Flat')})</option>`).join('');
 }
 function populateCatDropdown(){ document.getElementById('exp-cat').innerHTML=DB.settings.categories.map(c=>`<option>${c}</option>`).join(''); }
+function populateIncomeCatDropdown(){ document.getElementById('inc-cat').innerHTML=DB.settings.incomeCategories.map(c=>`<option>${c}</option>`).join(''); }
 function populateFloorDropdown(id){ document.getElementById(id).innerHTML=DB.settings.floors.map(f=>`<option value="${f}">Floor ${f}</option>`).join(''); }
 function populateFlatTypeDropdown(selected){
   const sel=document.getElementById('mem-flattype'); if(!sel) return;

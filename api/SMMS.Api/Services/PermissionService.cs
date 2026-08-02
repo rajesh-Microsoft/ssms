@@ -14,8 +14,9 @@ public static class PermissionModules
     public const string Complaints = "Complaints";
     public const string Settings = "Settings";
     public const string Liabilities = "Liabilities";
+    public const string Income = "Income";
 
-    public static readonly string[] All = [Collections, Expenses, Members, Complaints, Settings, Liabilities];
+    public static readonly string[] All = [Collections, Expenses, Members, Complaints, Settings, Liabilities, Income];
 
     public static readonly string[] ValidLevels = ["None", "View", "Edit"];
 }

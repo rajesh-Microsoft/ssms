@@ -1,0 +1,17 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Other Income</h3>
+    <div class="search-row">
+      <input type="text" id="incSearch" placeholder="🔍 Search..." oninput="renderIncome()" style="width:160px;">
+      <select id="incCatF" onchange="renderIncome()" style="width:auto;"><option value="">All Categories</option></select>
+      <button class="btn btn-primary" data-perm="Income" onclick="openModal('inc')">＋ Add</button>
+    </div>
+  </div>
+  <div class="pills" id="incMonthPills"></div>
+  <div id="inc-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Date</th><th>Category</th><th>Description</th><th>Source</th><th>Amount</th><th>Mode</th><th>Reference</th><th>Month</th><th>Year</th><th>Remarks</th><th>Actions</th></tr></thead>
+    <tbody id="inc-tbody"></tbody></table>
+  </div>
+  <div class="pagination" id="inc-pagination"></div>
+</div>

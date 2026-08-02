@@ -21,6 +21,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<AdvanceLedgerEntry> AdvanceLedger => Set<AdvanceLedgerEntry>();
     public DbSet<SocietyLiability> SocietyLiabilities => Set<SocietyLiability>();
     public DbSet<SocietyLiabilitySettlement> SocietyLiabilitySettlements => Set<SocietyLiabilitySettlement>();
+    public DbSet<SocietyIncome> SocietyIncomes => Set<SocietyIncome>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -168,9 +169,14 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         modelBuilder.Entity<SocietyLiability>()
             .HasIndex(l => new { l.Status, l.Date });
 
+        // Speeds up the income list/summary scans by period.
+        modelBuilder.Entity<SocietyIncome>()
+            .HasIndex(i => new { i.Year, i.Month });
+
         // Soft delete: hide logically-deleted rows from every query automatically.
         modelBuilder.Entity<Expense>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Complaint>().HasQueryFilter(c => !c.IsDeleted);
         modelBuilder.Entity<SocietyLiability>().HasQueryFilter(l => !l.IsDeleted);
+        modelBuilder.Entity<SocietyIncome>().HasQueryFilter(i => !i.IsDeleted);
     }
 }
