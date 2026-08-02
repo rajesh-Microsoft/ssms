@@ -41,7 +41,7 @@ public class SocietyLiabilityService(SmmsDbContext db, AdvanceService advance)
     /// Returns the amount actually settled (0 when nothing outstanding).
     /// </summary>
     public decimal Settle(SocietyLiability liability, decimal amount, LiabilitySettlementMethod method,
-        Member? member, string? paymentMode, string? note)
+        Member? member, string? paymentMode, string? reference, string? note)
     {
         var outstanding = liability.Amount - liability.SettledAmount;
         if (amount <= 0 || outstanding <= 0) return 0m;
@@ -60,7 +60,9 @@ public class SocietyLiabilityService(SmmsDbContext db, AdvanceService advance)
                 PaymentMode = paymentMode,
                 Month = DateTime.UtcNow.Month,
                 Year = DateTime.UtcNow.Year,
-                Remarks = note
+                Remarks = string.IsNullOrWhiteSpace(reference)
+                    ? note
+                    : $"UTR {reference.Trim()}" + (string.IsNullOrWhiteSpace(note) ? "" : $" \u00b7 {note}")
             };
             db.Expenses.Add(repayExpense);
         }
@@ -84,6 +86,7 @@ public class SocietyLiabilityService(SmmsDbContext db, AdvanceService advance)
             Amount = applied,
             Method = method,
             Expense = repayExpense, // EF sets ExpenseId on commit
+            Reference = reference?.Trim(),
             Note = note
         });
         return applied;

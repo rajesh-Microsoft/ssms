@@ -1263,6 +1263,7 @@ function openSettleLiability(id){
   if(advOpt) advOpt.disabled = !l.memberId;
   methodSel.value = 'Repaid';
   document.getElementById('stl-mode').value = 'UPI';
+  document.getElementById('stl-ref').value = '';
   document.getElementById('stl-note').value = '';
   onSettleMethodChange();
   document.getElementById('modal-stl').classList.add('open');
@@ -1271,7 +1272,9 @@ function openSettleLiability(id){
 function onSettleMethodChange(){
   const repaid = document.getElementById('stl-method').value === 'Repaid';
   const modeRow = document.getElementById('stl-mode-row');
+  const refRow  = document.getElementById('stl-ref-row');
   if(modeRow) modeRow.style.display = repaid ? '' : 'none';
+  if(refRow)  refRow.style.display  = repaid ? '' : 'none';
 }
 
 async function saveSettlement(){
@@ -1284,6 +1287,7 @@ async function saveSettlement(){
     amount,
     method,
     paymentMode: method==='Repaid' ? document.getElementById('stl-mode').value : null,
+    reference: method==='Repaid' ? document.getElementById('stl-ref').value.trim() : null,
     note: document.getElementById('stl-note').value.trim()
   };
   try{

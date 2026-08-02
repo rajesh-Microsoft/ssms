@@ -4,7 +4,7 @@ using SMMS.Api.Models;
 namespace SMMS.Api.Dtos;
 
 public record SocietyLiabilitySettlementDto(
-    int Id, DateTime Date, decimal Amount, string Method, int? ExpenseId, string? Note);
+    int Id, DateTime Date, decimal Amount, string Method, int? ExpenseId, string? Note, string? Reference);
 
 public record SocietyLiabilityDto(
     int Id,
@@ -33,4 +33,5 @@ public record SocietyLiabilitySettleRequest(
     [Range(0.01, 100_000_000)] decimal Amount,
     [Required] string Method,
     string? PaymentMode,
+    string? Reference,
     string? Note);

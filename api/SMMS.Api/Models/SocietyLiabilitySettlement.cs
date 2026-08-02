@@ -41,4 +41,8 @@ public class SocietyLiabilitySettlement
 
     [MaxLength(300)]
     public string? Note { get; set; }
+
+    /// <summary>Bank UTR / cheque no for the repayment withdrawal (Repaid method).</summary>
+    [MaxLength(60)]
+    public string? Reference { get; set; }
 }

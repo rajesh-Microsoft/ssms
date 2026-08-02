@@ -27,7 +27,7 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
         l.Purpose,
         l.Settlements
             .OrderByDescending(s => s.Date)
-            .Select(s => new SocietyLiabilitySettlementDto(s.Id, s.Date, s.Amount, s.Method.ToString(), s.ExpenseId, s.Note)));
+            .Select(s => new SocietyLiabilitySettlementDto(s.Id, s.Date, s.Amount, s.Method.ToString(), s.ExpenseId, s.Note, s.Reference)));
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<SocietyLiabilityDto>>> GetAll([FromQuery] string? status)
@@ -97,7 +97,7 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
             return BadRequest("Cannot convert to advance without a linked member.");
 
         var applied = service.Settle(liability, request.Amount, method, liability.Member,
-            request.PaymentMode, request.Note);
+            request.PaymentMode, request.Reference, request.Note);
         if (applied <= 0) return BadRequest("Nothing outstanding to settle.");
 
         await db.SaveChangesAsync();
