@@ -248,6 +248,12 @@ async function loadCoreData(){
     // edit/add buttons stay hidden because they require "Edit" (see canEdit()).
     await Promise.all([loadMe(), loadSettingsData(), loadMembers()]);
     await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
+    // Other Income + Liabilities are shown only if the admin granted this
+    // resident View on those modules (per-user Module Permissions).
+    const extra = [];
+    if(canView('Income')) extra.push(loadIncome());
+    if(canView('Liabilities')) extra.push(loadLiabilities());
+    if(extra.length) await Promise.all(extra);
   }
 }
 
