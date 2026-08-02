@@ -12,6 +12,7 @@ services:
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: sqlserver
+    restart: unless-stopped
     logging: *default-logging
 
     environment:
@@ -30,6 +31,7 @@ services:
       context: ./api/SMMS.Api
 
     container_name: smms-api
+    restart: unless-stopped
     logging: *default-logging
 
     depends_on:
@@ -69,6 +71,7 @@ services:
   smms-ui:
     image: nginx:alpine
     container_name: smms-ui
+    restart: unless-stopped
     logging: *default-logging
 
     ports:
