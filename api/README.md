@@ -32,6 +32,44 @@ call this API yet.
 On first run, the database is seeded with a default Admin account: username `Admin`,
 password `admin123` — change this immediately via `POST /api/users/{id}/reset-password`.
 
+## Razorpay test checkout
+
+SMMS can optionally create Razorpay test orders from the resident payment screen. Manual UPI
+QR and proof upload remain available as a fallback. Test mode is disabled by default and does
+not move real money.
+
+1. Create or sign in to a Razorpay account, switch the dashboard to **Test Mode**, and generate
+   a test Key ID and Key Secret.
+2. Store both values with .NET user-secrets so they remain outside Git and OneDrive:
+   ```powershell
+   cd api/SMMS.Api
+   dotnet user-secrets set "Razorpay:Enabled" "true"
+   dotnet user-secrets set "Razorpay:KeyId" "rzp_test_your_key_id"
+   dotnet user-secrets set "Razorpay:KeySecret" "your_test_key_secret"
+   ```
+3. Restart the API, sign in as a resident, open **Pay Online**, and choose
+   **Pay with Razorpay**.
+4. For a simulated UPI result in Razorpay Checkout, use `success@razorpay` or
+   `failure@razorpay`. Razorpay's test card and netbanking options can also be used.
+
+When running with Docker Compose, inject the test credentials into the current PowerShell
+process instead of creating a `.env` file in the OneDrive workspace:
+
+```powershell
+$env:RAZORPAY_ENABLED = "true"
+$env:RAZORPAY_KEY_ID = "rzp_test_your_key_id"
+$env:RAZORPAY_KEY_SECRET = Read-Host "Razorpay test key secret"
+docker compose up -d --build smms-api smms-ui
+```
+
+The server creates the order and verifies the checkout HMAC, order ID, amount, currency, and
+captured payment status before marking an SMMS invoice paid. The Key Secret is never returned
+to the browser.
+
+This is a sandbox integration for one platform Razorpay account. Before production use, add
+signed, idempotent webhooks and decide how each society completes merchant onboarding and
+receives settlement into its own bank account.
+
 ## Key endpoints
 
 - `POST /api/auth/login`, `POST /api/auth/signup`, `GET /api/auth/security-question`, `POST /api/auth/reset-password`

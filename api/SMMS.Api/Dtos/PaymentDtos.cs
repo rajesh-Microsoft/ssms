@@ -25,6 +25,23 @@ public record QrPayloadDto(
     string PayeeName,
     string UpiId);
 
+public record PaymentOptionsDto(bool RazorpayEnabled, bool ManualUpiEnabled);
+
+public record RazorpayOrderDto(
+    string KeyId,
+    string OrderId,
+    long Amount,
+    string Currency,
+    string Name,
+    string Description,
+    string PrefillName,
+    string? PrefillEmail,
+    string? PrefillContact);
+
+public record RazorpayVerifyRequest(string OrderId, string PaymentId, string Signature);
+
+public record RazorpayVerifyResponse(string Status, string PaymentId, int CollectionId);
+
 /// <summary>One row of a resident's payment-proof history.</summary>
 public record PaymentProofDto(
     int Id,
