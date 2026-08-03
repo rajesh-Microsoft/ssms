@@ -2578,7 +2578,7 @@ function downloadMemberReceipt(id){
 // ═══════════════════════════════════════════════
 // ONLINE PAYMENTS  (member: pay + upload proof)
 // ═══════════════════════════════════════════════
-let _payCtx = { collectionId: null, qrUrl: null };
+let _payCtx = { collectionId: null, qrUrl: null, razorpayOrder: null };
 
 async function loadMemberPendingInvoices(){
   const box = document.getElementById('m-pay-invoices');
@@ -2608,25 +2608,107 @@ async function loadMemberPendingInvoices(){
 
 async function openPayModal(collectionId){
   try{
-    const payload = await Api.getQrPayload(collectionId);
+    const options = await Api.getPaymentOptions();
+    if(!options.razorpayEnabled && !options.manualUpiEnabled){
+      throw new Error('Online payment is not configured for this society yet.');
+    }
+
     _payCtx.collectionId = collectionId;
-    document.getElementById('pay-modal-title').textContent = `Pay ${payload.invoiceNumber}`;
-    document.getElementById('pay-amt').textContent = mMoney(payload.amount);
-    document.getElementById('pay-payee').textContent = `To: ${payload.payeeName} · ${payload.upiId}`;
-    document.getElementById('pay-upi-link').href = payload.upiUri;
+    _payCtx.razorpayOrder = null;
     document.getElementById('pay-ref').value = '';
     document.getElementById('pay-file').value = '';
 
     const img = document.getElementById('pay-qr-img');
     img.src = '';
     if(_payCtx.qrUrl){ URL.revokeObjectURL(_payCtx.qrUrl); _payCtx.qrUrl = null; }
-    _payCtx.qrUrl = await Api.getQrImageUrl(collectionId);
-    img.src = _payCtx.qrUrl;
+
+    const razorpayWrap = document.getElementById('pay-razorpay-wrap');
+    const manualWrap = document.getElementById('pay-manual-wrap');
+    const manualDivider = document.getElementById('pay-manual-divider');
+    const manualSubmit = document.getElementById('pay-submit-btn');
+    razorpayWrap.style.display = options.razorpayEnabled ? 'flex' : 'none';
+    manualWrap.style.display = options.manualUpiEnabled ? 'flex' : 'none';
+    manualSubmit.style.display = options.manualUpiEnabled ? 'inline-flex' : 'none';
+    manualDivider.style.display = options.razorpayEnabled && options.manualUpiEnabled ? 'flex' : 'none';
+
+    let paymentDetails = null;
+    if(options.razorpayEnabled){
+      try{
+        _payCtx.razorpayOrder = await Api.createRazorpayOrder(collectionId);
+        paymentDetails = {
+          invoiceNumber: _payCtx.razorpayOrder.description.replace(/^Maintenance\s+/, ''),
+          amount: _payCtx.razorpayOrder.amount / 100
+        };
+      }catch(err){
+        razorpayWrap.style.display = 'none';
+        manualDivider.style.display = 'none';
+        if(!options.manualUpiEnabled) throw err;
+        toast(`Razorpay unavailable: ${err.message}`, 'warn');
+      }
+    }
+
+    if(options.manualUpiEnabled){
+      const payload = await Api.getQrPayload(collectionId);
+      paymentDetails = paymentDetails || payload;
+      document.getElementById('pay-payee').textContent = `To: ${payload.payeeName} · ${payload.upiId}`;
+      document.getElementById('pay-upi-link').href = payload.upiUri;
+      _payCtx.qrUrl = await Api.getQrImageUrl(collectionId);
+      img.src = _payCtx.qrUrl;
+    }
+
+    document.getElementById('pay-modal-title').textContent = `Pay ${paymentDetails.invoiceNumber}`;
+    document.getElementById('pay-amt').textContent = mMoney(paymentDetails.amount);
 
     document.getElementById('modal-pay').classList.add('open');
   }catch(err){
     toast(err.message, 'warn');
   }
+}
+
+async function startRazorpayCheckout(){
+  const order = _payCtx.razorpayOrder;
+  if(!order) return toast('Razorpay order is not ready. Please reopen the payment window.', 'warn');
+  if(typeof Razorpay !== 'function') return toast('Razorpay Checkout could not be loaded.', 'warn');
+
+  const button = document.getElementById('pay-razorpay-btn');
+  button.disabled = true;
+  const checkout = new Razorpay({
+    key: order.keyId,
+    amount: order.amount,
+    currency: order.currency,
+    name: order.name,
+    description: order.description,
+    order_id: order.orderId,
+    prefill: {
+      name: order.prefillName || '',
+      email: order.prefillEmail || '',
+      contact: order.prefillContact || ''
+    },
+    theme: { color: '#246bfd' },
+    handler: async response => {
+      try{
+        await Api.verifyRazorpayPayment({
+          orderId: response.razorpay_order_id,
+          paymentId: response.razorpay_payment_id,
+          signature: response.razorpay_signature
+        });
+        toast('Payment verified and receipt is ready ✅');
+        closeModal('pay');
+        await loadMe();
+        renderMemberPayments();
+      }catch(err){
+        toast(err.message, 'warn');
+      }finally{
+        button.disabled = false;
+      }
+    },
+    modal: { ondismiss: () => { button.disabled = false; } }
+  });
+  checkout.on('payment.failed', response => {
+    button.disabled = false;
+    toast(response.error?.description || 'Payment failed. Please try again.', 'warn');
+  });
+  checkout.open();
 }
 
 async function submitPaymentProof(){

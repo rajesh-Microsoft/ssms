@@ -23,6 +23,7 @@ public class MemberPaymentsController(
     SmmsDbContext db,
     PaymentService payments,
     IPaymentGateway gateway,
+    RazorpayPaymentGateway razorpay,
     QrService qr,
     IFileStorage storage) : ControllerBase
 {
@@ -37,6 +38,15 @@ public class MemberPaymentsController(
         if (user is null || string.IsNullOrWhiteSpace(user.Flat)) return null;
         var flat = user.Flat!.ToLower();
         return await db.Members.FirstOrDefaultAsync(m => m.Flat.ToLower() == flat);
+    }
+
+    [HttpGet("payment-options")]
+    public async Task<ActionResult<PaymentOptionsDto>> PaymentOptions()
+    {
+        var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync();
+        return Ok(new PaymentOptionsDto(
+            razorpay.IsConfigured,
+            !string.IsNullOrWhiteSpace(settings?.UpiId)));
     }
 
     [HttpGet("pending-invoices")]
@@ -54,7 +64,7 @@ public class MemberPaymentsController(
             .ToListAsync();
 
         var pendingProofCollectionIds = await db.PaymentProofs
-            .Where(p => p.MemberId == member.Id && p.Status == "Pending")
+            .Where(p => p.MemberId == member.Id && p.Status == "Pending" && p.GatewayName == "ManualUPI")
             .Select(p => p.CollectionId)
             .ToListAsync();
 
@@ -98,6 +108,110 @@ public class MemberPaymentsController(
         var instruction = gateway.CreateInstruction(settings!, charge!, member!);
         var png = qr.PngFromText(instruction.Payload);
         return File(png, "image/png");
+    }
+
+    [HttpPost("razorpay/order/{collectionId:int}")]
+    public async Task<ActionResult<RazorpayOrderDto>> CreateRazorpayOrder(
+        int collectionId, CancellationToken ct)
+    {
+        if (!razorpay.IsConfigured)
+            return BadRequest(new { message = "Razorpay test mode is not configured." });
+
+        var (charge, member, settings, error) = await LoadPayableAsync(collectionId, requireUpi: false);
+        if (error is not null) return error;
+
+        var activeAttempt = await db.PaymentProofs
+            .Where(p => p.CollectionId == collectionId
+                && p.MemberId == member!.Id
+                && p.GatewayName == "Razorpay"
+                && p.Status == "Initiated"
+                && p.SubmittedAt >= DateTime.UtcNow.AddMinutes(-15))
+            .OrderByDescending(p => p.SubmittedAt)
+            .FirstOrDefaultAsync(ct);
+
+        RazorpayOrder order;
+        if (activeAttempt is not null)
+        {
+            order = new RazorpayOrder(
+                activeAttempt.GatewayReference!,
+                RazorpayPaymentGateway.ToPaise(activeAttempt.Amount),
+                "INR");
+        }
+        else
+        {
+            var invoiceNumber = PaymentNumbering.InvoiceNumber(charge!);
+            order = await razorpay.CreateOrderAsync(
+                charge!.Amount,
+                $"smms-{charge.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                invoiceNumber,
+                member!.Flat,
+                ct);
+
+            db.PaymentProofs.Add(new PaymentProof
+            {
+                CollectionId = charge.Id,
+                MemberId = member.Id,
+                SubmittedByUserId = CurrentUserId,
+                Amount = charge.Amount,
+                Status = "Initiated",
+                SubmittedAt = DateTime.UtcNow,
+                GatewayName = "Razorpay",
+                GatewayReference = order.Id
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
+        return Ok(new RazorpayOrderDto(
+            razorpay.KeyId,
+            order.Id,
+            order.Amount,
+            order.Currency,
+            settings!.SocietyName,
+            $"Maintenance {PaymentNumbering.InvoiceNumber(charge!)}",
+            member!.Name,
+            member.Email,
+            member.Mobile));
+    }
+
+    [HttpPost("razorpay/verify")]
+    public async Task<ActionResult<RazorpayVerifyResponse>> VerifyRazorpayPayment(
+        RazorpayVerifyRequest request, CancellationToken ct)
+    {
+        if (!razorpay.IsConfigured)
+            return BadRequest(new { message = "Razorpay test mode is not configured." });
+        if (string.IsNullOrWhiteSpace(request.OrderId)
+            || string.IsNullOrWhiteSpace(request.PaymentId)
+            || string.IsNullOrWhiteSpace(request.Signature))
+            return BadRequest(new { message = "Razorpay returned an incomplete payment response." });
+
+        var member = await ResolveMemberAsync();
+        if (member is null) return Forbid();
+
+        var attempt = await db.PaymentProofs
+            .FirstOrDefaultAsync(p => p.GatewayName == "Razorpay"
+                && p.GatewayReference == request.OrderId
+                && p.MemberId == member.Id, ct);
+        if (attempt is null) return NotFound(new { message = "Payment order not found." });
+
+        if (!razorpay.VerifyCheckoutSignature(attempt.GatewayReference!, request.PaymentId, request.Signature))
+            return BadRequest(new { message = "Razorpay payment signature is invalid." });
+        if (attempt.Status == "Approved")
+        {
+            if (attempt.UpiReference != request.PaymentId)
+                return BadRequest(new { message = "Payment order was already completed by a different payment." });
+            return Ok(new RazorpayVerifyResponse("Approved", request.PaymentId, attempt.CollectionId));
+        }
+
+        var payment = await razorpay.FetchPaymentAsync(request.PaymentId, ct);
+        if (payment.OrderId != attempt.GatewayReference
+            || payment.Amount != RazorpayPaymentGateway.ToPaise(attempt.Amount)
+            || payment.Currency != "INR")
+            return BadRequest(new { message = "Razorpay payment does not match this invoice." });
+        if (payment.Status != "captured")
+            return BadRequest(new { message = $"Payment is {payment.Status}; it must be captured before the invoice is marked paid." });
+
+        await payments.ApproveGatewayPaymentAsync(attempt, payment.Id, ct);
+        return Ok(new RazorpayVerifyResponse("Approved", payment.Id, attempt.CollectionId));
     }
 
     [HttpPost("upload-payment-proof")]
@@ -146,7 +260,7 @@ public class MemberPaymentsController(
 
         var rows = await db.PaymentProofs
             .Include(p => p.Collection)
-            .Where(p => p.MemberId == member.Id)
+            .Where(p => p.MemberId == member.Id && p.Status != "Initiated")
             .OrderByDescending(p => p.SubmittedAt)
             .ToListAsync();
 
@@ -172,7 +286,8 @@ public class MemberPaymentsController(
     }
 
     /// <summary>Loads a charge for the current member and validates it can be paid via UPI.</summary>
-    private async Task<(Collection? charge, Member? member, SocietySettings? settings, ObjectResult? error)> LoadPayableAsync(int collectionId)
+    private async Task<(Collection? charge, Member? member, SocietySettings? settings, ObjectResult? error)> LoadPayableAsync(
+        int collectionId, bool requireUpi = true)
     {
         var member = await ResolveMemberAsync();
         if (member is null) return (null, null, null, StatusCode(StatusCodes.Status403Forbidden, new { message = "No linked flat." }));
@@ -183,7 +298,9 @@ public class MemberPaymentsController(
         if (charge.Status == "Paid") return (null, null, null, BadRequest(new { message = "This invoice is already paid." }));
 
         var settings = await db.Settings.FirstOrDefaultAsync();
-        if (settings is null || string.IsNullOrWhiteSpace(settings.UpiId))
+        if (settings is null)
+            return (null, null, null, BadRequest(new { message = "Society payment settings are unavailable." }));
+        if (requireUpi && string.IsNullOrWhiteSpace(settings.UpiId))
             return (null, null, null, BadRequest(new { message = "Online payment is not configured for this society yet." }));
 
         return (charge, member, settings, null);

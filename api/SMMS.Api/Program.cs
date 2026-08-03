@@ -80,6 +80,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<SMMS.Api.Services.QrService>();
 builder.Services.AddSingleton<SMMS.Api.Services.Storage.IFileStorage, SMMS.Api.Services.Storage.LocalFileStorage>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.IPaymentGateway, SMMS.Api.Services.Payments.ManualUpiPaymentGateway>();
+builder.Services.Configure<SMMS.Api.Services.Payments.RazorpayOptions>(builder.Configuration.GetSection("Razorpay"));
+builder.Services.AddHttpClient<SMMS.Api.Services.Payments.RazorpayPaymentGateway>(client =>
+{
+    client.BaseAddress = new Uri("https://api.razorpay.com/v1/");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.BankReconciliationService>();
 

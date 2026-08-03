@@ -39,7 +39,8 @@ public class AdminPaymentsController(
     public async Task<ActionResult<IEnumerable<AdminPaymentProofDto>>> List(
         [FromQuery] string? status, [FromQuery] int? month, [FromQuery] int? year, [FromQuery] string? flat)
     {
-        var q = db.PaymentProofs.Include(p => p.Collection).Include(p => p.Member).AsQueryable();
+        var q = db.PaymentProofs.Include(p => p.Collection).Include(p => p.Member)
+            .Where(p => p.Status != "Initiated");
         if (!string.IsNullOrWhiteSpace(status)) q = q.Where(p => p.Status == status);
         if (month.HasValue) q = q.Where(p => p.Collection!.Month == month.Value);
         if (year.HasValue) q = q.Where(p => p.Collection!.Year == year.Value);

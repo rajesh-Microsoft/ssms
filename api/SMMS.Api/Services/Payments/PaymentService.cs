@@ -50,6 +50,28 @@ public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService
         proof.ReviewedByUserId = reviewerUserId;
         proof.ReviewedAt = DateTime.UtcNow;
 
+        await CompleteChargeAsync(proof, ct);
+        await audit.LogAsync("Payments", "Approve",
+            $"Approved payment proof #{proof.Id} (charge {proof.CollectionId}); marked Paid");
+    }
+
+    public async Task ApproveGatewayPaymentAsync(
+        PaymentProof proof, string paymentId, CancellationToken ct = default)
+    {
+        if (proof.Status == "Approved") return;
+
+        proof.Status = "Approved";
+        proof.UpiReference = paymentId;
+        proof.ReviewedAt = DateTime.UtcNow;
+        proof.ReviewRemarks = "Automatically verified by Razorpay.";
+
+        await CompleteChargeAsync(proof, ct);
+        await audit.LogAsync("Payments", "GatewayApprove",
+            $"Razorpay payment {paymentId} verified for charge {proof.CollectionId}; marked Paid");
+    }
+
+    private async Task CompleteChargeAsync(PaymentProof proof, CancellationToken ct)
+    {
         var charge = await db.Collections.FindAsync([proof.CollectionId], ct);
         if (charge is not null)
         {
@@ -69,8 +91,6 @@ public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService
             }
         }
         await db.SaveChangesAsync(ct);
-        await audit.LogAsync("Payments", "Approve",
-            $"Approved payment proof #{proof.Id} (charge {proof.CollectionId}); marked Paid");
     }
 
     /// <summary>Rejects a pending proof with an optional reason. The charge stays unpaid.</summary>

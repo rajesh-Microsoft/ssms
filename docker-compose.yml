@@ -65,6 +65,12 @@ services:
 
       Jwt__Audience: SMMS.Client
 
+      Razorpay__Enabled: ${RAZORPAY_ENABLED:-false}
+
+      Razorpay__KeyId: ${RAZORPAY_KEY_ID:-}
+
+      Razorpay__KeySecret: ${RAZORPAY_KEY_SECRET:-}
+
     ports:
       - "7253:8080"
 

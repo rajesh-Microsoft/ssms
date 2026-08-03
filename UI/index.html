@@ -6,6 +6,7 @@
 <title>SMMS – Society Maintenance Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <link rel="stylesheet" href="styles.css">
 
 </head>
@@ -419,7 +420,15 @@
 <div class="modal-overlay" id="modal-pay">
   <div class="modal">
     <div class="modal-hdr"><h3 id="pay-modal-title">Pay Maintenance</h3><button class="modal-close" onclick="closeModal('pay')">✕</button></div>
-    <div class="pay-modal-body">
+    <div class="pay-gateway" id="pay-razorpay-wrap" style="display:none;">
+      <div>
+        <strong>Secure online checkout</strong>
+        <p class="mhint">Test mode supports UPI, cards, netbanking and wallets. No real money is charged.</p>
+      </div>
+      <button class="btn btn-primary" id="pay-razorpay-btn" onclick="startRazorpayCheckout()">Pay with Razorpay</button>
+    </div>
+    <div class="pay-divider" id="pay-manual-divider" style="display:none;"><span>or pay directly by UPI</span></div>
+    <div class="pay-modal-body" id="pay-manual-wrap">
       <div class="pay-qr-wrap">
         <img id="pay-qr-img" class="pay-qr-img" alt="UPI QR code">
         <div class="pay-amt" id="pay-amt">₹0</div>

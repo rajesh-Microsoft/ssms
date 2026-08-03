@@ -1,5 +1,6 @@
 # Python
 .venv/
+.venv-*/
 __pycache__/
 *.pyc
 
@@ -14,6 +15,10 @@ api/**/obj/
 
 # IDE cache (Visual Studio)
 api/**/.vs/
+
+# Local-dev compose overrides. Must never reach the VM: it would move the UI
+# off 443 and swap in the HTTP-only nginx config.
+docker-compose.override.yml
 
 # OS
 Thumbs.db
