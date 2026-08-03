@@ -25,6 +25,9 @@ docker-compose.override.yml
 .env.*
 !.env.example
 
+# Ops script output. Routinely contains secrets read back off the VM.
+*.log
+
 # OS
 Thumbs.db
 .DS_Store

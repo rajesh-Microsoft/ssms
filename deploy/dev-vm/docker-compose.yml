@@ -1,0 +1,82 @@
+# Dev stack for the production VM. Deployed to ~/smms-dev/SMMS/docker-compose.yml
+# so the build contexts below resolve against the repo root.
+#
+# Isolation from production is by four separate axes, all of which must hold:
+#   project name  smms-dev      (vs smms)         -> separate network + volume namespace
+#   container_name smms-dev-*   (vs sqlserver/smms-api/smms-ui)
+#   volume        smms-dev_sql_data (vs smms_sql_data)
+#   Jwt Issuer/Audience/Key     -> a dev token is rejected by production even if the key leaks
+#
+# Service names are deliberately IDENTICAL to production (sqlserver/smms-api/smms-ui)
+# because Compose scopes DNS to the project network. That lets nginx.dev-vm.conf stay a
+# near-copy of the production nginx.conf, so the two configs do not drift.
+name: smms-dev
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smms-dev-sql
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: ${DEV_SA_PASSWORD:?DEV_SA_PASSWORD must be set in .env}
+    # No published port on purpose: this database holds a copy of real resident
+    # data. Only smms-api reaches it, over the smms-dev network.
+    volumes:
+      - sql_data:/var/opt/mssql
+
+  smms-api:
+    build:
+      context: ./api/SMMS.Api
+    container_name: smms-dev-api
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - sqlserver
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+
+      ControlPlane__ConnectionString: Server=sqlserver;Database=SmmsControlDb;User Id=sa;Password=${DEV_SA_PASSWORD};TrustServerCertificate=True
+      ControlPlane__TenantConnectionTemplate: Server=sqlserver;Database={DbName};User Id=sa;Password=${DEV_SA_PASSWORD};TrustServerCertificate=True
+      ControlPlane__SuperAdmin__Username: superadmin
+      ControlPlane__SuperAdmin__Password: ${DEV_SUPERADMIN_PASSWORD:?DEV_SUPERADMIN_PASSWORD must be set in .env}
+      ControlPlane__SuperAdmin__DisplayName: Platform Owner (DEV)
+
+      # Distinct issuer/audience as well as key, so a dev-issued JWT cannot be
+      # replayed against production and vice versa.
+      Jwt__Key: ${DEV_JWT_KEY:?DEV_JWT_KEY must be set in .env}
+      Jwt__Issuer: SMMS.Api.Dev
+      Jwt__Audience: SMMS.Client.Dev
+
+      Razorpay__Enabled: ${RAZORPAY_ENABLED:-false}
+      Razorpay__KeyId: ${RAZORPAY_KEY_ID:-}
+      Razorpay__KeySecret: ${RAZORPAY_KEY_SECRET:-}
+      Razorpay__WebhookSecret: ${RAZORPAY_WEBHOOK_SECRET:-}
+    # No published port: reached only by smms-ui inside this project's network.
+
+  smms-ui:
+    image: nginx:alpine
+    container_name: smms-dev-ui
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - smms-api
+    # Bound to the docker0 gateway, never 0.0.0.0. The production nginx (which
+    # terminates TLS on 443) is the only way in, so this stack is not directly
+    # reachable from the internet even if an NSG rule is added later by mistake.
+    ports:
+      - "172.17.0.1:8081:80"
+    volumes:
+      - ./UI:/usr/share/nginx/html:ro
+      - ./nginx/nginx.dev-vm.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  sql_data:
