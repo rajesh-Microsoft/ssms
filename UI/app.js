@@ -2585,7 +2585,8 @@ async function loadMemberPendingInvoices(){
   if(!box) return;
   box.innerHTML = '<div class="mhint">Loading…</div>';
   try{
-    const list = await Api.getPendingInvoices();
+    const [list, options] = await Promise.all([Api.getPendingInvoices(), Api.getPaymentOptions()]);
+    renderPayHint(options);
     if(!list.length){ box.innerHTML = '<div class="empty">🎉 No pending dues. You are all settled up!</div>'; return; }
     box.innerHTML = list.map(inv => {
       const overdue = inv.isOverdue ? '<span class="pay-badge pay-overdue">Overdue</span>' : '';
@@ -2604,6 +2605,17 @@ async function loadMemberPendingInvoices(){
   }catch(err){
     box.innerHTML = `<div class="empty">${err.message}</div>`;
   }
+}
+
+function renderPayHint(options){
+  const el = document.getElementById('m-pay-hint');
+  if(!el) return;
+  const online = 'Pay instantly by card, netbanking, UPI or wallet — your receipt is ready as soon as the payment succeeds.';
+  const manual = 'Scan the UPI QR with any UPI app (GPay, PhonePe, Paytm…), pay the exact amount, then tap “I\'ve Paid” to submit your reference for verification.';
+  if(options.razorpayEnabled && options.manualUpiEnabled) el.textContent = `${online} You can also scan the UPI QR and submit your reference for manual verification.`;
+  else if(options.razorpayEnabled) el.textContent = online;
+  else if(options.manualUpiEnabled) el.textContent = manual;
+  else el.textContent = 'Online payment is not configured for this society yet. Please contact your society office to pay.';
 }
 
 async function openPayModal(collectionId){
@@ -2658,6 +2670,10 @@ async function openPayModal(collectionId){
 
     document.getElementById('pay-modal-title').textContent = `Pay ${paymentDetails.invoiceNumber}`;
     document.getElementById('pay-amt').textContent = mMoney(paymentDetails.amount);
+    // The QR block carries the amount for manual UPI, so repeat it on the gateway row.
+    document.getElementById('pay-razorpay-hint').textContent =
+      `${mMoney(paymentDetails.amount)} · UPI, cards, netbanking and wallets.`
+      + (options.razorpayTestMode ? ' Test mode — no real money is charged.' : '');
 
     document.getElementById('modal-pay').classList.add('open');
   }catch(err){

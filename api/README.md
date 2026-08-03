@@ -66,9 +66,25 @@ The server creates the order and verifies the checkout HMAC, order ID, amount, c
 captured payment status before marking an SMMS invoice paid. The Key Secret is never returned
 to the browser.
 
-This is a sandbox integration for one platform Razorpay account. Before production use, add
-signed, idempotent webhooks and decide how each society completes merchant onboarding and
-receives settlement into its own bank account.
+### Webhook (authoritative settlement)
+
+The browser callback is best-effort: if the resident closes the tab between capture and
+verification, the invoice would stay unpaid. `POST /api/webhooks/razorpay` closes that gap and
+Razorpay retries it until it gets a 2xx.
+
+1. In the Razorpay dashboard, add a webhook for the `payment.captured` (and optionally
+   `order.paid`) event pointing at `https://ssms.<your-domain>/api/webhooks/razorpay`, and set a
+   webhook secret.
+2. Supply that secret as `Razorpay:WebhookSecret` (user-secrets) or `RAZORPAY_WEBHOOK_SECRET`
+   (Docker Compose). Without it the endpoint returns 404 and no webhook is processed.
+
+The endpoint is anonymous but nothing in the payload is trusted until the `X-Razorpay-Signature`
+HMAC over the raw body is verified. It arrives with no tenant subdomain, so the society is read
+from the `society` note stamped onto the order at creation time; the amount and currency are
+re-checked against the SMMS invoice, and an already-approved attempt is a no-op.
+
+This is a sandbox integration for one platform Razorpay account. Before production use, decide
+how each society completes merchant onboarding and receives settlement into its own bank account.
 
 ## Key endpoints
 

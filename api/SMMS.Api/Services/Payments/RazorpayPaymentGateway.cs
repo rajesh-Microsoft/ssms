@@ -11,6 +11,7 @@ public sealed class RazorpayOptions
     public bool Enabled { get; set; }
     public string? KeyId { get; set; }
     public string? KeySecret { get; set; }
+    public string? WebhookSecret { get; set; }
 }
 
 public sealed record RazorpayOrder(string Id, long Amount, string Currency);
@@ -27,12 +28,17 @@ public sealed class RazorpayPaymentGateway(
         && !string.IsNullOrWhiteSpace(options.KeyId)
         && !string.IsNullOrWhiteSpace(options.KeySecret);
 
+    public bool IsTestMode => IsConfigured
+        && options.KeyId!.StartsWith("rzp_test_", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsWebhookConfigured => !string.IsNullOrWhiteSpace(options.WebhookSecret);
+
     public string KeyId => IsConfigured
         ? options.KeyId!
         : throw new InvalidOperationException("Razorpay test mode is not configured.");
 
     public async Task<RazorpayOrder> CreateOrderAsync(
-        decimal amount, string receipt, string invoiceNumber, string flat,
+        decimal amount, string receipt, string invoiceNumber, string flat, string society,
         CancellationToken ct = default)
     {
         EnsureConfigured();
@@ -43,7 +49,8 @@ public sealed class RazorpayPaymentGateway(
             amount = amountInPaise,
             currency = "INR",
             receipt,
-            notes = new { invoice = invoiceNumber, flat }
+            // "society" is echoed back on webhooks, which arrive with no tenant subdomain.
+            notes = new { invoice = invoiceNumber, flat, society }
         });
 
         using var response = await httpClient.SendAsync(request, ct);
@@ -88,6 +95,26 @@ public sealed class RazorpayPaymentGateway(
         var message = Encoding.UTF8.GetBytes($"{orderId}|{paymentId}");
         var secret = Encoding.UTF8.GetBytes(options.KeySecret!);
         var expected = HMACSHA256.HashData(secret, message);
+
+        try
+        {
+            var supplied = Convert.FromHexString(signature);
+            return supplied.Length == expected.Length
+                && CryptographicOperations.FixedTimeEquals(supplied, expected);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Verifies the X-Razorpay-Signature header over the exact raw webhook body.</summary>
+    public bool VerifyWebhookSignature(string rawBody, string signature)
+    {
+        if (!IsWebhookConfigured) return false;
+        var expected = HMACSHA256.HashData(
+            Encoding.UTF8.GetBytes(options.WebhookSecret!),
+            Encoding.UTF8.GetBytes(rawBody));
 
         try
         {

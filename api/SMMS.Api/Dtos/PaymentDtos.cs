@@ -25,7 +25,7 @@ public record QrPayloadDto(
     string PayeeName,
     string UpiId);
 
-public record PaymentOptionsDto(bool RazorpayEnabled, bool ManualUpiEnabled);
+public record PaymentOptionsDto(bool RazorpayEnabled, bool ManualUpiEnabled, bool RazorpayTestMode);
 
 public record RazorpayOrderDto(
     string KeyId,

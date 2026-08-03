@@ -77,7 +77,8 @@ public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService
         {
             charge.Status = "Paid";
             charge.PaymentDate = DateTime.UtcNow;
-            charge.PaymentMode = "UPI";
+            // Gateway payments can be card/netbanking/wallet, so don't label everything UPI.
+            charge.PaymentMode = proof.GatewayName == "ManualUPI" ? "UPI" : proof.GatewayName ?? "UPI";
             charge.AmountPaid = charge.Amount;
 
             // Any amount received beyond the invoice becomes advance credit (a liability, not income).

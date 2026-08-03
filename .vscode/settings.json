@@ -1,4 +1,7 @@
 {
     "liveServer.settings.port": 5501,
-    "python.defaultInterpreterPath": "${env:LOCALAPPDATA}/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/Local/SMMS/venvs/main/Scripts/python.exe"
+    "python.defaultInterpreterPath": "${env:LOCALAPPDATA}/Packages/PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0/LocalCache/Local/SMMS/venvs/main/Scripts/python.exe",
+    "chat.tools.terminal.autoApprove": {
+        "docker exec": true
+    }
 }

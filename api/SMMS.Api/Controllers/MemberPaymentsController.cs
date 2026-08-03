@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SMMS.Api.Data;
+using SMMS.Api.Data.Tenancy;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
@@ -25,7 +26,8 @@ public class MemberPaymentsController(
     IPaymentGateway gateway,
     RazorpayPaymentGateway razorpay,
     QrService qr,
-    IFileStorage storage) : ControllerBase
+    IFileStorage storage,
+    ITenantContext tenantContext) : ControllerBase
 {
     private const long MaxUploadBytes = 5 * 1024 * 1024;
 
@@ -46,7 +48,8 @@ public class MemberPaymentsController(
         var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync();
         return Ok(new PaymentOptionsDto(
             razorpay.IsConfigured,
-            !string.IsNullOrWhiteSpace(settings?.UpiId)));
+            !string.IsNullOrWhiteSpace(settings?.UpiId),
+            razorpay.IsTestMode));
     }
 
     [HttpGet("pending-invoices")]
@@ -145,6 +148,7 @@ public class MemberPaymentsController(
                 $"smms-{charge.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
                 invoiceNumber,
                 member!.Flat,
+                tenantContext.Current!.Key,
                 ct);
 
             db.PaymentProofs.Add(new PaymentProof
