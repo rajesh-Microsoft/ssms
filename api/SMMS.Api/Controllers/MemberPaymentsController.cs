@@ -143,13 +143,21 @@ public class MemberPaymentsController(
         else
         {
             var invoiceNumber = PaymentNumbering.InvoiceNumber(charge!);
-            order = await razorpay.CreateOrderAsync(
-                charge!.Amount,
-                $"smms-{charge.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
-                invoiceNumber,
-                member!.Flat,
-                tenantContext.Current!.Key,
-                ct);
+            try
+            {
+                order = await razorpay.CreateOrderAsync(
+                    charge!.Amount,
+                    $"smms-{charge.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                    invoiceNumber,
+                    member!.Flat,
+                    tenantContext.Current!.Key,
+                    ct);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Gateway outage or bad credentials: let the client fall back to manual UPI.
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
+            }
 
             db.PaymentProofs.Add(new PaymentProof
             {
@@ -206,7 +214,17 @@ public class MemberPaymentsController(
             return Ok(new RazorpayVerifyResponse("Approved", request.PaymentId, attempt.CollectionId));
         }
 
-        var payment = await razorpay.FetchPaymentAsync(request.PaymentId, ct);
+        RazorpayPayment payment;
+        try
+        {
+            payment = await razorpay.FetchPaymentAsync(request.PaymentId, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // The webhook is the safety net: it settles this attempt once Razorpay reaches us.
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
+        }
+
         if (payment.OrderId != attempt.GatewayReference
             || payment.Amount != RazorpayPaymentGateway.ToPaise(attempt.Amount)
             || payment.Currency != "INR")

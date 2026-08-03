@@ -20,6 +20,11 @@ api/**/.vs/
 # off 443 and swap in the HTTP-only nginx config.
 docker-compose.override.yml
 
+# Secrets consumed by docker compose (Razorpay keys, etc.)
+.env
+.env.*
+!.env.example
+
 # OS
 Thumbs.db
 .DS_Store
