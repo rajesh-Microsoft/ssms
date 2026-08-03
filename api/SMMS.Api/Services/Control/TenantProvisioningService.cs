@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using SMMS.Api.Data;
 using SMMS.Api.Data.Control;
@@ -15,10 +16,14 @@ namespace SMMS.Api.Services.Control;
 public partial class TenantProvisioningService(
     ControlDbContext controlDb,
     DbTenantStore tenantStore,
-    IServiceScopeFactory scopeFactory)
+    IServiceScopeFactory scopeFactory,
+    IConfiguration configuration)
 {
     [GeneratedRegex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")]
     private static partial Regex SlugRegex();
+
+    [GeneratedRegex("^[A-Za-z0-9_-]+$")]
+    private static partial Regex DbNameRegex();
 
     private static readonly HashSet<string> ReservedKeys = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -141,6 +146,7 @@ public partial class TenantProvisioningService(
         scope.ServiceProvider.GetRequiredService<ITenantContext>().Current = tenant;
         var tenantDb = scope.ServiceProvider.GetRequiredService<SmmsDbContext>();
 
+        await EnsureDatabaseAsync(tenant.ConnectionString, configuration["ControlPlane:NewDatabaseSqlOptions"]);
         await tenantDb.Database.MigrateAsync();
         DbSeeder.Seed(tenantDb, society.DisplayName);
 
@@ -156,6 +162,39 @@ public partial class TenantProvisioningService(
                 await tenantDb.SaveChangesAsync();
             }
         }
+    }
+
+    /// <summary>Azure SQL defaults a bare CREATE DATABASE to General Purpose, so the tier is stated
+    /// explicitly. CREATE DATABASE must also be alone in its batch, hence the separate existence check.
+    /// Also called from startup, where a tenant listed in the control plane may have no database yet.</summary>
+    public static async Task EnsureDatabaseAsync(string connectionString, string? sqlOptions)
+    {
+        if (string.IsNullOrWhiteSpace(sqlOptions))
+            return; // local SQL Server: let EF create the database with server defaults
+
+        var builder = new SqlConnectionStringBuilder(connectionString);
+        var dbName = builder.InitialCatalog;
+
+        if (!DbNameRegex().IsMatch(dbName))
+            throw new InvalidOperationException($"Unsafe tenant database name '{dbName}'.");
+
+        builder.InitialCatalog = "master";
+
+        await using var conn = new SqlConnection(builder.ConnectionString);
+        await conn.OpenAsync();
+
+        await using (var check = conn.CreateCommand())
+        {
+            check.CommandText = "SELECT 1 FROM sys.databases WHERE name = @name";
+            check.Parameters.AddWithValue("@name", dbName);
+            if (await check.ExecuteScalarAsync() is not null)
+                return;
+        }
+
+        await using var create = conn.CreateCommand();
+        create.CommandText = $"CREATE DATABASE [{dbName}] {sqlOptions}";
+        create.CommandTimeout = 300;
+        await create.ExecuteNonQueryAsync();
     }
 
     /// <summary>Readable 12-char temp password (no ambiguous 0/O/1/l/I) for a newly approved admin.</summary>

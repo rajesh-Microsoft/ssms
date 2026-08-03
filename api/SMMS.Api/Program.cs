@@ -8,6 +8,7 @@ using SMMS.Api.Data;
 using SMMS.Api.Data.Control;
 using SMMS.Api.Data.Tenancy;
 using SMMS.Api.Services;
+using SMMS.Api.Services.Control;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -180,6 +181,10 @@ using (var rootScope = app.Services.CreateScope())
                 tenantScope.ServiceProvider.GetRequiredService<ITenantContext>().Current = tenant;
                 var db = tenantScope.ServiceProvider.GetRequiredService<SmmsDbContext>();
 
+                TenantProvisioningService.EnsureDatabaseAsync(
+                    tenant.ConnectionString,
+                    app.Configuration["ControlPlane:NewDatabaseSqlOptions"]).GetAwaiter().GetResult();
+
                 db.Database.Migrate();
                 DbSeeder.Seed(db, tenant.DisplayName);
 
@@ -190,8 +195,12 @@ using (var rootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[{tenant.Key}] Connection failed: {ex.Message}");
 
+                // One unreachable tenant must not take the whole platform down with it.
                 if (retry == maxRetries)
-                    throw;
+                {
+                    Console.WriteLine($"[{tenant.Key}] Giving up. This society stays unavailable until its database is reachable.");
+                    break;
+                }
 
                 Thread.Sleep(TimeSpan.FromSeconds(5));
             }
