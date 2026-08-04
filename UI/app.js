@@ -2852,7 +2852,8 @@ async function saveUpiSettingsForm(){
     bankIfsc:          document.getElementById('upi-ifsc').value.trim(),
     onlinePaymentsEnabled: document.getElementById('upi-online-enabled').checked
   };
-  if(!payload.upiId || !payload.upiPayeeName) return toast('UPI ID and Payee Name are required.','warn');
+  if(!payload.onlinePaymentsEnabled && (!payload.upiId || !payload.upiPayeeName))
+    return toast('Add a UPI ID and Payee Name, or switch on online payments — otherwise residents have no way to pay.','warn');
   try{ await Api.saveUpiSettings(payload); toast('Payment setup saved ✅'); }
   catch(err){ toast(err.message,'warn'); }
 }
