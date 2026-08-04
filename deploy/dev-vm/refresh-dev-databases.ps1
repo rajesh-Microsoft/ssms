@@ -1,5 +1,5 @@
-# Stage 2: start the dev SQL container, then clone production databases into it.
-# Reads on production are BACKUP DATABASE only - an online, non-blocking operation.
+# Starts the dev SQL container, then clones the UAT databases into it, so dev tests run
+# against realistic data. Reads on UAT are BACKUP DATABASE only - online and non-blocking.
 # Nothing in ~/smms is written to.
 $ErrorActionPreference = 'Stop'
 $key = 'C:\Users\rrathore\ssmsadmin.pem'

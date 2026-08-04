@@ -33,7 +33,9 @@ $targets = @{
         Image   = 'smms-dev-smms-api'
         Api     = 'smms-dev-api'
         Health  = 'http://172.17.0.1:8081/'
-        Restore = 'cp deploy/dev-vm/docker-compose.yml docker-compose.yml'
+        # The dev compose file and the nginx conf it mounts are not at the paths the archive
+        # ships, so both are put back on every deploy rather than living only on the box.
+        Restore = 'cp deploy/dev-vm/docker-compose.yml docker-compose.yml && cp deploy/dev-vm/nginx.dev-vm.conf nginx/nginx.dev-vm.conf'
         Guard   = "if ! grep -q '^name: smms-dev' docker-compose.yml; then echo 'ABORT: dev compose file missing, refusing to run compose'; exit 1; fi"
     }
     uat = @{
