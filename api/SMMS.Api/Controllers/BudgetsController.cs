@@ -323,4 +323,104 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
         return Ok(new BudgetVarianceDto(month, year,
             rows.Sum(r => r.Budgeted), rows.Sum(r => r.Actual), rows.Sum(r => r.Difference), rows));
     }
+
+    /// <summary>The society's standing position: cash it holds, cash it is owed, cash it owes, and how
+    /// long that cash would last at its recent burn rate.</summary>
+    [HttpGet("health")]
+    public async Task<ActionResult<BudgetHealthDto>> Health([FromQuery] int year, [FromQuery] int month)
+    {
+        if (!User.CanView(PermissionModules.Budgets)) return Forbid();
+
+        var cutoff = Ordinal(year, month);
+        var budget = await db.Budgets.FirstOrDefaultAsync(b => b.Year == year && b.Month == month);
+
+        // An entered opening balance is a human asserting the real bank figure, so it beats anything
+        // derived. Without one the ledger is all there is, and it under-reports by whatever was never
+        // recorded - typically the society's founding corpus.
+        decimal opening;
+        if (budget is not null)
+        {
+            opening = budget.OpeningBalance;
+        }
+        else
+        {
+            var paidBefore = await db.Collections
+                .Where(c => c.Year * 12 + c.Month < cutoff && c.Status == "Paid")
+                .SumAsync(c => (decimal?)c.Amount) ?? 0m;
+            var partialBefore = await db.Collections
+                .Where(c => c.Year * 12 + c.Month < cutoff && c.Status == "Partial")
+                .SumAsync(c => (decimal?)c.AmountPaid) ?? 0m;
+            var incomeBefore = await db.SocietyIncomes
+                .Where(i => i.Year * 12 + i.Month < cutoff)
+                .SumAsync(i => (decimal?)i.Amount) ?? 0m;
+            var spentBefore = await db.Expenses
+                .Where(e => e.Year * 12 + e.Month < cutoff)
+                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+            opening = paidBefore + partialBefore + incomeBefore - spentBefore;
+        }
+
+        var paidThis = await db.Collections
+            .Where(c => c.Year == year && c.Month == month && c.Status == "Paid")
+            .SumAsync(c => (decimal?)c.Amount) ?? 0m;
+        var partialThis = await db.Collections
+            .Where(c => c.Year == year && c.Month == month && c.Status == "Partial")
+            .SumAsync(c => (decimal?)c.AmountPaid) ?? 0m;
+        var incomeThis = await db.SocietyIncomes
+            .Where(i => i.Year == year && i.Month == month)
+            .SumAsync(i => (decimal?)i.Amount) ?? 0m;
+        var spentThis = await db.Expenses
+            .Where(e => e.Year == year && e.Month == month)
+            .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+
+        var bank = opening + paidThis + partialThis + incomeThis - spentThis;
+
+        // Everything still owed up to and including this month. Invoices dated later are not yet due.
+        var receivables = await db.Collections
+            .Where(c => c.Year * 12 + c.Month <= cutoff && c.Status != "Paid")
+            .SumAsync(c => (decimal?)(c.Amount - c.AmountPaid)) ?? 0m;
+
+        // Planned lines that have not yet been booked as an expense: the bills still to be paid.
+        var payables = budget is null ? 0m : await db.BudgetItems
+            .Where(i => i.BudgetId == budget.Id && i.ExpenseId == null)
+            .SumAsync(i => (decimal?)i.EstimatedAmount) ?? 0m;
+
+        var monthlySpend = await db.Expenses
+            .Where(e => e.Year * 12 + e.Month < cutoff && e.Year * 12 + e.Month >= cutoff - LookbackMonths)
+            .GroupBy(e => new { e.Year, e.Month })
+            .Select(g => g.Sum(x => x.Amount))
+            .ToListAsync();
+        var avgSpend = monthlySpend.Count == 0 ? 0m : monthlySpend.Sum() / monthlySpend.Count;
+
+        decimal? cover = avgSpend <= 0m ? null : Math.Round(bank / avgSpend, 1);
+        var band = cover switch
+        {
+            null => "unknown",
+            <= 0m => "critical",
+            < 1m => "critical",
+            < 2m => "warning",
+            < 3m => "healthy",
+            _ => "excellent"
+        };
+        // A society cannot really hold less than nothing. A derived balance below zero means the ledger
+        // is missing history - almost always the opening corpus - so claim ignorance rather than crisis.
+        if (budget is null && bank <= 0m) band = "unknown";
+
+        // Accuracy is only meaningful once bills have actually landed against a plan, so it is measured
+        // over booked lines in months that have finished.
+        var booked = await db.BudgetItems
+            .Where(i => i.ActualAmount != null && i.Budget!.Year * 12 + i.Budget.Month < cutoff)
+            .Select(i => new { i.Budget!.Year, i.Budget.Month, i.EstimatedAmount, Actual = i.ActualAmount!.Value })
+            .ToListAsync();
+        var accuracyMonths = booked.Select(b => b.Year * 12 + b.Month).Distinct().Count();
+        var estimated = booked.Sum(b => b.EstimatedAmount);
+        decimal? accuracy = accuracyMonths == 0 || estimated <= 0m
+            ? null
+            : Math.Max(0m, Math.Round(100m - booked.Sum(b => Math.Abs(b.Actual - b.EstimatedAmount)) / estimated * 100m, 0));
+
+        return Ok(new BudgetHealthDto(
+            Math.Round(bank, 2), budget is not null,
+            Math.Round(receivables, 2), Math.Round(payables, 2),
+            Math.Round(bank + receivables - payables, 2),
+            Math.Round(avgSpend, 2), cover, band, accuracy, accuracyMonths));
+    }
 }

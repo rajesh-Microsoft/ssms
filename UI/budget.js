@@ -38,6 +38,8 @@ async function renderBudget(){
   const empty = document.getElementById('bud-empty');
   const main  = document.getElementById('bud-main');
 
+  await renderBudgetHealth(year, month);
+
   if(!budState.budget){
     document.getElementById('bud-empty-title').textContent = `No budget for ${MONTHS[month]} ${year} yet`;
     empty.style.display = '';
@@ -88,6 +90,77 @@ async function renderBudget(){
 
   renderBudgetItems();
   await renderBudgetVariance();
+}
+
+const BUD_BANDS = {
+  excellent: { icon: '🟢', label: 'Excellent',  bg: '#f0fff4', bd: '#9ae6b4', fg: '#22543d' },
+  healthy:   { icon: '🟢', label: 'Healthy',    bg: '#f0fff4', bd: '#9ae6b4', fg: '#22543d' },
+  warning:   { icon: '🟠', label: 'Warning',    bg: '#fffaf0', bd: '#fbd38d', fg: '#7b341e' },
+  critical:  { icon: '🔴', label: 'Critical',   bg: '#fff5f5', bd: '#feb2b2', fg: '#742a2a' },
+  unknown:   { icon: '⚪', label: 'Unknown', bg: 'var(--bg)', bd: 'var(--bd)', fg: 'var(--sub)' }
+};
+
+async function renderBudgetHealth(year, month){
+  const card = document.getElementById('bud-health');
+  if(!card) return;
+
+  let h;
+  try{
+    h = await Api.getBudgetHealth(year, month);
+  }catch(err){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+
+  document.getElementById('bud-bank').textContent = budMoney(h.bankBalance);
+  document.getElementById('bud-recv').textContent = budMoney(h.receivables);
+  document.getElementById('bud-pay').textContent  = budMoney(h.payables);
+
+  const net = document.getElementById('bud-net');
+  net.textContent = budMoney(h.netCashPosition);
+  net.style.color = h.netCashPosition < 0 ? 'var(--danger)' : '';
+
+  // Say where the balance came from, because a derived one is only as complete as the ledger.
+  document.getElementById('bud-bank-sub').textContent = h.balanceAnchored
+    ? 'entered opening + this month'
+    : 'derived from the ledger';
+  document.getElementById('bud-health-note').textContent = h.balanceAnchored
+    ? ''
+    : 'No plan for this month, so the balance is derived from recorded entries only.';
+  document.getElementById('bud-pay-sub').textContent = h.payables > 0 ? 'planned, not yet booked' : 'nothing outstanding';
+
+  const acc = document.getElementById('bud-acc');
+  acc.textContent = h.accuracy === null ? '—' : `${h.accuracy}%`;
+  document.getElementById('bud-acc-sub').textContent = h.accuracy === null
+    ? 'needs a finished month'
+    : `estimates vs actuals over ${h.accuracyMonths} month${h.accuracyMonths === 1 ? '' : 's'}`;
+
+  const band = BUD_BANDS[h.band] || BUD_BANDS.unknown;
+  const banner = document.getElementById('bud-health-band');
+  banner.style.background  = band.bg;
+  banner.style.borderColor = band.bd;
+  document.getElementById('bud-health-icon').textContent = band.icon;
+  const title = document.getElementById('bud-health-title');
+  title.textContent = band.label;
+  title.style.color = band.fg;
+
+  const msg = document.getElementById('bud-health-msg');
+  msg.style.color = band.fg;
+  const burn = budMoney(Math.round(h.avgMonthlyExpense));
+  if(!h.balanceAnchored && h.bankBalance <= 0){
+    msg.textContent = 'Cash position unknown. The ledger totals less than zero, which normally means the '
+      + 'opening corpus was never recorded. Create a budget and enter the real bank balance to get a score.';
+  } else if(h.monthsOfCover === null){
+    msg.textContent = 'No spending recorded yet, so there is nothing to measure cover against.';
+  } else if(h.bankBalance <= 0){
+    msg.textContent = `No cash cover — recorded spending of ${burn} a month has nothing behind it.`;
+  } else if(h.monthsOfCover < 2){
+    // Under two months, days are the number a committee can actually act on.
+    msg.textContent = `Cash available for only ${Math.round(h.monthsOfCover * 30)} days at ${burn} a month.`;
+  } else {
+    msg.textContent = `Cash available for ${h.monthsOfCover} months of expenses, at ${burn} a month.`;
+  }
 }
 
 function renderBudgetItems(){

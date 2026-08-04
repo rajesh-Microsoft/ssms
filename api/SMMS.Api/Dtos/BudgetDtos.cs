@@ -74,3 +74,21 @@ public record BudgetVarianceDto(
     decimal TotalActual,
     decimal TotalDifference,
     IReadOnlyList<BudgetVarianceRowDto> Rows);
+
+/// <summary>Where the society actually stands today, as opposed to what the month was planned to do.
+/// <paramref name="BalanceAnchored"/> is false when no budget exists for the month, in which case the
+/// balance is derived purely from the ledger and is only as complete as the ledger is - a society that
+/// never recorded its opening corpus will show far too little.
+/// <paramref name="MonthsOfCover"/> and <paramref name="Accuracy"/> are null when there is not enough
+/// history to answer honestly.</summary>
+public record BudgetHealthDto(
+    decimal BankBalance,
+    bool BalanceAnchored,
+    decimal Receivables,
+    decimal Payables,
+    decimal NetCashPosition,
+    decimal AvgMonthlyExpense,
+    decimal? MonthsOfCover,
+    string Band,
+    decimal? Accuracy,
+    int AccuracyMonths);

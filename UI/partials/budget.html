@@ -1,3 +1,28 @@
+<!-- Standing position. Shown whether or not a plan exists for the month, because what the society
+     holds and is owed does not depend on anyone having written a budget. -->
+<div class="card" id="bud-health" style="display:none;">
+  <div class="card-hdr">
+    <h3>🩺 Financial Health</h3>
+    <span style="font-size:11px;color:var(--sub);" id="bud-health-note"></span>
+  </div>
+
+  <div id="bud-health-band" style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:10px;border:1px solid var(--bd);">
+    <div style="font-size:26px;" id="bud-health-icon">🟢</div>
+    <div>
+      <div style="font-size:14px;font-weight:800;" id="bud-health-title">Excellent</div>
+      <div style="font-size:12px;margin-top:2px;" id="bud-health-msg"></div>
+    </div>
+  </div>
+
+  <div class="kpi-grid" style="margin-top:14px;margin-bottom:0;">
+    <div class="kpi"><div class="kpi-icon">🏦</div><div class="kpi-lbl">Bank Balance</div><div class="kpi-val" id="bud-bank">₹0</div><div class="kpi-sub" id="bud-bank-sub"></div></div>
+    <div class="kpi"><div class="kpi-icon">📥</div><div class="kpi-lbl">Receivables</div><div class="kpi-val" id="bud-recv">₹0</div><div class="kpi-sub">maintenance still to collect</div></div>
+    <div class="kpi"><div class="kpi-icon">📤</div><div class="kpi-lbl">Payables</div><div class="kpi-val" id="bud-pay">₹0</div><div class="kpi-sub" id="bud-pay-sub">bills still to pay</div></div>
+    <div class="kpi"><div class="kpi-icon">⚖️</div><div class="kpi-lbl">Net Cash Position</div><div class="kpi-val" id="bud-net">₹0</div><div class="kpi-sub">cash + owed − owing</div></div>
+    <div class="kpi"><div class="kpi-icon">🎯</div><div class="kpi-lbl">Budget Accuracy</div><div class="kpi-val" id="bud-acc">—</div><div class="kpi-sub" id="bud-acc-sub">needs a finished month</div></div>
+  </div>
+</div>
+
 <!-- No plan yet for the selected month -->
 <div class="card" id="bud-empty" style="display:none;">
   <div class="empty" style="padding:40px 20px;">

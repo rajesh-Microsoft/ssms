@@ -147,6 +147,7 @@ const Api = {
   convertBudgetItem: (itemId, payload) => apiFetch(`/budgets/items/${itemId}/convert`, { method: 'POST', body: JSON.stringify(payload) }),
   getBudgetSuggestion: (year, month) => apiFetch(`/budgets/suggest?year=${year}&month=${month}`),
   getBudgetVariance: (year, month) => apiFetch(`/budgets/variance?year=${year}&month=${month}`),
+  getBudgetHealth: (year, month) => apiFetch(`/budgets/health?year=${year}&month=${month}`),
 
   // Society liabilities (money the society owes contributors)
   getLiabilities: (status) => apiFetch('/society-liabilities' + (status ? `?status=${encodeURIComponent(status)}` : '')),
