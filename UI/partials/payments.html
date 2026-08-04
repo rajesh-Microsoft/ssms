@@ -3,11 +3,15 @@
 <div class="card">
   <div class="card-hdr"><h3>🏦 Payment Setup (UPI &amp; Bank)</h3></div>
   <p class="mhint">These details drive the QR codes residents scan to pay. UPI ID and Payee Name are required unless online payments are switched on below.</p>
-  <div class="setting-row">
-    <label>Allow online card/netbanking payments
-      <span class="mhint" style="display:block;">When off, residents pay by UPI QR and submit a reference for your approval. When on, they can also pay instantly through the card gateway.</span>
-    </label>
-    <input type="checkbox" id="upi-online-enabled">
+  <div class="gateway-row" id="gateway-row">
+    <div class="gateway-info">
+      <div class="gateway-title">
+        <span>💳 Razorpay online payment gateway</span>
+        <span class="status-pill off" id="gateway-state">Disabled</span>
+      </div>
+      <p class="mhint" id="gateway-help"></p>
+    </div>
+    <label class="switch"><input type="checkbox" id="upi-online-enabled" onchange="renderGatewayState()"><span class="slider"></span></label>
   </div>
   <div class="form-grid">
     <div class="form-group"><label>UPI ID *</label><input type="text" id="upi-id" placeholder="society@okhdfcbank"></div>

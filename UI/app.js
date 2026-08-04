@@ -2839,7 +2839,19 @@ async function loadUpiSettingsForm(){
     document.getElementById('upi-acnum').value   = s.bankAccountNumber || '';
     document.getElementById('upi-ifsc').value    = s.bankIfsc || '';
     document.getElementById('upi-online-enabled').checked = !!s.onlinePaymentsEnabled;
+    renderGatewayState();
   }catch(err){ /* settings may not be loaded yet */ }
+}
+
+function renderGatewayState(){
+  const on = document.getElementById('upi-online-enabled').checked;
+  const pill = document.getElementById('gateway-state');
+  document.getElementById('gateway-row').classList.toggle('on', on);
+  pill.textContent = on ? 'Enabled' : 'Disabled';
+  pill.className = `status-pill ${on ? 'on' : 'off'}`;
+  document.getElementById('gateway-help').textContent = on
+    ? 'Residents can pay their maintenance instantly by card, netbanking, UPI or wallet, and the invoice is marked paid automatically. Press Save Payment Setup to apply.'
+    : 'Residents can only pay by scanning your UPI QR and submitting a reference for you to approve. No card payments are offered. Press Save Payment Setup to apply.';
 }
 
 async function saveUpiSettingsForm(){
