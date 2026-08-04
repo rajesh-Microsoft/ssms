@@ -157,24 +157,24 @@ cat /tmp/promote-up.log
 
 echo ""
 echo "===== HEALTH ====="
-# The site root is static content served by nginx and answers 200 even when the API is
-# down, so liveness is judged on an API route instead. Unauthenticated /api/me returns
-# 401 from the API but 502 when it is not accepting connections yet.
+# The site root is static content and answers 200 even when the API is down. Probing an
+# /api route is tenant-sensitive (an unknown Host 404s before routing), so liveness is
+# judged on whether the API answered at all: a gateway code means it is not accepting
+# connections, anything else means the process is up and serving.
 api=000
 for i in 1 2 3 4 5 6 7 8 9 10; do
   api=`$(curl -s -o /dev/null -w '%{http_code}' $($t.Health)api/me || true)
-  case "`$api" in 200|401|403) break;; esac
-  sleep 6
+  case "`$api" in 000|502|503|504) sleep 6;; *) break;; esac
 done
 site=`$(curl -s -o /dev/null -w '%{http_code}' $($t.Health) || true)
-echo "site  -> `$site"
-echo "api   -> `$api  (401 means up and rejecting anonymous callers)"
+echo "site -> `$site"
+echo "api  -> `$api  (any non-gateway code means the API answered)"
 echo -n "tenants migrated: "
 docker logs $($t.Api) 2>&1 | grep -c 'Database is ready' || true
 echo "exceptions:"
 docker logs $($t.Api) 2>&1 | grep -iE 'unhandled|exception|fail: ' | head -n 5 || true
 echo "(nothing above means clean)"
-case "`$api" in 200|401|403) ;; *) echo "ABORT: API unhealthy"; exit 1;; esac
+case "`$api" in 000|502|503|504) echo "ABORT: API not answering"; exit 1;; esac
 docker ps --filter "name=$($t.Api)" --format '{{.Names}}  {{.Status}}'
 echo "--- done ---"
 "@
