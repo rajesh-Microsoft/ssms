@@ -6,7 +6,16 @@ __pycache__/
 
 # Data files (contain real financial/personal data - keep out of git)
 *.xlsx
+*.csv
 !data/.gitkeep
+
+# Database backups. These restore to full societies: resident PII, payment
+# history, UPI IDs and password hashes. Never commit them.
+*.bak
+*.tar.gz
+*.zip
+data/sql-backups/
+backups/
 
 # .NET
 api/**/bin/
