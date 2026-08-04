@@ -46,10 +46,11 @@ public class MemberPaymentsController(
     public async Task<ActionResult<PaymentOptionsDto>> PaymentOptions()
     {
         var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync();
+        var online = razorpay.IsConfigured && settings?.OnlinePaymentsEnabled == true;
         return Ok(new PaymentOptionsDto(
-            razorpay.IsConfigured,
+            online,
             !string.IsNullOrWhiteSpace(settings?.UpiId),
-            razorpay.IsTestMode));
+            online && razorpay.IsTestMode));
     }
 
     [HttpGet("pending-invoices")]
@@ -123,6 +124,9 @@ public class MemberPaymentsController(
         var (charge, member, settings, error) = await LoadPayableAsync(collectionId, requireUpi: false);
         if (error is not null) return error;
 
+        if (!settings!.OnlinePaymentsEnabled)
+            return BadRequest(new { message = "This society has not enabled online card payments." });
+
         var activeAttempt = await db.PaymentProofs
             .Where(p => p.CollectionId == collectionId
                 && p.MemberId == member!.Id
@@ -185,6 +189,9 @@ public class MemberPaymentsController(
             member.Mobile));
     }
 
+    // Deliberately not gated on OnlinePaymentsEnabled: the money has already left the resident's
+    // account by the time we get here, so an admin toggling the setting mid-checkout must not
+    // strand a real payment. New orders are blocked instead.
     [HttpPost("razorpay/verify")]
     public async Task<ActionResult<RazorpayVerifyResponse>> VerifyRazorpayPayment(
         RazorpayVerifyRequest request, CancellationToken ct)

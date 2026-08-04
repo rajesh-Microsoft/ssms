@@ -94,4 +94,5 @@ public record UpiSettingsDto(
     string? BankName,
     string? BankAccountName,
     string? BankAccountNumber,
-    string? BankIfsc);
+    string? BankIfsc,
+    bool OnlinePaymentsEnabled = false);

@@ -97,6 +97,11 @@ public class SocietySettings : IAuditable
 
     // ── UPI / bank collection settings (used to build dynamic payment QR codes) ──
 
+    /// <summary>When false, members only ever see the manual UPI/QR flow — the card gateway is
+    /// hidden and its endpoints refuse to open an order. Opt in, so a society never starts
+    /// taking gateway payments just because the platform has credentials configured.</summary>
+    public bool OnlinePaymentsEnabled { get; set; } = false;
+
     /// <summary>Society's UPI VPA, e.g. "society@upi". When set, members see a dynamic pay QR.</summary>
     [MaxLength(100)]
     public string? UpiId { get; set; }

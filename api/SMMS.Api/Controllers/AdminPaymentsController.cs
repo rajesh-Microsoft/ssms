@@ -111,7 +111,7 @@ public class AdminPaymentsController(
     {
         var s = await db.Settings.FirstOrDefaultAsync();
         if (s is null) return Ok(new UpiSettingsDto(null, null, null, null, null, null));
-        return Ok(new UpiSettingsDto(s.UpiId, s.UpiPayeeName, s.BankName, s.BankAccountName, s.BankAccountNumber, s.BankIfsc));
+        return Ok(new UpiSettingsDto(s.UpiId, s.UpiPayeeName, s.BankName, s.BankAccountName, s.BankAccountNumber, s.BankIfsc, s.OnlinePaymentsEnabled));
     }
 
     [HttpPut("upi-settings")]
@@ -126,8 +126,10 @@ public class AdminPaymentsController(
         s.BankAccountName = request.BankAccountName?.Trim();
         s.BankAccountNumber = request.BankAccountNumber?.Trim();
         s.BankIfsc = request.BankIfsc?.Trim();
+        s.OnlinePaymentsEnabled = request.OnlinePaymentsEnabled;
         await db.SaveChangesAsync();
-        await audit.LogAsync("Settings", "UpdateUpi", "Updated society UPI/bank collection settings");
+        await audit.LogAsync("Settings", "UpdateUpi",
+            $"Updated society UPI/bank collection settings (online payments {(s.OnlinePaymentsEnabled ? "enabled" : "disabled")})");
         return NoContent();
     }
 }

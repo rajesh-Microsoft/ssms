@@ -2838,6 +2838,7 @@ async function loadUpiSettingsForm(){
     document.getElementById('upi-acname').value  = s.bankAccountName || '';
     document.getElementById('upi-acnum').value   = s.bankAccountNumber || '';
     document.getElementById('upi-ifsc').value    = s.bankIfsc || '';
+    document.getElementById('upi-online-enabled').checked = !!s.onlinePaymentsEnabled;
   }catch(err){ /* settings may not be loaded yet */ }
 }
 
@@ -2848,7 +2849,8 @@ async function saveUpiSettingsForm(){
     bankName:          document.getElementById('upi-bank').value.trim(),
     bankAccountName:   document.getElementById('upi-acname').value.trim(),
     bankAccountNumber: document.getElementById('upi-acnum').value.trim(),
-    bankIfsc:          document.getElementById('upi-ifsc').value.trim()
+    bankIfsc:          document.getElementById('upi-ifsc').value.trim(),
+    onlinePaymentsEnabled: document.getElementById('upi-online-enabled').checked
   };
   if(!payload.upiId || !payload.upiPayeeName) return toast('UPI ID and Payee Name are required.','warn');
   try{ await Api.saveUpiSettings(payload); toast('Payment setup saved ✅'); }
