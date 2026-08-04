@@ -157,17 +157,24 @@ cat /tmp/promote-up.log
 
 echo ""
 echo "===== HEALTH ====="
-code=000
+# The site root is static content served by nginx and answers 200 even when the API is
+# down, so liveness is judged on an API route instead. Unauthenticated /api/me returns
+# 401 from the API but 502 when it is not accepting connections yet.
+api=000
 for i in 1 2 3 4 5 6 7 8 9 10; do
-  code=`$(curl -s -o /dev/null -w '%{http_code}' $($t.Health) || true)
-  if [ "`$code" = "200" ]; then break; fi
+  api=`$(curl -s -o /dev/null -w '%{http_code}' $($t.Health)api/me || true)
+  case "`$api" in 200|401|403) break;; esac
   sleep 6
 done
-echo "site $($t.Health) -> `$code"
-echo -n "tenants migrated: " ; docker logs $($t.Api) 2>&1 | grep -c 'Database is ready'
+site=`$(curl -s -o /dev/null -w '%{http_code}' $($t.Health) || true)
+echo "site  -> `$site"
+echo "api   -> `$api  (401 means up and rejecting anonymous callers)"
+echo -n "tenants migrated: "
+docker logs $($t.Api) 2>&1 | grep -c 'Database is ready' || true
 echo "exceptions:"
-docker logs $($t.Api) 2>&1 | grep -iE 'unhandled|exception|fail: ' | head -n 5
+docker logs $($t.Api) 2>&1 | grep -iE 'unhandled|exception|fail: ' | head -n 5 || true
 echo "(nothing above means clean)"
+case "`$api" in 200|401|403) ;; *) echo "ABORT: API unhealthy"; exit 1;; esac
 docker ps --filter "name=$($t.Api)" --format '{{.Names}}  {{.Status}}'
 echo "--- done ---"
 "@
