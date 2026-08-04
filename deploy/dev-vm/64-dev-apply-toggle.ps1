@@ -20,6 +20,14 @@ cd ~/smms-dev/SMMS
 rm -f api/SMMS.Api/local-nuget/*.nupkg
 tar xzf /tmp/dev-ship.tgz -C ~/smms-dev/SMMS --overwrite
 rm -f /tmp/dev-ship.tgz
+
+# The tarball carries the PRODUCTION docker-compose.yml at the repo root. Left in place it
+# makes `docker compose` here target project "smms" and recreate the UAT containers using
+# this stack's .env. Always restore the dev compose file before running compose.
+cp deploy/dev-vm/docker-compose.yml docker-compose.yml
+grep -q '^name: smms-dev' docker-compose.yml || { echo "ABORT: not the dev compose file"; exit 1; }
+grep -m1 '^name:' docker-compose.yml
+
 echo "$sha" > ~/smms-dev/SMMS/DEPLOYED_COMMIT
 echo -n "DEPLOYED_COMMIT: " ; cat ~/smms-dev/SMMS/DEPLOYED_COMMIT
 
