@@ -22,6 +22,8 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<SocietyLiability> SocietyLiabilities => Set<SocietyLiability>();
     public DbSet<SocietyLiabilitySettlement> SocietyLiabilitySettlements => Set<SocietyLiabilitySettlement>();
     public DbSet<SocietyIncome> SocietyIncomes => Set<SocietyIncome>();
+    public DbSet<Budget> Budgets => Set<Budget>();
+    public DbSet<BudgetItem> BudgetItems => Set<BudgetItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -172,6 +174,25 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         // Speeds up the income list/summary scans by period.
         modelBuilder.Entity<SocietyIncome>()
             .HasIndex(i => new { i.Year, i.Month });
+
+        // One budget per month, enforced in the database so two admins planning at the same
+        // time cannot end up with rival budgets for the same period.
+        modelBuilder.Entity<Budget>()
+            .HasIndex(b => new { b.Year, b.Month })
+            .IsUnique();
+
+        modelBuilder.Entity<BudgetItem>()
+            .HasOne(i => i.Budget)
+            .WithMany(b => b.Items)
+            .HasForeignKey(i => i.BudgetId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Restrict, so a converted line can never be orphaned by deleting its expense.
+        modelBuilder.Entity<BudgetItem>()
+            .HasOne(i => i.Expense)
+            .WithMany()
+            .HasForeignKey(i => i.ExpenseId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Soft delete: hide logically-deleted rows from every query automatically.
         modelBuilder.Entity<Expense>().HasQueryFilter(e => !e.IsDeleted);

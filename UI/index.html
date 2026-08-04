@@ -28,6 +28,7 @@
     <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
     <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
+    <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
     <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
     <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Collections</div>
     <div class="nav-sec admin-only">Management</div>
@@ -100,6 +101,9 @@
 
     <!-- OTHER INCOME (lazy-loaded from partials/income.html) -->
     <div id="tab-income" class="tab-content" data-partial="income"></div>
+
+    <!-- BUDGET PLANNER -->
+    <div id="tab-budget" class="tab-content" data-partial="budget"></div>
 
     <!-- SOCIETY LIABILITIES (lazy-loaded from partials/liabilities.html) -->
     <div id="tab-liabilities" class="tab-content" data-partial="liabilities"></div>
@@ -470,5 +474,6 @@
 <script src="api.js"></script>
 <script src="app.js"></script>
 <script src="maintenance.js"></script>
+<script src="budget.js"></script>
 </body>
 </html>

@@ -50,7 +50,9 @@ async function apiFetch(path, options = {}){
       if(body && body.message) message = body.message;
       else if(body && body.title) message = body.title;
     }catch(e){ /* no JSON body */ }
-    throw new Error(message);
+    const err = new Error(message);
+    err.status = res.status;   // lets callers tell "not found yet" apart from a real failure
+    throw err;
   }
 
   if(res.status === 204) return null;
@@ -133,6 +135,18 @@ const Api = {
   createIncome: (payload) => apiFetch('/income', { method: 'POST', body: JSON.stringify(payload) }),
   updateIncome: (id, payload) => apiFetch(`/income/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteIncome: (id) => apiFetch(`/income/${id}`, { method: 'DELETE' }),
+
+  // Budget planner (expected income/expenses for a month, and how they turned out)
+  getBudget: (year, month) => apiFetch(`/budgets?year=${year}&month=${month}`),
+  createBudget: (payload) => apiFetch('/budgets', { method: 'POST', body: JSON.stringify(payload) }),
+  updateBudget: (id, payload) => apiFetch(`/budgets/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteBudget: (id) => apiFetch(`/budgets/${id}`, { method: 'DELETE' }),
+  addBudgetItem: (id, payload) => apiFetch(`/budgets/${id}/items`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateBudgetItem: (itemId, payload) => apiFetch(`/budgets/items/${itemId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteBudgetItem: (itemId) => apiFetch(`/budgets/items/${itemId}`, { method: 'DELETE' }),
+  convertBudgetItem: (itemId, payload) => apiFetch(`/budgets/items/${itemId}/convert`, { method: 'POST', body: JSON.stringify(payload) }),
+  getBudgetSuggestion: (year, month) => apiFetch(`/budgets/suggest?year=${year}&month=${month}`),
+  getBudgetVariance: (year, month) => apiFetch(`/budgets/variance?year=${year}&month=${month}`),
 
   // Society liabilities (money the society owes contributors)
   getLiabilities: (status) => apiFetch('/society-liabilities' + (status ? `?status=${encodeURIComponent(status)}` : '')),

@@ -61,7 +61,7 @@ function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
 
 // Grantable module permission system — mirrors api/SMMS.Api/Services/PermissionService.cs.
 // Users/AuditLog are deliberately NOT grantable (stay Admin-only).
-const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities','Income'];
+const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities','Income','Budgets'];
 function canView(module){ return isAdmin() || (currentUser && currentUser.permissions && ['View','Edit'].includes(currentUser.permissions[module])); }
 function canEdit(module){ return isAdmin() || (currentUser && currentUser.permissions && currentUser.permissions[module]==='Edit'); }
 
@@ -515,14 +515,14 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
   // The shared month/year filter only applies to data-driven tabs; hide it
   // elsewhere (settings, profile, etc.). Members get the same read-only filter
   // on the society tabs they can view.
-  const FILTER_TABS = ['dashboard','collections','expenses','income','reports','notifications'];
+  const FILTER_TABS = ['dashboard','collections','expenses','income','budget','reports','notifications'];
   const tf = document.getElementById('topFilters');
   if(tf) tf.style.display = FILTER_TABS.includes(t) ? 'flex' : 'none';
 
@@ -543,7 +543,7 @@ async function showTab(t, el){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, budget:(typeof renderBudget==='function'?renderBudget:null), mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -565,7 +565,7 @@ function onTopFilterChange(){
     if(yrSel) yrSel.value = bucket.year;
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, reports:renderReports, notifications:renderNotifications};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, reports:renderReports, notifications:renderNotifications, budget:(typeof renderBudget==='function'?renderBudget:null)};
   if(renders[t]) renders[t]();
 }
 
@@ -584,7 +584,8 @@ function filterBucketFor(tab){ return tab === 'dashboard' ? filterState.dashboar
 
 // Collections & Expenses always need one concrete year of data to manage —
 // "All Years" is only meaningful as a full-picture view on Dashboard/Reports/Notifications.
-const NO_ALL_YEARS_TABS = ['collections','expenses','income'];
+// A budget is always for one specific month, so it belongs here too.
+const NO_ALL_YEARS_TABS = ['collections','expenses','income','budget'];
 function allYearsAllowed(tab){ return !NO_ALL_YEARS_TABS.includes(tab); }
 
 function syncFilterControls(tab){
