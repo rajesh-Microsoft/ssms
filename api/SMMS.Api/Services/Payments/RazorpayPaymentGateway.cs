@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using SMMS.Api.Data.Tenancy;
 
 namespace SMMS.Api.Services.Payments;
 
@@ -12,6 +13,13 @@ public sealed class RazorpayOptions
     public string? KeyId { get; set; }
     public string? KeySecret { get; set; }
     public string? WebhookSecret { get; set; }
+
+    /// <summary>
+    /// Societies allowed to take card payments, comma separated, or "*" for every
+    /// society. Opt in is deliberate: a test key that reaches a real society lets a
+    /// resident clear a real due without any money moving.
+    /// </summary>
+    public string? AllowedSocieties { get; set; }
 }
 
 public sealed record RazorpayOrder(string Id, long Amount, string Currency);
@@ -20,13 +28,32 @@ public sealed record RazorpayPayment(string Id, string OrderId, long Amount, str
 public sealed class RazorpayPaymentGateway(
     HttpClient httpClient,
     IOptions<RazorpayOptions> configuredOptions,
+    ITenantContext tenantContext,
     ILogger<RazorpayPaymentGateway> logger)
 {
     private readonly RazorpayOptions options = configuredOptions.Value;
 
+    private bool IsAllowedForCurrentSociety
+    {
+        get
+        {
+            var allowed = options.AllowedSocieties;
+            if (string.IsNullOrWhiteSpace(allowed)) return false;
+            if (allowed.Trim() == "*") return true;
+
+            var society = tenantContext.Current?.Key;
+            if (string.IsNullOrWhiteSpace(society)) return false;
+
+            return allowed
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Any(entry => string.Equals(entry, society, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
     public bool IsConfigured => options.Enabled
         && !string.IsNullOrWhiteSpace(options.KeyId)
-        && !string.IsNullOrWhiteSpace(options.KeySecret);
+        && !string.IsNullOrWhiteSpace(options.KeySecret)
+        && IsAllowedForCurrentSociety;
 
     public bool IsTestMode => IsConfigured
         && options.KeyId!.StartsWith("rzp_test_", StringComparison.OrdinalIgnoreCase);

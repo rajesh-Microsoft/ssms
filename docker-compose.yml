@@ -73,6 +73,10 @@ services:
 
       Razorpay__WebhookSecret: ${RAZORPAY_WEBHOOK_SECRET:-}
 
+      # Comma separated society keys, or "*" for all. Empty means no society can
+      # pay by card, which is the safe default while test keys are in play.
+      Razorpay__AllowedSocieties: ${RAZORPAY_ALLOWED_SOCIETIES:-}
+
     ports:
       - "7253:8080"
 
