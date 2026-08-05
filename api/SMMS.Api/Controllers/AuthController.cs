@@ -39,6 +39,33 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
             PermissionHelper.Parse(user.Permissions), user.MustChangePassword));
     }
 
+    /// <summary>The society's flats, for the sign-up dropdown. Anonymous like sign-up itself, and
+    /// scoped by the tenant resolved from the Host header; returns flat numbers only, no residents.</summary>
+    [HttpGet("flats")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IEnumerable<FlatOptionDto>>> GetFlats()
+    {
+        var roster = await db.Members
+            .Where(m => m.Status == "Active")
+            .Select(m => new { m.Flat, m.Floor })
+            .ToListAsync();
+
+        var claimed = await db.Users
+            .Where(u => u.Flat != null && u.Status.ToLower() != "inactive")
+            .Select(u => u.Flat!)
+            .ToListAsync();
+        var claimedSet = claimed.Select(f => f.Trim().ToLowerInvariant()).ToHashSet();
+
+        var flats = roster
+            .Where(m => !string.IsNullOrWhiteSpace(m.Flat))
+            .GroupBy(m => m.Flat.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new FlatOptionDto(g.Key, g.First().Floor, claimedSet.Contains(g.Key.ToLowerInvariant())))
+            .OrderBy(f => int.TryParse(f.Flat, out var n) ? n : int.MaxValue)
+            .ThenBy(f => f.Flat, StringComparer.OrdinalIgnoreCase);
+
+        return Ok(flats);
+    }
+
     [HttpPost("signup")]
     [AllowAnonymous]
     public async Task<IActionResult> Signup(SignupRequest request)
@@ -46,6 +73,16 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
         var exists = await db.Users.AnyAsync(u => u.Username.ToLower() == request.Username.ToLower());
         if (exists)
             return Conflict(new { message = "That username is already taken." });
+
+        var flat = request.Flat.Trim();
+        var flatKey = flat.ToLowerInvariant();
+
+        var onRoster = await db.Members.AnyAsync(m => m.Status == "Active" && m.Flat.Trim().ToLower() == flatKey);
+        if (!onRoster)
+            return BadRequest(new { message = $"Flat {flat} is not on this society's flat list. Please contact your Admin." });
+
+        if (await FlatAllocation.IsClaimedAsync(db, flat))
+            return Conflict(new { message = $"An account is already registered for flat {flat}. Please contact your Admin if this isn't you." });
 
         var user = new User
         {
@@ -55,7 +92,7 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
             Name = request.Name,
             Email = request.Email,
             Mobile = request.Mobile,
-            Flat = request.Flat,
+            Flat = flat,
             Floor = request.Floor,
             SecurityQuestion = request.SecurityQuestion
         };

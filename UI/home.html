@@ -65,7 +65,7 @@
 
     <div class="form-grid">
       <div class="form-group full"><label>Full Name *</label><input type="text" id="su-name"></div>
-      <div class="form-group"><label>Flat Number *</label><input type="text" id="su-flat"></div>
+      <div class="form-group"><label>Flat Number *</label><select id="su-flat" onchange="onSignupFlatChange()"></select></div>
       <div class="form-group"><label>Floor *</label><select id="su-floor"></select></div>
       <div class="form-group"><label>Mobile</label><input type="tel" id="su-mobile"></div>
       <div class="form-group"><label>Email</label><input type="email" id="su-email"></div>
@@ -419,6 +419,44 @@ function showSignup(){
   populateAuthDropdowns();
   document.getElementById('signupScreen').style.display = 'flex';
   document.getElementById('signupError').textContent = '';
+  loadSignupFlats();
+}
+
+// One flat, one account. Flats already claimed stay visible but unselectable so a resident
+// can see why theirs is missing instead of assuming the list is wrong.
+let signupFlats = [];
+async function loadSignupFlats(){
+  const sel = document.getElementById('su-flat');
+  const errEl = document.getElementById('signupError');
+  sel.innerHTML = '<option value="">Loading flats…</option>';
+  try{
+    signupFlats = await Api.signupFlats();
+  }catch(e){
+    sel.innerHTML = '<option value="">Could not load flats</option>';
+    errEl.textContent = 'Could not load the flat list. Please try again shortly.';
+    return;
+  }
+
+  if(!signupFlats.length){
+    sel.innerHTML = '<option value="">No flats available</option>';
+    errEl.textContent = 'This society has no flats set up yet. Please contact your Admin.';
+    return;
+  }
+
+  sel.innerHTML = '<option value="">Select your flat</option>' + signupFlats.map(f=>
+    `<option value="${f.flat}"${f.taken ? ' disabled' : ''}>${f.flat}${f.taken ? ' — already registered' : ''}</option>`
+  ).join('');
+
+  if(signupFlats.every(f=>f.taken)) errEl.textContent = 'Every flat already has an account. Please contact your Admin.';
+}
+
+function onSignupFlatChange(){
+  const flat = document.getElementById('su-flat').value;
+  const match = signupFlats.find(f=>f.flat === flat);
+  const floorSel = document.getElementById('su-floor');
+  if(match && match.floor && floorSel && [...floorSel.options].some(o=>o.value === String(match.floor))){
+    floorSel.value = String(match.floor);
+  }
 }
 
 async function submitSignup(){
@@ -435,7 +473,8 @@ async function submitSignup(){
   const secq = document.getElementById('su-secq').value;
   const seca = document.getElementById('su-seca').value.trim();
 
-  if(!name || !flat || !username || !pw || !secq || !seca){ errEl.textContent = 'Please fill all required (*) fields.'; return; }
+  if(!flat){ errEl.textContent = 'Please select your flat number.'; return; }
+  if(!name || !username || !pw || !secq || !seca){ errEl.textContent = 'Please fill all required (*) fields.'; return; }
   if(pw.length < 4){ errEl.textContent = 'Password must be at least 4 characters.'; return; }
   if(pw !== pw2){ errEl.textContent = 'Passwords do not match.'; return; }
 

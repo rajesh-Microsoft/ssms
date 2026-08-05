@@ -27,6 +27,10 @@ public record SignupRequest(
 
 public record SecurityQuestionResponse(string SecurityQuestion);
 
+/// <summary>A flat from the society roster, offered at sign-up. <paramref name="Taken"/> flats are
+/// shown but not selectable, so a resident can see their flat is already claimed.</summary>
+public record FlatOptionDto(string Flat, string? Floor, bool Taken);
+
 public record ResetPasswordRequest(
     [Required] string Username,
     [Required] string SecurityAnswer,

@@ -93,6 +93,7 @@ const Api = {
   // Auth
   login: (username, password) => apiFetch('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   signup: (payload) => apiFetch('/auth/signup', { method: 'POST', body: JSON.stringify(payload) }),
+  signupFlats: () => apiFetch('/auth/flats'),
   securityQuestion: (username) => apiFetch('/auth/security-question?username=' + encodeURIComponent(username)),
   resetPassword: (payload) => apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) }),
 
