@@ -176,11 +176,14 @@ function renderBudgetItems(){
     const vTxt = variance === null || variance === undefined ? '—'
       : `<span style="color:${variance > 0 ? 'var(--danger)' : variance < 0 ? 'var(--success)' : 'inherit'};font-weight:700;">${variance > 0 ? '+' : ''}${budMoney(variance)}</span>`;
     const due = i.dueDate ? new Date(i.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+    // Gated here rather than via data-perm: applyRolePermissions() only runs on partial load, not per row.
     const actions = isActual
       ? '<span style="font-size:11px;color:var(--sub);">booked</span>'
-      : `<button class="ic-btn" data-perm="Budgets" title="Bill arrived" onclick="openBudgetConvert(${i.id})">✅</button>
-         <button class="ic-btn" data-perm="Budgets" title="Edit" onclick="openBudgetItem(${i.id})">✏</button>
-         <button class="ic-btn" data-perm="Budgets" title="Remove" onclick="removeBudgetItem(${i.id})">🗑</button>`;
+      : (canEdit('Budgets')
+        ? `<button class="ic-btn" title="Bill arrived" onclick="openBudgetConvert(${i.id})">✅</button>
+         <button class="ic-btn" title="Edit" onclick="openBudgetItem(${i.id})">✏</button>
+         <button class="ic-btn" title="Remove" onclick="removeBudgetItem(${i.id})">🗑</button>`
+        : '');
     return `<tr>
       <td>${budEsc(i.category)}</td>
       <td>${budEsc(i.description) || '—'}</td>
