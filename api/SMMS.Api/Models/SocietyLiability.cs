@@ -54,6 +54,11 @@ public class SocietyLiability : IAuditable, ISoftDelete
 
     public LiabilityStatus Status { get; set; } = LiabilityStatus.Open;
 
+    /// <summary>Expense category the contributor's money paid for, so the cost lands in the right
+    /// bucket. Empty on liabilities recorded before costs were booked up front.</summary>
+    [MaxLength(60)]
+    public string Category { get; set; } = string.Empty;
+
     [MaxLength(300)]
     public string? Purpose { get; set; }
 

@@ -33,6 +33,14 @@ public class Expense : IAuditable, ISoftDelete
     [MaxLength(500)]
     public string? Remarks { get; set; }
 
+    /// <summary>Set when a contributor funded this cost out of pocket. The cost is the society's from
+    /// day one, but no society cash left the bank, so this row is excluded from cash-in-hand until
+    /// the matching liability is repaid.</summary>
+    public int? FundedByLiabilityId { get; set; }
+
+    [ForeignKey(nameof(FundedByLiabilityId))]
+    public SocietyLiability? FundedByLiability { get; set; }
+
     // ── Audit (IAuditable) + soft delete (ISoftDelete) ──
     public DateTime CreatedOn { get; set; }
     public string? CreatedBy { get; set; }

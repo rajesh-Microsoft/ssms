@@ -117,7 +117,8 @@ async function loadExpenses(){
     month: MONTHS[e.month] || '',
     monthNum: e.month,
     year: e.year,
-    remarks: e.remarks || ''
+    remarks: e.remarks || '',
+    fundedByLiabilityId: e.fundedByLiabilityId || null
   }));
 }
 
@@ -621,6 +622,14 @@ function filteredIncome(){
   const m = filterState.dashboard.month, y = filterState.dashboard.year;
   return (DB.income||[]).filter(i => (!m || getMonth(i)===m) && (!y || getYear(i)===y));
 }
+// Same dashboard window as the filters above, for rows that carry a date rather than month/year.
+function inDashPeriod(dateStr){
+  if(!dateStr) return false;
+  const m = filterState.dashboard.month, y = filterState.dashboard.year;
+  const d = new Date(dateStr);
+  if(isNaN(d)) return false;
+  return (!m || d.getMonth()+1===m) && (!y || d.getFullYear()===y);
+}
 
 // ═══════════════════════════════════════════════
 // PILLS (shared builder)
@@ -656,6 +665,16 @@ function renderDashboard(){
   const totalInc = incs.reduce((s,i)=>s+getAmt(i),0);
   const bal      = totalCol + totalInc - totalExp;
 
+  // Balance is what the society is worth; cash is what it can actually spend. They differ while a
+  // contributor is owed: their cost is booked but no society money left the bank until we repay them.
+  const memberFunded = exps.reduce((s,e)=> s + (fld(e,'fundedByLiabilityId','FundedByLiabilityId') ? getAmt(e) : 0), 0);
+  const repaidOut = (DB.liabilities||[])
+    .filter(l => l.expenseId)   // older liabilities book their cost on repayment, so it is already in totalExp
+    .reduce((s,l)=> s + (l.settlements||[])
+      .filter(x => x.method==='Repaid' && inDashPeriod(x.date))
+      .reduce((t,x)=> t + (x.amount||0), 0), 0);
+  const cash = totalCol + totalInc - (totalExp - memberFunded) - repaidOut;
+
   const unpaidRecords = cols.filter(c => getStatus(c).toLowerCase() !== 'paid');
   const pendAmt = unpaidRecords.reduce((s,c)=>s+getAmt(c),0);
 
@@ -686,6 +705,11 @@ function renderDashboard(){
   setText('kpi-pend-sub', pendingMembers.length+' members · '+unpaidRecords.length+' unpaid records');
   setText('kpi-mem', DB.members.length);
   setText('kpi-bal-sub', bal>=0?'✅ Surplus':'⚠️ Deficit');
+  setText('kpi-cash','₹'+cash.toLocaleString('en-IN'));
+  const cashNotes = [];
+  if(memberFunded>0) cashNotes.push('₹'+memberFunded.toLocaleString('en-IN')+' of costs funded by others');
+  if(repaidOut>0)    cashNotes.push('₹'+repaidOut.toLocaleString('en-IN')+' repaid to contributors');
+  setText('kpi-cash-sub', cashNotes.length ? cashNotes.join(' · ') : 'Money actually available');
 
   const advTotal = DB.members.reduce((s,m)=> s + (+fld(m,'advanceBalance','AdvanceBalance')||0), 0);
   const advHolders = DB.members.filter(m=> (+fld(m,'advanceBalance','AdvanceBalance')||0) > 0).length;
@@ -959,13 +983,21 @@ function renderExpRow(e, i){
   const yr   = getYear(e) || fld(e,'year','Year') || '';
   const rem  = fld(e,'remarks','Remarks') || '-';
   const id   = e.id || e.Id || i;
+  // Contributor-funded costs belong to their liability, so they are read-only here.
+  const liabId = fld(e,'fundedByLiabilityId','FundedByLiabilityId');
+  const owned = !!liabId;
+  const catCell = owned
+    ? `${cat} <span class="badge b-pending" title="Funded out of pocket \u2014 manage from Liabilities">\ud83c\udfe6 owed</span>`
+    : cat;
   return `<tr>
-    <td>${i+1}</td><td>${dt}</td><td>${cat}</td><td>${desc}</td><td>${ven}</td>
+    <td>${i+1}</td><td>${dt}</td><td>${catCell}</td><td>${desc}</td><td>${ven}</td>
     <td>₹${amt.toLocaleString('en-IN')}</td><td>${mode}</td><td>${moN}</td><td>${yr}</td><td>${rem}</td>
-    <td>${canEdit('Expenses') ? `<div class="act-btns">
+    <td>${canEdit('Expenses') ? (owned
+      ? `<button class="ic-btn" title="Funded by a contributor \u2014 manage from Liabilities" onclick="showTab('liabilities')">\ud83c\udfe6</button>`
+      : `<div class="act-btns">
       <button class="ic-btn" onclick="editExpense('${id}')">✏️</button>
       <button class="ic-btn" onclick="deleteExpense('${id}')">🗑️</button>
-    </div>` : ''}</td>
+    </div>`) : ''}</td>
   </tr>`;
 }
 
@@ -1196,6 +1228,7 @@ function renderLiabRow(l, i){
     <td>${l.contributorLabel||'—'}</td>
     <td>${LIAB_SOURCES[l.source]||l.source}</td>
     <td>${(l.date||'').split('T')[0]}</td>
+    <td>${l.category || '<span style="color:var(--sub);">—</span>'}</td>
     <td>₹${(l.amount||0).toLocaleString('en-IN')}</td>
     <td>₹${(l.outstanding||0).toLocaleString('en-IN')}</td>
     <td>${daysPending}</td>
@@ -1211,6 +1244,7 @@ function renderLiabRow(l, i){
 function openLiabilityModal(){
   if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
   populateLiabMemberDropdown();
+  populateLiabCatDropdown();
   document.getElementById('liab-source').value = 'MemberContribution';
   document.getElementById('liab-member').value = '';
   document.getElementById('liab-contributor').value = '';
@@ -1219,6 +1253,12 @@ function openLiabilityModal(){
   document.getElementById('liab-purpose').value = '';
   onLiabSourceChange();
   document.getElementById('modal-liab').classList.add('open');
+}
+
+function populateLiabCatDropdown(){
+  const sel = document.getElementById('liab-category');
+  if(!sel) return;
+  sel.innerHTML = (DB.settings.categories||[]).map(c=>`<option>${c}</option>`).join('');
 }
 
 function populateLiabMemberDropdown(){
@@ -1240,20 +1280,24 @@ async function saveLiability(){
   const amount = +document.getElementById('liab-amount').value;
   const memberId = document.getElementById('liab-member').value;
   const contributor = document.getElementById('liab-contributor').value.trim();
+  const category = document.getElementById('liab-category').value;
   if(!amount || amount<=0) return toast('Enter a valid amount','warn');
   if(!memberId && !contributor) return toast('Pick a member or enter a contributor name','warn');
+  if(!category) return toast('Pick the expense category this money paid for','warn');
   const payload = {
     source: document.getElementById('liab-source').value,
     memberId: memberId ? +memberId : null,
     contributorName: memberId ? null : contributor,
     date: document.getElementById('liab-date').value,
     amount,
+    category,
     purpose: document.getElementById('liab-purpose').value.trim()
   };
   try{
     await Api.createLiability(payload);
-    await loadLiabilities();
-    closeModal('liab'); renderLiabilities(); renderDashboard(); toast('Liability recorded!');
+    await Promise.all([loadLiabilities(), loadExpenses()]);
+    closeModal('liab'); renderLiabilities(); renderExpenses(); renderDashboard();
+    toast(`Liability recorded and ₹${amount.toLocaleString('en-IN')} booked to ${category}.`);
   }catch(err){ toast(err.message || 'Save failed','warn'); }
 }
 
@@ -1282,6 +1326,16 @@ function onSettleMethodChange(){
   const refRow  = document.getElementById('stl-ref-row');
   if(modeRow) modeRow.style.display = repaid ? '' : 'none';
   if(refRow)  refRow.style.display  = repaid ? '' : 'none';
+  const hint = document.getElementById('stl-hint');
+  if(!hint) return;
+  const l = DB.liabilities.find(x=>x.id===editId.liab);
+  // Liabilities raised before costs were booked up front still book theirs on repayment.
+  const costBooked = !!(l && l.expenseId);
+  hint.textContent = repaid
+    ? (costBooked
+      ? `💰 Cash only — the ${l.category||'expense'} cost was already booked when this was recorded, so no new expense is added.`
+      : '💰 This liability predates cost-on-record, so repaying it books the expense now.')
+    : '👛 No cash moves — the amount becomes wallet credit against the member’s future bills.';
 }
 
 async function saveSettlement(){
@@ -1306,11 +1360,15 @@ async function saveSettlement(){
 
 async function deleteLiability(id){
   if(!canEdit('Liabilities')) return toast('You do not have edit access to Liabilities.','warn');
-  if(!confirm('Delete this liability?')) return;
+  const l = DB.liabilities.find(x=>x.id===id);
+  const warn = l && l.expenseId
+    ? `Delete this liability?\n\nThe ${l.category||'expense'} cost of \u20b9${(l.amount||0).toLocaleString('en-IN')} booked with it will be removed too.`
+    : 'Delete this liability?';
+  if(!confirm(warn)) return;
   try{
     await Api.deleteLiability(id);
-    await loadLiabilities();
-    renderLiabilities(); renderDashboard(); toast('Deleted!','warn');
+    await Promise.all([loadLiabilities(), loadExpenses()]);
+    renderLiabilities(); renderExpenses(); renderDashboard(); toast('Deleted!','warn');
   }catch(err){ toast(err.message || 'Delete failed','warn'); }
 }
 

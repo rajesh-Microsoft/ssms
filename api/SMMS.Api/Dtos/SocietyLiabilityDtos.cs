@@ -16,7 +16,9 @@ public record SocietyLiabilityDto(
     decimal SettledAmount,
     decimal Outstanding,
     string Status,
+    string Category,
     string? Purpose,
+    int? ExpenseId,
     IEnumerable<SocietyLiabilitySettlementDto> Settlements);
 
 public record SocietyLiabilitySummaryDto(decimal TotalOutstanding, int OpenCount, int ContributorCount);
@@ -27,6 +29,7 @@ public record SocietyLiabilityUpsertRequest(
     string? ContributorName,
     [Required] DateTime Date,
     [Range(0.01, 100_000_000)] decimal Amount,
+    [Required, MaxLength(60)] string Category,
     string? Purpose);
 
 public record SocietyLiabilitySettleRequest(

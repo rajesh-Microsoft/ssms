@@ -14,7 +14,7 @@ namespace SMMS.Api.Controllers;
 public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityService service, AuditService audit)
     : ControllerBase
 {
-    private static SocietyLiabilityDto ToDto(SocietyLiability l) => new(
+    private static SocietyLiabilityDto ToDto(SocietyLiability l, int? expenseId) => new(
         l.Id,
         l.Source.ToString(),
         l.MemberId,
@@ -24,10 +24,21 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
         l.SettledAmount,
         l.Amount - l.SettledAmount,
         l.Status.ToString(),
+        l.Category,
         l.Purpose,
+        expenseId,
         l.Settlements
             .OrderByDescending(s => s.Date)
             .Select(s => new SocietyLiabilitySettlementDto(s.Id, s.Date, s.Amount, s.Method.ToString(), s.ExpenseId, s.Note, s.Reference)));
+
+    /// <summary>Liability id -> the cost row booked when it was raised, for the whole result set.</summary>
+    private async Task<Dictionary<int, int>> FundedExpenseIdsAsync(IEnumerable<int> liabilityIds)
+    {
+        var ids = liabilityIds.ToList();
+        return await db.Expenses
+            .Where(e => e.FundedByLiabilityId != null && ids.Contains(e.FundedByLiabilityId!.Value))
+            .ToDictionaryAsync(e => e.FundedByLiabilityId!.Value, e => e.Id);
+    }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<SocietyLiabilityDto>>> GetAll([FromQuery] string? status)
@@ -37,7 +48,8 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<LiabilityStatus>(status, true, out var st))
             query = query.Where(l => l.Status == st);
         var results = await query.OrderByDescending(l => l.Date).ToListAsync();
-        return Ok(results.Select(ToDto));
+        var expenseIds = await FundedExpenseIdsAsync(results.Select(l => l.Id));
+        return Ok(results.Select(l => ToDto(l, expenseIds.TryGetValue(l.Id, out var eid) ? eid : null)));
     }
 
     [HttpGet("summary")]
@@ -59,7 +71,9 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
         if (!User.CanView(PermissionModules.Liabilities)) return Forbid();
         var l = await db.SocietyLiabilities.Include(x => x.Member).Include(x => x.Settlements)
             .FirstOrDefaultAsync(x => x.Id == id);
-        return l is null ? NotFound() : Ok(ToDto(l));
+        if (l is null) return NotFound();
+        var expense = await db.Expenses.FirstOrDefaultAsync(e => e.FundedByLiabilityId == id);
+        return Ok(ToDto(l, expense?.Id));
     }
 
     [HttpPost]
@@ -70,17 +84,24 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
             return BadRequest("Invalid source.");
         if (request.MemberId is null && string.IsNullOrWhiteSpace(request.ContributorName))
             return BadRequest("Provide either a member or a contributor name.");
-        if (request.MemberId is int mid && !await db.Members.AnyAsync(m => m.Id == mid))
-            return BadRequest("Member not found.");
+        if (string.IsNullOrWhiteSpace(request.Category))
+            return BadRequest("Pick the expense category this money paid for.");
 
-        var liability = service.Create(source, request.MemberId, request.ContributorName?.Trim(),
-            request.Date, request.Amount, request.Purpose?.Trim());
+        Member? member = null;
+        if (request.MemberId is int mid)
+        {
+            member = await db.Members.FirstOrDefaultAsync(m => m.Id == mid);
+            if (member is null) return BadRequest("Member not found.");
+        }
+
+        var liability = service.Create(source, member, request.ContributorName?.Trim(),
+            request.Date, request.Amount, request.Category.Trim(), request.Purpose?.Trim());
         await db.SaveChangesAsync();
         await audit.LogAsync("Liabilities", "Add",
-            $"Recorded liability of {liability.Amount} ({liability.Source})");
+            $"Recorded liability of {liability.Amount} ({liability.Source}) and booked the {liability.Category} cost");
 
-        await db.Entry(liability).Reference(l => l.Member).LoadAsync();
-        return CreatedAtAction(nameof(GetById), new { id = liability.Id }, ToDto(liability));
+        var expense = await db.Expenses.FirstOrDefaultAsync(e => e.FundedByLiabilityId == liability.Id);
+        return CreatedAtAction(nameof(GetById), new { id = liability.Id }, ToDto(liability, expense?.Id));
     }
 
     [HttpPost("{id:int}/settle")]
@@ -96,14 +117,15 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
         if (method == LiabilitySettlementMethod.ConvertedToAdvance && liability.Member is null)
             return BadRequest("Cannot convert to advance without a linked member.");
 
+        var expense = await db.Expenses.FirstOrDefaultAsync(e => e.FundedByLiabilityId == id);
         var applied = service.Settle(liability, request.Amount, method, liability.Member,
-            request.PaymentMode, request.Reference, request.Note);
+            costAlreadyBooked: expense is not null, request.PaymentMode, request.Reference, request.Note);
         if (applied <= 0) return BadRequest("Nothing outstanding to settle.");
 
         await db.SaveChangesAsync();
         await audit.LogAsync("Liabilities", "Settle",
             $"Settled {applied} on liability #{id} via {method}");
-        return Ok(ToDto(liability));
+        return Ok(ToDto(liability, expense?.Id));
     }
 
     [HttpDelete("{id:int}")]
@@ -114,9 +136,14 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
         if (liability is null) return NotFound();
         if (liability.SettledAmount > 0) return BadRequest("Cannot delete a liability that has settlements.");
 
+        // The cost row exists only because this liability does, so it goes with it.
+        var expense = await db.Expenses.FirstOrDefaultAsync(e => e.FundedByLiabilityId == id);
+        if (expense is not null) db.Expenses.Remove(expense);
+
         db.SocietyLiabilities.Remove(liability);
         await db.SaveChangesAsync();
-        await audit.LogAsync("Liabilities", "Delete", $"Deleted liability #{id}");
+        await audit.LogAsync("Liabilities", "Delete",
+            $"Deleted liability #{id}" + (expense is null ? "" : $" and its {expense.Category} cost of {expense.Amount}"));
         return NoContent();
     }
 }

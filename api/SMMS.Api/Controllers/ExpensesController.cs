@@ -14,7 +14,11 @@ namespace SMMS.Api.Controllers;
 public class ExpensesController(SmmsDbContext db, AuditService audit) : ControllerBase
 {
     private static ExpenseDto ToDto(Expense e) => new(
-        e.Id, e.ExpenseDate, e.Category, e.Description, e.Vendor, e.Amount, e.PaymentMode, e.Month, e.Year, e.Remarks);
+        e.Id, e.ExpenseDate, e.Category, e.Description, e.Vendor, e.Amount, e.PaymentMode, e.Month, e.Year,
+        e.Remarks, e.FundedByLiabilityId);
+
+    private const string LiabilityOwned =
+        "This cost was funded by a contributor and belongs to its liability. Edit or remove it from the Liabilities screen.";
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ExpenseDto>>> GetAll([FromQuery] int? year, [FromQuery] int? month)
@@ -63,6 +67,7 @@ public class ExpensesController(SmmsDbContext db, AuditService audit) : Controll
         if (!User.CanEdit(PermissionModules.Expenses)) return Forbid();
         var expense = await db.Expenses.FindAsync(id);
         if (expense is null) return NotFound();
+        if (expense.FundedByLiabilityId is not null) return BadRequest(LiabilityOwned);
 
         expense.ExpenseDate = request.ExpenseDate;
         expense.Category = request.Category;
@@ -84,6 +89,7 @@ public class ExpensesController(SmmsDbContext db, AuditService audit) : Controll
         if (!User.CanEdit(PermissionModules.Expenses)) return Forbid();
         var expense = await db.Expenses.FindAsync(id);
         if (expense is null) return NotFound();
+        if (expense.FundedByLiabilityId is not null) return BadRequest(LiabilityOwned);
 
         db.Expenses.Remove(expense);
         await db.SaveChangesAsync();
