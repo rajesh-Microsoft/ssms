@@ -61,6 +61,10 @@ services:
       Razorpay__KeySecret: ${RAZORPAY_KEY_SECRET:-}
       Razorpay__WebhookSecret: ${RAZORPAY_WEBHOOK_SECRET:-}
       Razorpay__AllowedSocieties: ${RAZORPAY_ALLOWED_SOCIETIES:-}
+    # Payment screenshots and caretaker photos live on disk, so they need a volume to
+    # survive the container being recreated on every deploy.
+    volumes:
+      - uploads:/app/uploads
     # No published port: reached only by smms-ui inside this project's network.
 
   smms-ui:
@@ -81,3 +85,4 @@ services:
 
 volumes:
   sql_data:
+  uploads:

@@ -50,6 +50,14 @@ public class Complaint : IAuditable, ISoftDelete
     [MaxLength(150)]
     public string? AssignedTo { get; set; }
 
+    /// <summary>Storage-owned path of the photo attached when the complaint was raised.
+    /// Set by the caretaker app, where a photo is faster than typing a description.</summary>
+    [MaxLength(300)]
+    public string? PhotoPath { get; set; }
+
+    [MaxLength(100)]
+    public string? PhotoContentType { get; set; }
+
     // ── Audit (IAuditable) + soft delete (ISoftDelete) ──
     public DateTime CreatedOn { get; set; }
     public string? CreatedBy { get; set; }

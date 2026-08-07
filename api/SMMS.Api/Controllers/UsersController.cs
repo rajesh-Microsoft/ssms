@@ -17,7 +17,7 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
     private static readonly PasswordHasher<User> Hasher = new();
 
     private static readonly HashSet<string> AllowedRoles =
-        new(StringComparer.Ordinal) { "Admin", "Member", "Treasurer", "Secretary", "Committee Member", "Chairman" };
+        new(StringComparer.Ordinal) { "Admin", "Member", "Treasurer", "Secretary", "Committee Member", "Chairman", Roles.Caretaker };
 
     private static UserDto ToDto(User u) => new(
         u.Id, u.Username, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status, PermissionHelper.Parse(u.Permissions));

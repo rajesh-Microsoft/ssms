@@ -6,18 +6,19 @@ using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
+using SMMS.Api.Services.Storage;
 
 namespace SMMS.Api.Controllers;
 
 [ApiController]
 [Route("api/complaints")]
 [Authorize]
-public class ComplaintsController(SmmsDbContext db, AuditService audit) : ControllerBase
+public class ComplaintsController(SmmsDbContext db, AuditService audit, IFileStorage storage) : ControllerBase
 {
     private static ComplaintDto ToDto(Complaint c) => new(
         c.Id, c.Subject, c.Description, c.Category, c.Priority, c.Status,
         c.RaisedByUserId, c.RaisedByUser?.Username ?? string.Empty, c.Flat, c.Floor,
-        c.CreatedAt, c.ResolvedAt, c.ResolutionNotes, c.AssignedTo);
+        c.CreatedAt, c.ResolvedAt, c.ResolutionNotes, c.AssignedTo, c.PhotoPath is not null);
 
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     // Admins, or anyone explicitly granted "Edit" on the Complaints module, can see/manage all complaints.
@@ -113,5 +114,19 @@ public class ComplaintsController(SmmsDbContext db, AuditService audit) : Contro
         await db.SaveChangesAsync();
         await audit.LogAsync("Complaints", "Delete", $"Deleted complaint #{id}");
         return NoContent();
+    }
+
+    /// <summary>Serves the photo attached at the gate. Behind [Authorize] like the payment
+    /// screenshots, so it needs a Bearer token rather than a plain img src.</summary>
+    [HttpGet("{id:int}/photo")]
+    public async Task<IActionResult> Photo(int id)
+    {
+        var complaint = await db.Complaints.FirstOrDefaultAsync(c => c.Id == id);
+        if (complaint?.PhotoPath is null) return NotFound();
+        if (!CanManageAll && complaint.RaisedByUserId != CurrentUserId) return Forbid();
+
+        var bytes = await storage.ReadAsync(complaint.PhotoPath);
+        if (bytes is null) return NotFound();
+        return File(bytes, complaint.PhotoContentType ?? "application/octet-stream");
     }
 }

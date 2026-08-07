@@ -77,6 +77,11 @@ services:
       # pay by card, which is the safe default while test keys are in play.
       Razorpay__AllowedSocieties: ${RAZORPAY_ALLOWED_SOCIETIES:-}
 
+    # Payment screenshots and caretaker photos live on disk. Without this volume every
+    # deploy recreates the container and takes the evidence with it.
+    volumes:
+      - uploads:/app/uploads
+
     ports:
       - "7253:8080"
 
@@ -102,3 +107,5 @@ services:
 volumes:
 
   sql_data:
+
+  uploads:

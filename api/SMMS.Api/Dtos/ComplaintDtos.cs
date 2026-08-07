@@ -16,7 +16,8 @@ public record ComplaintDto(
     DateTime CreatedAt,
     DateTime? ResolvedAt,
     string? ResolutionNotes,
-    string? AssignedTo);
+    string? AssignedTo,
+    bool HasPhoto = false);
 
 // Raised by any authenticated user (Member or Admin) — Status/ResolvedAt are
 // always server-controlled and never accepted from the client.

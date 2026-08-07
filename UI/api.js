@@ -37,7 +37,10 @@ async function apiFetch(path, options = {}){
 
   if(res.status === 401){
     apiClearSession();
-    if(!/home\.html$/i.test(window.location.pathname)){
+    // The caretaker app has its own login screen, so it opts out of the resident redirect.
+    if(typeof window.SMMS_ON_UNAUTHORIZED === 'function'){
+      window.SMMS_ON_UNAUTHORIZED();
+    }else if(!/home\.html$/i.test(window.location.pathname)){
       window.location.href = 'home.html';
     }
     throw new Error('Your session has expired. Please log in again.');

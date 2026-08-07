@@ -3,6 +3,17 @@ using System.Text.Json;
 
 namespace SMMS.Api.Services;
 
+/// <summary>Role names that carry authorization meaning. Other roles (Treasurer, Secretary, ...)
+/// are labels only and behave like Member until permissions are granted.</summary>
+public static class Roles
+{
+    public const string Admin = "Admin";
+    public const string Member = "Member";
+
+    /// <summary>Gate and premises staff. Runs the caretaker app and nothing else.</summary>
+    public const string Caretaker = "Caretaker";
+}
+
 /// <summary>Grantable module names for the custom per-user permission system.
 /// Users/AuditLog are deliberately NOT grantable here — they stay Admin-only
 /// to avoid privilege escalation and audit-tampering risk.</summary>
@@ -55,11 +66,17 @@ public static class PermissionHelper
         return JsonSerializer.Serialize(clean);
     }
 
+    // Caretakers are excluded outright rather than by storing "None" everywhere, because Parse()
+    // falls back to "View" for any module missing from the JSON: a caretaker account saved without
+    // explicit permissions would otherwise be able to read collections, expenses and members.
+
     /// <summary>True if the user is an Admin, or has "View"/"Edit" granted for the module.</summary>
     public static bool CanView(this ClaimsPrincipal user, string module) =>
-        user.IsInRole("Admin") || user.FindAll($"perm:{module}").Any(c => c.Value is "View" or "Edit");
+        !user.IsInRole(Roles.Caretaker) &&
+        (user.IsInRole(Roles.Admin) || user.FindAll($"perm:{module}").Any(c => c.Value is "View" or "Edit"));
 
     /// <summary>True if the user is an Admin, or has "Edit" granted for the module.</summary>
     public static bool CanEdit(this ClaimsPrincipal user, string module) =>
-        user.IsInRole("Admin") || user.FindAll($"perm:{module}").Any(c => c.Value == "Edit");
+        !user.IsInRole(Roles.Caretaker) &&
+        (user.IsInRole(Roles.Admin) || user.FindAll($"perm:{module}").Any(c => c.Value == "Edit"));
 }

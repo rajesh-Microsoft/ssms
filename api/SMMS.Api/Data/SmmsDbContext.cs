@@ -24,6 +24,10 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<SocietyIncome> SocietyIncomes => Set<SocietyIncome>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<BudgetItem> BudgetItems => Set<BudgetItem>();
+    public DbSet<Visitor> Visitors => Set<Visitor>();
+    public DbSet<Delivery> Deliveries => Set<Delivery>();
+    public DbSet<DailyChecklist> DailyChecklists => Set<DailyChecklist>();
+    public DbSet<DailyChecklistItem> DailyChecklistItems => Set<DailyChecklistItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -193,6 +197,48 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .WithMany()
             .HasForeignKey(i => i.ExpenseId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ── Caretaker operations ──
+
+        modelBuilder.Entity<Visitor>()
+            .HasOne(v => v.RecordedByUser)
+            .WithMany()
+            .HasForeignKey(v => v.RecordedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // The gate screen is almost always "who is inside right now" and "today's log".
+        modelBuilder.Entity<Visitor>()
+            .HasIndex(v => new { v.InAt, v.OutAt });
+
+        modelBuilder.Entity<Delivery>()
+            .HasOne(d => d.RecordedByUser)
+            .WithMany()
+            .HasForeignKey(d => d.RecordedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Drives the "parcels still waiting" count and the per-flat pickup list.
+        modelBuilder.Entity<Delivery>()
+            .HasIndex(d => new { d.Status, d.ReceivedAt });
+        modelBuilder.Entity<Delivery>()
+            .HasIndex(d => d.Flat);
+
+        modelBuilder.Entity<DailyChecklist>()
+            .HasOne(c => c.SubmittedByUser)
+            .WithMany()
+            .HasForeignKey(c => c.SubmittedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // One inspection per day, enforced in the database so a double submit cannot
+        // leave two rival records of the same morning's round.
+        modelBuilder.Entity<DailyChecklist>()
+            .HasIndex(c => c.Date)
+            .IsUnique();
+
+        modelBuilder.Entity<DailyChecklistItem>()
+            .HasOne(i => i.Checklist)
+            .WithMany(c => c.Items)
+            .HasForeignKey(i => i.ChecklistId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Soft delete: hide logically-deleted rows from every query automatically.
         modelBuilder.Entity<Expense>().HasQueryFilter(e => !e.IsDeleted);
