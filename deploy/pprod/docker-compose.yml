@@ -1,0 +1,84 @@
+# Pre-prod stack, deployed to /opt/smms/app/docker-compose.yml so the build
+# contexts below resolve against the repo root.
+#
+# Isolation from the MCAPS UAT box is total (different subscription and VM), but
+# the same four axes as the dev stack are kept anyway so nothing can cross over
+# if the two ever share a host:
+#   project name   smms-pprod
+#   container_name smms-pprod-*
+#   volume         smms-pprod_sql_data
+#   Jwt Issuer/Audience/Key -> a pre-prod token is rejected by production
+#
+# Service names stay sqlserver/smms-api/smms-ui because Compose scopes DNS to the
+# project network, which keeps nginx.pprod.conf a near-copy of nginx/nginx.conf.
+name: smms-pprod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: smms-pprod-sql
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: ${PPROD_SA_PASSWORD:?PPROD_SA_PASSWORD must be set in .env}
+      MSSQL_PID: Developer
+    # No published port on purpose: this database holds a copy of real resident
+    # data. Only smms-api reaches it, over the smms-pprod network.
+    volumes:
+      - sql_data:/var/opt/mssql
+
+  smms-api:
+    build:
+      context: ./api/SMMS.Api
+    container_name: smms-pprod-api
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - sqlserver
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+      ControlPlane__ConnectionString: Server=sqlserver;Database=SmmsControlDb;User Id=sa;Password=${PPROD_SA_PASSWORD};TrustServerCertificate=True
+      ControlPlane__TenantConnectionTemplate: Server=sqlserver;Database={DbName};User Id=sa;Password=${PPROD_SA_PASSWORD};TrustServerCertificate=True
+      ControlPlane__SuperAdmin__Username: superadmin
+      ControlPlane__SuperAdmin__Password: ${PPROD_SUPERADMIN_PASSWORD:?PPROD_SUPERADMIN_PASSWORD must be set in .env}
+      ControlPlane__SuperAdmin__DisplayName: Platform Owner (PPROD)
+
+      # Distinct issuer/audience as well as key, so a pre-prod JWT cannot be
+      # replayed against production and vice versa.
+      Jwt__Key: ${PPROD_JWT_KEY:?PPROD_JWT_KEY must be set in .env}
+      Jwt__Issuer: SMMS.Api.PProd
+      Jwt__Audience: SMMS.Client.PProd
+
+      Razorpay__Enabled: ${RAZORPAY_ENABLED:-false}
+      Razorpay__KeyId: ${RAZORPAY_KEY_ID:-}
+      Razorpay__KeySecret: ${RAZORPAY_KEY_SECRET:-}
+      Razorpay__WebhookSecret: ${RAZORPAY_WEBHOOK_SECRET:-}
+      Razorpay__AllowedSocieties: ${RAZORPAY_ALLOWED_SOCIETIES:-}
+    # No published port: reached only by smms-ui inside this project's network.
+
+  smms-ui:
+    image: nginx:alpine
+    container_name: smms-pprod-ui
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      - smms-api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./UI:/usr/share/nginx/html:ro
+      - ./deploy/pprod/nginx.pprod.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+volumes:
+  sql_data:

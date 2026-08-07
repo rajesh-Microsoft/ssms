@@ -38,6 +38,11 @@ docker-compose.override.yml
 # Ops script output. Routinely contains secrets read back off the VM.
 *.log
 
+# Pre-prod staging handoff. stage-url.txt holds a live read/write SAS URL for the
+# code archive, so it must never be committed.
+deploy/pprod/stage-url.txt
+deploy/pprod/stage-account.txt
+
 # Working copies pulled off the VM for comparison. The uat-snapshot-* branch is
 # the durable record; these are scratch.
 uat-capture/
