@@ -123,6 +123,10 @@ function Invoke-Remote([hashtable]$Target, [string]$Script, [switch]$AllowFail) 
 function Get-RemoteVerified([string]$EnvKey) {
     $prev = $targets[$EnvKey]
     $out = Invoke-Remote $prev "cat $($prev.Root)/DEPLOYED_VERIFIED 2>/dev/null; echo __PROMOTE_OK__" -AllowFail
+    # Without the marker the box was never reached, which is not the same as "not signed off".
+    if ($out -notmatch '__PROMOTE_OK__') {
+        throw "Could not read the $EnvKey sign-off: the box did not answer. If $EnvKey is on the SSH-gated VM, run tools\request-jit.ps1 and retry."
+    }
     $match = [regex]::Match($out, '[0-9a-f]{40}')
     if ($match.Success) { return $match.Value }
     return ''
