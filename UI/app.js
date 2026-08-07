@@ -1816,8 +1816,10 @@ function renderUserPermMatrix(perms){
 }
 function toggleUserPermRows(){
   const section = document.getElementById('u-perm-section');
-  const isAdminRole = document.getElementById('u-role').value === 'Admin';
-  section.style.display = isAdminRole ? 'none' : '';
+  const role = document.getElementById('u-role').value;
+  // Admins already have everything; caretakers are denied every module server-side,
+  // so in both cases the matrix would only mislead whoever is filling the form in.
+  section.style.display = (role === 'Admin' || role === 'Caretaker') ? 'none' : '';
 }
 function getUserPermPayload(){
   const perms = {};
@@ -1858,7 +1860,9 @@ async function saveUser(){
   const n=document.getElementById('u-name').value.trim();
   if(!n)return toast('Enter username','warn');
   const role = document.getElementById('u-role').value;
-  const permissions = role==='Admin' ? undefined : getUserPermPayload();
+  // Caretakers are locked out of every module by the API, so storing a matrix of
+  // "View" against them would only be misleading when someone reads the record later.
+  const permissions = (role==='Admin' || role==='Caretaker') ? undefined : getUserPermPayload();
 
   if(editId.user){
     const payload = {
