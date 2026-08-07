@@ -281,6 +281,36 @@ header.scrolled{background:rgba(11,14,26,.96);box-shadow:0 8px 30px rgba(0,0,0,.
 .reveal.d4{transition-delay:.32s;}
 .reveal.d5{transition-delay:.40s;}
 @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;}.dash,.badge-float,.orb{animation:none;}}
+
+/* ============ Training programme ============ */
+.trn{background:linear-gradient(180deg,#fbfaff,var(--bg) 40%);}
+.g2{grid-template-columns:repeat(2,1fr);}
+@media(max-width:860px){.g2{grid-template-columns:1fr;}}
+.trn-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;}
+.trn-card h3{font-size:19px;font-weight:750;margin-bottom:6px;}
+.trn-card .lead{font-size:14.5px;color:var(--sub);margin-bottom:16px;}
+.price{display:inline-flex;align-items:baseline;gap:8px;background:linear-gradient(135deg,#efecff,#ffe9f4);
+  border-radius:12px;padding:10px 16px;margin-top:4px;}
+.price b{font-size:22px;font-weight:800;color:var(--accent);letter-spacing:-.5px;}
+.price span{font-size:12.5px;color:var(--sub);font-weight:600;}
+.tech-chips{display:flex;flex-wrap:wrap;gap:9px;}
+.tech-chips span{font-size:12.5px;font-weight:600;color:#4b3fd1;background:#f2f0ff;
+  border:1px solid #e3dfff;padding:7px 13px;border-radius:9px;}
+.tech-chips span.more{color:var(--sub);background:#f4f5fa;border-color:var(--border);font-style:italic;}
+.flow{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;}
+.flow b{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 20px;
+  font-size:15px;font-weight:750;box-shadow:0 6px 18px rgba(30,20,90,.06);}
+.flow i{color:var(--accent);font-style:normal;font-weight:800;font-size:17px;}
+/* Honest-promise callout — deliberately not styled like a sales banner */
+.note{background:#fffaf0;border:1px solid #fce4bd;border-left:4px solid #f59e0b;
+  border-radius:14px;padding:26px 28px;}
+.note h3{font-size:18px;font-weight:750;margin-bottom:8px;}
+.note p{font-size:14.5px;color:#7a6a52;margin-bottom:6px;}
+.pill-list{display:flex;flex-wrap:wrap;gap:10px;}
+.pill-list span{font-size:13.5px;font-weight:600;color:var(--text);background:var(--card);
+  border:1px solid var(--border);padding:9px 15px;border-radius:30px;}
+.trn-h{font-size:22px;font-weight:800;text-align:center;margin-bottom:8px;letter-spacing:-.4px;}
+.trn-p{text-align:center;color:var(--sub);font-size:15px;max-width:640px;margin:0 auto;}
 </style>
 </head>
 <body>
@@ -293,6 +323,7 @@ header.scrolled{background:rgba(11,14,26,.96);box-shadow:0 8px 30px rgba(0,0,0,.
       <a href="#product">Product</a>
       <a href="#how">How it works</a>
       <a href="#products">Solutions</a>
+      <a href="#training">Training</a>
       <a href="#contact">Contact</a>
     </nav>
     <a href="https://ssms.yuvaansoft.shop" class="btn btn-primary nav-cta-desktop">Explore SMMS →</a>
@@ -303,6 +334,7 @@ header.scrolled{background:rgba(11,14,26,.96);box-shadow:0 8px 30px rgba(0,0,0,.
     <a href="#product">Product</a>
     <a href="#how">How it works</a>
     <a href="#products">Solutions</a>
+    <a href="#training">Training</a>
     <a href="#contact">Contact</a>
     <a href="https://ssms.yuvaansoft.shop" class="btn btn-primary">Explore SMMS →</a>
   </div>
@@ -501,6 +533,121 @@ header.scrolled{background:rgba(11,14,26,.96);box-shadow:0 8px 30px rgba(0,0,0,.
   </div>
 </section>
 
+<section id="training" class="trn">
+  <div class="wrap">
+    <span class="tag-eyebrow reveal">Training programme</span>
+    <h2 class="sec reveal">Learn by Building. Pay as You Learn.</h2>
+    <p class="sec-sub reveal">We believe the best way to learn technology is by building real applications — not memorising theory or watching endless videos. Gain practical, industry-ready skills on live projects, without a large upfront fee.</p>
+
+    <div class="grid g3">
+      <div class="feature reveal d1">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>
+        <h3>Learn on live projects</h3>
+        <p>Work on real-world applications from day one. Instead of small demo projects, you'll contribute to applications that evolve over time — just like software in the real industry.</p>
+      </div>
+      <div class="feature reveal d2">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <h3>Pay as you learn</h3>
+        <p>No expensive upfront course fees. Choose a simple monthly subscription and continue as long as you're benefiting from the programme.</p>
+        <div class="price"><b>₹1,000–₹2,000</b><span>per month</span></div>
+      </div>
+      <div class="feature reveal d3">
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg></div>
+        <h3>Learn industry technologies</h3>
+        <p>Depending on the project, you'll gain hands-on experience across the modern .NET, Angular/React and Azure cloud stack used by professional teams.</p>
+      </div>
+    </div>
+
+    <div class="trn-card reveal" style="margin-top:24px;">
+      <h3>Technologies you'll work with</h3>
+      <p class="lead">Learned in context, exactly when a real feature needs them.</p>
+      <div class="tech-chips">
+        <span>HTML5 &amp; CSS3</span><span>JavaScript</span><span>TypeScript</span><span>Angular</span><span>React</span>
+        <span>C#</span><span>ASP.NET Core</span><span>REST APIs</span><span>SQL Server</span><span>Git &amp; GitHub</span>
+        <span>Azure App Service</span><span>Azure SQL Database</span><span>Azure Storage</span><span>Azure Service Bus</span>
+        <span>Azure Event Grid</span><span>Azure Functions</span><span>Azure AI Search</span><span>Azure DevOps &amp; CI/CD</span>
+        <span>Authentication &amp; Authorization</span><span>Microservices</span><span>Docker &amp; Containerisation</span>
+        <span class="more">…and many more</span>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:24px;">
+      <div class="trn-card reveal d1">
+        <h3>Learn like a software engineer</h3>
+        <p class="lead">Traditional courses teach technologies one by one. Here, you learn each one exactly when a real project needs it. While building a single feature you may touch:</p>
+        <ul class="slist" style="margin:0;">
+          <li><span class="ck">✓</span> Frontend development &amp; backend APIs</li>
+          <li><span class="ck">✓</span> Database design and cloud deployment</li>
+          <li><span class="ck">✓</span> Messaging systems and authentication</li>
+          <li><span class="ck">✓</span> Performance optimisation &amp; production debugging</li>
+        </ul>
+      </div>
+      <div class="trn-card reveal d2">
+        <h3>Build a professional portfolio</h3>
+        <p class="lead">By the end of your learning journey, you'll have:</p>
+        <ul class="slist" style="margin:0;">
+          <li><span class="ck">✓</span> Real project experience and a strong GitHub portfolio</li>
+          <li><span class="ck">✓</span> Hands-on Azure cloud knowledge</li>
+          <li><span class="ck">✓</span> Practical coding, debugging and troubleshooting skills</li>
+          <li><span class="ck">✓</span> Deployment experience and confidence in real teams</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="reveal" style="margin-top:56px;">
+      <h3 class="trn-h">Our learning approach</h3>
+      <p class="trn-p" style="margin-bottom:26px;">Every feature you build introduces new concepts, so you learn naturally while solving real business problems.</p>
+      <div class="flow">
+        <b>Learn</b><i>→</i><b>Build</b><i>→</i><b>Debug</b><i>→</i><b>Deploy</b><i>→</i><b>Improve</b>
+      </div>
+    </div>
+
+    <div class="note reveal" style="margin-top:56px;">
+      <h3>Job assistance — not false promises</h3>
+      <p>Many institutes advertise a “100% job guarantee”. We'd rather be transparent: no institute can genuinely guarantee a job, because the outcome depends on your dedication, learning attitude and consistent effort.</p>
+      <p style="margin-bottom:16px;">What we <strong>do</strong> provide:</p>
+      <div class="pill-list">
+        <span>Career guidance</span><span>Resume preparation</span><span>LinkedIn optimisation</span>
+        <span>Mock technical interviews</span><span>Project-based interview prep</span><span>Mentorship</span>
+      </div>
+    </div>
+
+    <div class="grid g2" style="margin-top:24px;">
+      <div class="trn-card reveal d1">
+        <h3>Who can join?</h3>
+        <p class="lead">No prior cloud knowledge required — we start from the fundamentals and build up through practical implementation.</p>
+        <div class="pill-list">
+          <span>College students</span><span>Fresh graduates</span><span>Software developers</span>
+          <span>IT professionals</span><span>Career switchers</span><span>Anyone willing to learn by doing</span>
+        </div>
+      </div>
+      <div class="trn-card reveal d2">
+        <h3>Flexible monthly subscription</h3>
+        <p class="lead">Pay only while you're gaining value.</p>
+        <ul class="slist" style="margin:0;">
+          <li><span class="ck">✓</span> No large upfront fees</li>
+          <li><span class="ck">✓</span> Affordable monthly subscription</li>
+          <li><span class="ck">✓</span> Learn at your own pace</li>
+          <li><span class="ck">✓</span> Practical, project-based learning</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cta-band reveal" style="margin-top:56px;">
+      <h2 class="sec">Join YuvaanSoft</h2>
+      <p>Start your journey from learner to software engineer. Build real applications, learn cutting-edge technologies and become genuinely job-ready.</p>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+        <a href="mailto:hello@yuvaansoft.shop?subject=Training%20programme%20enquiry" class="btn btn-white">Enquire about training →</a>
+        <a href="#contact" class="btn btn-ghost">✉ Talk to us</a>
+      </div>
+    </div>
+
+    <p class="trn-p reveal" style="margin-top:40px;">
+      <strong>Our mission:</strong> to make high-quality technical education affordable, practical and accessible for everyone — replacing traditional classroom learning with real-world software development experience.
+    </p>
+  </div>
+</section>
+
 <section id="how">
   <div class="wrap">
     <span class="tag-eyebrow reveal">How it works</span>
@@ -562,12 +709,14 @@ header.scrolled{background:rgba(11,14,26,.96);box-shadow:0 8px 30px rgba(0,0,0,.
         <h4>Company</h4>
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
+        <a href="#training">Training programme</a>
         <a href="#contact">Contact</a>
       </div>
       <div class="fcol">
         <h4>Get in touch</h4>
         <a href="mailto:hello@yuvaansoft.shop">hello@yuvaansoft.shop</a>
         <a href="https://ssms.yuvaansoft.shop">Register a society</a>
+        <a href="mailto:hello@yuvaansoft.shop?subject=Training%20programme%20enquiry">Join the training programme</a>
       </div>
     </div>
     <div class="fbottom">© 2026 YuvaanSoft · All rights reserved</div>
