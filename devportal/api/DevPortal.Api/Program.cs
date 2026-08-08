@@ -38,12 +38,11 @@ builder.Services.AddCors(options => options.AddPolicy(PortalCors, policy => poli
 var app = builder.Build();
 app.UseCors(PortalCors);
 
-// Two switches the hosted copy relies on. AllowWrites=false makes deploy and rollback
-// refuse no matter who is signed in: the hosted portal sits on an internet-facing host,
-// and a deploy button there would be a remote execution surface. RequireAuthForReads
-// keeps server names, container names and commits behind the login.
-var allowWrites = builder.Configuration.GetValue("Portal:AllowWrites", true);
-var requireAuthForReads = builder.Configuration.GetValue("Portal:RequireAuthForReads", false);
+// Two switches the hosted copy relies on. Both default to the safe answer: a deployment
+// button has to be turned on deliberately, because forgetting the flag on an
+// internet-facing host is the failure that matters.
+var allowWrites = builder.Configuration.GetValue("Portal:AllowWrites", false);
+var requireAuthForReads = builder.Configuration.GetValue("Portal:RequireAuthForReads", true);
 
 Principal? CurrentUser(HttpContext http, AuthService auth)
 {

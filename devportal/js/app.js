@@ -329,7 +329,14 @@ async function viewDeploy(){
   $('view').innerHTML = `
     <div class="glass p-4" style="max-width:760px;">
       <div class="section-title mt-0">Deploy a build</div>
-      ${writesOff() ? '<div class="alert-soft alert-info-soft mb-3"><i class="bi bi-eye me-1"></i>This portal is read-only. Deployment runs from a workstation.</div>' : ''}
+      ${writesOff() ? `<div class="alert-soft alert-info-soft mb-3">
+        <i class="bi bi-eye me-1"></i><strong>This portal is read-only.</strong>
+        It reports what each environment is running; deployment runs from a workstation, where the
+        SSH key and Azure sign-in already live.
+        <div class="logbox mt-2" style="max-height:none;">$env:ASPNETCORE_ENVIRONMENT='Development'
+dotnet run --project devportal/api/DevPortal.Api --urls http://127.0.0.1:5099
+python -m http.server 8766 --directory devportal</div>
+      </div>` : ''}
 
       <label class="form-label">Application</label>
       <input class="form-control mb-3" value="${esc(app.name)}" disabled/>
