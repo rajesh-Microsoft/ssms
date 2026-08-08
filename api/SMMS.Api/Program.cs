@@ -13,7 +13,8 @@ using SMMS.Api.Services.Control;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
 
 // Behind nginx (TLS terminator) the app receives plain HTTP; honor X-Forwarded-Proto/For so
 // Request.Scheme becomes https and generated URLs/redirects are correct. nginx runs in a separate
