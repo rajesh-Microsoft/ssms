@@ -317,7 +317,8 @@ const SAMPLE = {
 // ── The seam ────────────────────────────────────────────────
 // If the read-only backend is reachable the portal shows real state; otherwise it
 // falls back to SAMPLE and says so. It never silently mixes the two.
-const API_BASE = 'http://127.0.0.1:5099/api';
+// Served from the local static server during development, or same-origin when hosted.
+const API_BASE = location.port === '8766' ? 'http://127.0.0.1:5099/api' : '/api';
 
 const TIER_BADGE = { DEV: 'ACTIVE DEV', PREPROD: 'PRE-PROD', UAT: 'UAT', PROD: 'PRODUCTION' };
 

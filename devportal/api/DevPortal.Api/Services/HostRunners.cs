@@ -143,3 +143,18 @@ public class NullHostRunner : IHostRunner
     public Task<ShellResult> RunAsync(ProbeConfig probe, string script, CancellationToken ct)
         => Task.FromResult(new ShellResult(false, "", "no probe is configured for this environment"));
 }
+
+/// <summary>Runs the probe on the machine hosting this API. Used when the portal is
+/// deployed onto the same box as the stacks it reports on, so no SSH key has to be
+/// copied anywhere.</summary>
+public class LocalHostRunner(ILogger<LocalHostRunner> log) : IHostRunner
+{
+    public string Type => "local";
+
+    public async Task<ShellResult> RunAsync(ProbeConfig probe, string script, CancellationToken ct)
+    {
+        var result = await ProcessRunner.RunAsync("/bin/bash", "-s", script, 25, ct);
+        if (!result.Ok) log.LogWarning("local probe failed: {Error}", result.Error);
+        return result;
+    }
+}

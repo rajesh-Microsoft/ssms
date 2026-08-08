@@ -40,6 +40,11 @@ function note(text, kind = 'info'){
 function tierOf(env){ return TIER[env.tier] || TIER.DEV; }
 function cardClass(env){ return env.hazard ? 'hazard' : tierOf(env).cls; }
 
+// A hosted copy runs read-only. Offering a button the server will refuse is the kind of
+// misleading detail this portal is meant to remove.
+function writesOff(){ return Api.isLive() && Api.meta().writesAllowed === false; }
+function canDeployHere(env){ return env.deploymentEnabled && !writesOff(); }
+
 // ── Auth ────────────────────────────────────────────────────
 async function doLogin(){
   const username = $('username').value.trim();
@@ -48,6 +53,11 @@ async function doLogin(){
   try{
     state.user = await Api.login(username, password);
     state.perms = await Api.getPermissions(state.user.role);
+    // A read-only copy refuses writes server-side; offering the buttons anyway just
+    // invites a click that cannot work.
+    if(Api.isLive() && Api.meta().writesAllowed === false){
+      state.perms = { ...state.perms, deploy: [], rollback: false };
+    }
     await startPortal();
   }catch(err){
     $('loginMsg').innerHTML = `<div class="alert-soft alert-hazard mb-3">${esc(err.message)}</div>`;
@@ -79,10 +89,14 @@ async function startPortal(){
 
   // Sample mode is stated on the login screen too, but this is the one people stare at.
   const banner = $('mockBanner');
-  if(Api.isLive() && Api.authConfigured()){
+  if(Api.isLive() && Api.authConfigured() && Api.meta().writesAllowed){
     banner.classList.add('live');
     banner.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' +
       '<strong>LIVE.</strong> State is read from each box and deployment runs deploy/promote.ps1 with its gates intact.';
+  } else if(Api.isLive() && Api.authConfigured()){
+    banner.classList.add('live');
+    banner.innerHTML = '<i class="bi bi-eye-fill me-2"></i>' +
+      '<strong>LIVE, READ-ONLY.</strong> State is read from each box. This copy cannot deploy or roll back \u2014 do that from a workstation.';
   } else if(Api.isLive()){
     banner.classList.add('live');
     banner.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' +
@@ -188,9 +202,9 @@ function viewDashboard(){
 
       <div class="d-flex gap-2 mt-3">
         <button class="btn btn-sm btn-outline-light" data-open="${esc(env.id)}">Details</button>
-        ${env.deploymentEnabled
+        ${canDeployHere(env)
           ? `<button class="btn btn-sm btn-primary" data-deploy="${esc(env.id)}">Deploy</button>`
-          : `<button class="btn btn-sm btn-outline-secondary" disabled title="Deployment is disabled here">Deploy</button>`}
+          : `<button class="btn btn-sm btn-outline-secondary" disabled title="${writesOff() ? 'This portal is read-only' : 'Deployment is disabled here'}">Deploy</button>`}
       </div>
     </div>`;
   }).join('');
@@ -293,9 +307,9 @@ async function viewEnvironment(){
 
         <div class="glass p-3 mt-3">
           <div class="section-title mt-0">Actions</div>
-          ${env.deploymentEnabled
+          ${canDeployHere(env)
             ? `<button class="btn btn-primary w-100 mb-2" data-deploy="${esc(env.id)}"><i class="bi bi-rocket-takeoff me-1"></i>Deploy a build</button>`
-            : `<button class="btn btn-outline-secondary w-100 mb-2" disabled>Deployment disabled here</button>`}
+            : `<button class="btn btn-outline-secondary w-100 mb-2" disabled>${writesOff() ? 'Read-only: deploy from a workstation' : 'Deployment disabled here'}</button>`}
           ${state.perms.rollback && env.rollbackCommit
             ? `<button class="btn btn-outline-warning w-100" data-rollback="${esc(env.id)}">
                  <i class="bi bi-arrow-counterclockwise me-1"></i>Roll back to ${esc(env.rollbackCommit)}</button>`
@@ -315,6 +329,7 @@ async function viewDeploy(){
   $('view').innerHTML = `
     <div class="glass p-4" style="max-width:760px;">
       <div class="section-title mt-0">Deploy a build</div>
+      ${writesOff() ? '<div class="alert-soft alert-info-soft mb-3"><i class="bi bi-eye me-1"></i>This portal is read-only. Deployment runs from a workstation.</div>' : ''}
 
       <label class="form-label">Application</label>
       <input class="form-control mb-3" value="${esc(app.name)}" disabled/>
@@ -339,11 +354,11 @@ async function viewDeploy(){
     const t = tierOf(env);
     const gate = env.requiresSignOffFrom
       ? `<div class="mt-2"><i class="bi bi-shield-lock me-1"></i>Requires a ${esc(env.requiresSignOffFrom)} sign-off at the same commit.</div>` : '';
-    const allowed = state.perms.deploy.includes(env.tier);
+    const allowed = state.perms.deploy.includes(env.tier) && !writesOff();
     $('depWarn').innerHTML = `
       <div class="alert-soft ${env.tier === 'DEV' ? 'alert-info-soft' : 'alert-hazard'} mb-3">
         <strong>${esc(t.label)}</strong> — ${esc(env.dataSensitivity)}${gate}
-        ${allowed ? '' : `<div class="mt-2"><i class="bi bi-x-octagon me-1"></i>Your role (${esc(state.user.role)}) cannot deploy here.</div>`}
+        ${allowed ? '' : `<div class="mt-2"><i class="bi bi-x-octagon me-1"></i>${writesOff() ? 'This portal is read-only.' : `Your role (${esc(state.user.role)}) cannot deploy here.`}</div>`}
       </div>`;
     $('depGo').disabled = !allowed;
   };
@@ -467,6 +482,7 @@ function ask(title, bodyHtml, onYes, confirmWord){
 }
 
 function askDeploy(env, commit){
+  if(writesOff()) return note('This portal is read-only. Deploy from a workstation.', 'err');
   if(!env || !env.deploymentEnabled) return note('Deployment is disabled for that environment.', 'err');
   if(!state.perms.deploy.includes(env.tier)){
     return note(`Your role (${state.user.role}) cannot deploy to ${env.tier}.`, 'err');
@@ -555,7 +571,15 @@ async function watchJob(jobId){
 document.addEventListener('DOMContentLoaded', () => {
   Api.init().then(live => {
     const note = $('loginMsg');
-    if(live && note){
+    const sample = $('sampleNote');
+    if(live && Api.authConfigured()){
+      // The sample credentials do not work once real operators exist; saying otherwise
+      // just sends people round in circles.
+      if(sample){
+        sample.innerHTML = '<i class="bi bi-shield-lock me-1"></i>Sign in with your portal account. ' +
+          (Api.meta().writesAllowed ? '' : 'This copy is read-only: it reports state but cannot deploy.');
+      }
+    } else if(live && note){
       note.innerHTML = '<div class="alert-soft alert-info-soft mb-3">Connected to the read-only backend.</div>';
     }
   });

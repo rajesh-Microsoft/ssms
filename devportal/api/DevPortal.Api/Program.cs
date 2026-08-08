@@ -3,6 +3,10 @@ using DevPortal.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Secrets arrive as a mounted file, not environment variables: a PBKDF2 hash contains '$'
+// and Docker Compose interpolates those out of an env_file, silently truncating it.
+builder.Configuration.AddJsonFile("appsettings.Secrets.json", optional: true, reloadOnChange: false);
+
 // `dotnet run -- hash <password>` prints a hash for appsettings, so a plaintext
 // password never has to be written down anywhere.
 if (args.Length == 2 && args[0] == "hash")
@@ -15,6 +19,7 @@ builder.Services.Configure<PortalOptions>(builder.Configuration.GetSection("Port
 builder.Services.AddSingleton<IHostRunner, SshHostRunner>();
 builder.Services.AddSingleton<IHostRunner, AzRunCommandRunner>();
 builder.Services.AddSingleton<IHostRunner, NullHostRunner>();
+builder.Services.AddSingleton<IHostRunner, LocalHostRunner>();
 builder.Services.AddSingleton<GitService>();
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<DeploymentService>();
@@ -33,6 +38,13 @@ builder.Services.AddCors(options => options.AddPolicy(PortalCors, policy => poli
 var app = builder.Build();
 app.UseCors(PortalCors);
 
+// Two switches the hosted copy relies on. AllowWrites=false makes deploy and rollback
+// refuse no matter who is signed in: the hosted portal sits on an internet-facing host,
+// and a deploy button there would be a remote execution surface. RequireAuthForReads
+// keeps server names, container names and commits behind the login.
+var allowWrites = builder.Configuration.GetValue("Portal:AllowWrites", true);
+var requireAuthForReads = builder.Configuration.GetValue("Portal:RequireAuthForReads", false);
+
 Principal? CurrentUser(HttpContext http, AuthService auth)
 {
     var header = http.Request.Headers.Authorization.ToString();
@@ -40,11 +52,17 @@ Principal? CurrentUser(HttpContext http, AuthService auth)
     return auth.Validate(token);
 }
 
+IResult? ReadGuard(HttpContext http, AuthService auth)
+    => requireAuthForReads && CurrentUser(http, auth) is null
+        ? Results.Json(new { message = "Sign in first." }, statusCode: 401)
+        : null;
+
 app.MapGet("/api/meta", (AuthService auth) => Results.Ok(new
 {
     live = true,
-    readOnly = !auth.IsConfigured,
+    readOnly = !auth.IsConfigured || !allowWrites,
     authConfigured = auth.IsConfigured,
+    writesAllowed = allowWrites,
     notConfiguredReason = auth.IsConfigured ? null : auth.NotConfiguredReason,
     source = "Read from DEPLOYED_COMMIT / DEPLOYED_VERIFIED and docker ps on each box",
     checkedAt = DateTimeOffset.UtcNow
@@ -73,23 +91,25 @@ app.MapPost("/api/auth/login", (LoginRequest request, AuthService auth, Deployme
     });
 });
 
-app.MapGet("/api/applications", (EnvironmentStatusService service) => Results.Ok(service.Applications));
+app.MapGet("/api/applications", (HttpContext http, AuthService auth, EnvironmentStatusService service)
+    => ReadGuard(http, auth) ?? Results.Ok(service.Applications));
 
-app.MapGet("/api/environments", async (EnvironmentStatusService service, string? app, CancellationToken ct)
-    => Results.Ok(await service.GetAllAsync(app, ct)));
+app.MapGet("/api/environments", async (HttpContext http, AuthService auth, EnvironmentStatusService service, string? app, CancellationToken ct)
+    => ReadGuard(http, auth) ?? Results.Ok(await service.GetAllAsync(app, ct)));
 
-app.MapGet("/api/environments/{id}", async (string id, EnvironmentStatusService service, CancellationToken ct)
-    => await service.GetAsync(id, ct) is { } status ? Results.Ok(status) : Results.NotFound());
+app.MapGet("/api/environments/{id}", async (string id, HttpContext http, AuthService auth, EnvironmentStatusService service, CancellationToken ct)
+    => ReadGuard(http, auth) ?? (await service.GetAsync(id, ct) is { } status ? Results.Ok(status) : Results.NotFound()));
 
 // Recent commits on the branch, i.e. what could be deployed.
-app.MapGet("/api/builds", async (GitService git, CancellationToken ct)
-    => Results.Ok(await git.GetRecentAsync(15, ct)));
+app.MapGet("/api/builds", async (HttpContext http, AuthService auth, GitService git, CancellationToken ct)
+    => ReadGuard(http, auth) ?? Results.Ok(await git.GetRecentAsync(15, ct)));
 
 // Deployment history is per box: each deploy appends a line to DEPLOYED_HISTORY.
 // Boxes deployed before that existed simply have a shorter history, which is stated
 // rather than padded out.
-app.MapGet("/api/deployments", async (EnvironmentStatusService service, string? app, CancellationToken ct) =>
+app.MapGet("/api/deployments", async (HttpContext http, AuthService auth, EnvironmentStatusService service, string? app, CancellationToken ct) =>
 {
+    if (ReadGuard(http, auth) is { } denied) return denied;
     var environments = await service.GetAllAsync(app, ct);
     var records = environments
         .SelectMany(e => e.History.Select(h => new { environment = e.Name, tier = e.Tier, record = h }))
@@ -98,12 +118,13 @@ app.MapGet("/api/deployments", async (EnvironmentStatusService service, string? 
     return Results.Ok(records);
 });
 
-app.MapGet("/api/repository", async (GitService git, IConfiguration cfg, CancellationToken ct) => Results.Ok(new
-{
-    name = cfg["Portal:RepositoryName"] ?? "unknown",
-    url = cfg["Portal:RepositoryUrl"],
-    branch = await git.GetBranchAsync(ct) ?? "unknown"
-}));
+app.MapGet("/api/repository", async (HttpContext http, AuthService auth, GitService git, IConfiguration cfg, CancellationToken ct)
+    => ReadGuard(http, auth) ?? Results.Ok(new
+    {
+        name = cfg["Portal:RepositoryName"] ?? "unknown",
+        url = cfg["Portal:RepositoryUrl"],
+        branch = await git.GetBranchAsync(ct) ?? "unknown"
+    }));
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -114,6 +135,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapPost("/api/deployments", async (DeployRequest request, HttpContext http, AuthService auth,
     DeploymentService deployments, CancellationToken ct) =>
 {
+    if (!allowWrites) return Results.Json(new { message = "This portal is running read-only. Deploy from a workstation." }, statusCode: 403);
     if (!auth.IsConfigured) return Results.Json(new { message = auth.NotConfiguredReason }, statusCode: 503);
 
     var who = CurrentUser(http, auth);
@@ -146,6 +168,7 @@ app.MapPost("/api/deployments", async (DeployRequest request, HttpContext http, 
 app.MapPost("/api/deployments/rollback", async (RollbackRequest request, HttpContext http, AuthService auth,
     DeploymentService deployments, CancellationToken ct) =>
 {
+    if (!allowWrites) return Results.Json(new { message = "This portal is running read-only. Roll back from a workstation." }, statusCode: 403);
     if (!auth.IsConfigured) return Results.Json(new { message = auth.NotConfiguredReason }, statusCode: 503);
 
     var who = CurrentUser(http, auth);
