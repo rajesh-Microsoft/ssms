@@ -133,9 +133,34 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
         var user = await db.Users.FindAsync(id);
         if (user is null) return NotFound();
 
+        // Complaints are soft-deleted, so a "deleted" one still holds its foreign key.
+        // IgnoreQueryFilters is the point here: without it this check misses exactly the
+        // rows that make the delete fail, and the caller gets a raw 500 from SQL Server.
+        var blockers = new List<string>();
+        await Count(db.Complaints.IgnoreQueryFilters().Where(c => c.RaisedByUserId == id), "complaint");
+        await Count(db.Visitors.Where(v => v.RecordedByUserId == id), "visitor entry", "visitor entries");
+        await Count(db.Deliveries.Where(d => d.RecordedByUserId == id), "parcel");
+        await Count(db.DailyChecklists.Where(c => c.SubmittedByUserId == id), "daily checklist");
+        await Count(db.PaymentProofs.Where(p => p.SubmittedByUserId == id || p.ReviewedByUserId == id), "payment proof");
+
+        if (blockers.Count > 0)
+        {
+            return Conflict(new
+            {
+                message = $"{user.Username} cannot be deleted because their name is on {string.Join(", ", blockers)}. " +
+                          "Set the account to Inactive instead, which keeps that history intact."
+            });
+        }
+
         db.Users.Remove(user);
         await db.SaveChangesAsync();
         await audit.LogAsync("Users", "Delete", $"Deleted user id: {id}");
         return NoContent();
+
+        async Task Count<T>(IQueryable<T> query, string singular, string? plural = null)
+        {
+            var n = await query.CountAsync();
+            if (n > 0) blockers.Add($"{n} {(n == 1 ? singular : plural ?? singular + "s")}");
+        }
     }
 }
