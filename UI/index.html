@@ -57,6 +57,7 @@
     <div class="nav-item member-only" data-perm-view="Liabilities" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
     <div class="nav-sec member-only">Support</div>
     <div class="nav-item member-only" onclick="showTab('mcomplaints',this)"><span class="ni">🛠️</span> Complaints</div>
+    <div class="nav-item member-only" onclick="showTab('mgate',this)"><span class="ni">🚪</span> My Gate <span class="nbadge" id="mGateBadge" style="display:none;">0</span></div>
     <div class="nav-item member-only" onclick="showTab('mnotices',this)"><span class="ni">🔔</span> Notices <span class="nbadge" id="mNotifBadge">0</span></div>
     <div class="nav-sec member-only">Account</div>
     <div class="nav-item member-only" onclick="showTab('mhome',this)"><span class="ni">🏠</span> My Home</div>
@@ -159,6 +160,9 @@
 
     <!-- MY COMPLAINTS (lazy-loaded from partials/mcomplaints.html) -->
     <div id="tab-mcomplaints" class="tab-content" data-partial="mcomplaints"></div>
+
+    <!-- MY GATE (lazy-loaded from partials/mgate.html) -->
+    <div id="tab-mgate" class="tab-content" data-partial="mgate"></div>
 
     <!-- NOTICES (lazy-loaded from partials/mnotices.html) -->
     <div id="tab-mnotices" class="tab-content" data-partial="mnotices"></div>

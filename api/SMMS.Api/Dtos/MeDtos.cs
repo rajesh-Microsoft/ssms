@@ -12,6 +12,22 @@ public record MeAdvanceDto(decimal Balance, string Mode, IEnumerable<MeAdvanceEn
 
 public record MeComplaintSummaryDto(int Open, int Closed, int Total);
 
+// ── My Gate (what the caretaker logged for THIS resident's flat) ──
+// The visitor's mobile is deliberately left out: the resident does not need it.
+
+public record MeGateVisitorDto(int Id, string Name, string Purpose, string? VehicleNumber,
+    DateTime InAt, DateTime? OutAt);
+
+public record MeGateParcelDto(int Id, string Courier, string Status,
+    DateTime ReceivedAt, DateTime? CollectedAt, string? CollectedBy);
+
+public record MeGateDto(
+    string? Flat,
+    int ParcelsWaiting,
+    int VisitorsInside,
+    IEnumerable<MeGateParcelDto> Parcels,
+    IEnumerable<MeGateVisitorDto> Visitors);
+
 public record MeMaintenanceSummaryDto(decimal TotalPaid, int TotalReceipts, decimal PendingAmount,
     int PendingMonths, DateTime? LastPaymentDate, DateTime? NextDueDate, decimal MaintenanceAmt, int DueDay);
 

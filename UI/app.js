@@ -517,7 +517,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -546,6 +546,9 @@ async function showTab(t, el){
   }
   if(t==='gatelog'){
     try{ await loadGateLog(); }catch(err){ toast('Failed to load gate log: '+err.message,'warn'); }
+  }
+  if(t==='mgate'){
+    try{ await loadMyGate(); }catch(err){ toast('Failed to load your gate activity: '+err.message,'warn'); }
   }
 
   const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, budget:(typeof renderBudget==='function'?renderBudget:null), mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
@@ -1703,6 +1706,36 @@ function searchGateVisitors(){
 function searchGateDeliveries(){
   clearTimeout(_gateDeliveryTimer);
   _gateDeliveryTimer = setTimeout(() => renderGateDeliveries().catch(err => toast('Search failed: '+err.message,'warn')), 300);
+}
+
+// ═══════════════════════════════════════════════
+// MY GATE — the same gate activity, but only for the resident's own flat.
+// The API filters by flat; nothing here is trusted to do the scoping.
+// ═══════════════════════════════════════════════
+async function loadMyGate(){
+  const parcelBody = document.getElementById('mgate-parcels-tbody');
+  if(!parcelBody) return;                               // partial not loaded yet
+  const g = await Api.getMyGate();
+
+  document.getElementById('mgate-waiting').textContent = g.parcelsWaiting + ' waiting';
+  document.getElementById('mgate-inside').textContent  = g.visitorsInside + ' inside';
+
+  parcelBody.innerHTML = g.parcels.length ? g.parcels.map(p => `<tr>
+    <td>${gateTime(p.receivedAt)}</td><td>${escGate(p.courier)}</td>
+    <td><span class="badge ${p.status === 'Collected' ? 'b-paid' : 'b-unpaid'}">${escGate(p.status)}</span></td>
+    <td>${gateTime(p.collectedAt)}</td><td>${escGate(p.collectedBy)}</td></tr>`).join('')
+    : '<tr><td colspan="5">No parcels for your flat.</td></tr>';
+
+  document.getElementById('mgate-visitors-tbody').innerHTML = g.visitors.length ? g.visitors.map(v => `<tr>
+    <td>${gateTime(v.inAt)}</td><td>${v.outAt ? gateTime(v.outAt) : 'Inside'}</td>
+    <td>${escGate(v.name)}</td><td>${escGate(v.purpose)}</td><td>${escGate(v.vehicleNumber)}</td></tr>`).join('')
+    : '<tr><td colspan="5">No visitors in the last 7 days.</td></tr>';
+
+  const badge = document.getElementById('mGateBadge');
+  if(badge){
+    badge.textContent = g.parcelsWaiting;
+    badge.style.display = g.parcelsWaiting ? '' : 'none';
+  }
 }
 
 // ═══════════════════════════════════════════════

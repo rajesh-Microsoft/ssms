@@ -187,6 +187,7 @@ const Api = {
 
   // Me (resident self-service — works for any authenticated user)
   getMe: () => apiFetch('/me'),
+  getMyGate: () => apiFetch('/me/gate'),
   getMyAdvance: () => apiFetch('/me/advance'),
   updateMe: (payload) => apiFetch('/me', { method: 'PUT', body: JSON.stringify(payload) }),
   changeMyPassword: (currentPassword, newPassword) =>

@@ -111,6 +111,43 @@ public class MeController(SmmsDbContext db, AuditService audit, MaintenanceCalcu
         return Ok(new MeAdvanceDto(member.AdvanceBalance, member.AdvanceMode, entries));
     }
 
+    /// <summary>What the caretaker logged at the gate for this resident's own flat. Every query is
+    /// filtered on the caller's flat, so one resident can never read another flat's visitors.</summary>
+    [HttpGet("gate")]
+    public async Task<ActionResult<MeGateDto>> GetGate()
+    {
+        var user = await db.Users.FindAsync(CurrentUserId);
+        if (user is null) return Unauthorized();
+
+        // Admins and caretakers have no flat of their own; they have the Gate Log instead.
+        if (string.IsNullOrWhiteSpace(user.Flat))
+            return Ok(new MeGateDto(user.Flat, 0, 0, Array.Empty<MeGateParcelDto>(), Array.Empty<MeGateVisitorDto>()));
+
+        var flat = user.Flat!.Trim().ToLower();
+        var since = DateTime.UtcNow.Date.AddDays(-7);
+
+        var parcels = await db.Deliveries
+            .Where(d => d.Flat.ToLower() == flat && (d.Status == "Waiting" || d.ReceivedAt >= since))
+            .OrderByDescending(d => d.ReceivedAt)
+            .Take(50)
+            .Select(d => new MeGateParcelDto(d.Id, d.Courier, d.Status, d.ReceivedAt, d.CollectedAt, d.CollectedBy))
+            .ToListAsync();
+
+        var visitors = await db.Visitors
+            .Where(v => v.Flat.ToLower() == flat && (v.InAt >= since || v.OutAt == null))
+            .OrderByDescending(v => v.InAt)
+            .Take(50)
+            .Select(v => new MeGateVisitorDto(v.Id, v.Name, v.Purpose, v.VehicleNumber, v.InAt, v.OutAt))
+            .ToListAsync();
+
+        return Ok(new MeGateDto(
+            user.Flat,
+            parcels.Count(p => p.Status == "Waiting"),
+            visitors.Count(v => v.OutAt is null),
+            parcels,
+            visitors));
+    }
+
     [HttpPut]
     public async Task<IActionResult> Update(MeUpdateRequest request)
     {
