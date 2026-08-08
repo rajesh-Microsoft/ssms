@@ -16,8 +16,8 @@ public class Visitor : IAuditable
     [MaxLength(20)]
     public string? Mobile { get; set; }
 
-    /// <summary>The flat being visited. Free text, because a visitor may arrive for a
-    /// flat that has no member row yet.</summary>
+    /// <summary>The flat being visited. Validated against the active member flats and stored in
+    /// their exact spelling, so the resident's My Gate can match on it.</summary>
     [Required, MaxLength(20)]
     public string Flat { get; set; } = string.Empty;
 

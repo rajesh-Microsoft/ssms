@@ -58,6 +58,18 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
 
+    /// <summary>Returns the flat exactly as the member record spells it, or null if no such flat.
+    /// Storing the canonical spelling is what lets a resident's My Gate match on it later.</summary>
+    private async Task<string?> ResolveFlatAsync(string? flat)
+    {
+        if (string.IsNullOrWhiteSpace(flat)) return null;
+        var wanted = flat.Trim().ToLower();
+        return await db.Members
+            .Where(m => m.Status == "Active" && m.Flat.ToLower() == wanted)
+            .Select(m => m.Flat)
+            .FirstOrDefaultAsync();
+    }
+
     private static VisitorDto ToDto(Visitor v) => new(
         v.Id, v.Name, v.Mobile, v.Flat, v.Purpose, v.VehicleNumber, v.InAt, v.OutAt, v.Notes);
 
@@ -130,11 +142,15 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
     [HttpPost("visitors")]
     public async Task<ActionResult<VisitorDto>> AddVisitor(VisitorCreateRequest request)
     {
+        var flat = await ResolveFlatAsync(request.Flat);
+        if (flat is null)
+            return BadRequest(new { message = $"'{request.Flat?.Trim()}' is not a registered flat. Pick one from the list." });
+
         var visitor = new Visitor
         {
             Name = request.Name.Trim(),
             Mobile = request.Mobile?.Trim(),
-            Flat = request.Flat.Trim(),
+            Flat = flat,
             Purpose = request.Purpose.Trim(),
             VehicleNumber = request.VehicleNumber?.Trim().ToUpperInvariant(),
             Notes = request.Notes?.Trim(),
@@ -193,10 +209,14 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
     [HttpPost("deliveries")]
     public async Task<ActionResult<DeliveryDto>> AddDelivery(DeliveryCreateRequest request)
     {
+        var flat = await ResolveFlatAsync(request.Flat);
+        if (flat is null)
+            return BadRequest(new { message = $"'{request.Flat?.Trim()}' is not a registered flat. Pick one from the list." });
+
         var delivery = new Delivery
         {
             Courier = request.Courier.Trim(),
-            Flat = request.Flat.Trim(),
+            Flat = flat,
             Notes = request.Notes?.Trim(),
             Status = "Waiting",
             RecordedByUserId = CurrentUserId

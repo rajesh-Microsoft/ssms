@@ -121,10 +121,14 @@ async function loadSummary(){
 async function loadFlats(){
   try{
     flats = await apiFetch('/caretaker/flats') || [];
-    const options = flats.map(f => `<option value="${escapeHtml(f)}"></option>`).join('');
-    $('flatList').innerHTML = options;
-    $('flatList2').innerHTML = options;
-  }catch(err){ /* the field still accepts free text */ }
+    const options = '<option value="">Select flat</option>' +
+      flats.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+    $('vFlat').innerHTML = options;
+    $('dFlat').innerHTML = options;
+  }catch(err){
+    // Without the list the caretaker cannot pick a flat at all, so say so rather than fail silently.
+    note('Could not load the flat list. Pull down to refresh.', 'err');
+  }
 }
 
 // ── Visitors ──
@@ -152,7 +156,7 @@ async function saveVisitor(){
   const name = $('vName').value.trim();
   const flat = $('vFlat').value.trim();
   if(!name) return note('Enter the visitor name.', 'err');
-  if(!flat) return note('Enter the flat they are going to.', 'err');
+  if(!flat) return note('Choose the flat they are going to.', 'err');
 
   $('vSave').disabled = true;
   try{
@@ -165,7 +169,8 @@ async function saveVisitor(){
         notes: null
       })
     });
-    ['vName', 'vFlat', 'vMobile', 'vVehicle'].forEach(id => { $(id).value = ''; });
+    ['vName', 'vMobile', 'vVehicle'].forEach(id => { $(id).value = ''; });
+    $('vFlat').value = '';
     note('Visitor saved.');
     await loadVisitors();
   }catch(err){ note(err.message, 'err'); }
@@ -202,7 +207,7 @@ async function loadDeliveries(){
 
 async function saveDelivery(){
   const flat = $('dFlat').value.trim();
-  if(!flat) return note('Enter the flat this parcel is for.', 'err');
+  if(!flat) return note('Choose the flat this parcel is for.', 'err');
 
   $('dSave').disabled = true;
   try{
