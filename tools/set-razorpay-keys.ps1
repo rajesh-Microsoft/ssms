@@ -50,8 +50,9 @@ sed -i 's/^RAZORPAY_WEBHOOK_SECRET=.*/RAZORPAY_WEBHOOK_SECRET=/' .env
 chmod 600 .env
 docker compose up -d --force-recreate smms-api >/dev/null 2>&1
 sleep 4
+KID=`$(docker exec smms-dev-api printenv Razorpay__KeyId 2>/dev/null)
 echo "RAZORPAY_ENABLED now: `$(docker exec smms-dev-api printenv Razorpay__Enabled 2>/dev/null)"
-echo "key id length now:    `${#`$(docker exec smms-dev-api printenv Razorpay__KeyId 2>/dev/null)}"
+echo "key id length now:    `${#KID}  (0 means cleared)"
 "@
     Write-Host 'Cleared. Remember to delete the webhook in the Razorpay dashboard too.' -ForegroundColor Green
     return
