@@ -58,6 +58,7 @@ async function doLogin(){
 
 function doLogout(){
   state.user = null;
+  Api.logout();
   $('appView').classList.add('d-none');
   $('loginView').classList.remove('d-none');
   $('password').value = '';
@@ -78,11 +79,14 @@ async function startPortal(){
 
   // Sample mode is stated on the login screen too, but this is the one people stare at.
   const banner = $('mockBanner');
-  if(Api.isLive()){
+  if(Api.isLive() && Api.authConfigured()){
     banner.classList.add('live');
     banner.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' +
-      '<strong>LIVE READ-ONLY DATA.</strong> Commits, sign-off and containers are read from each box. ' +
-      'Sign-in is not yet real and deployment is disabled.';
+      '<strong>LIVE.</strong> State is read from each box and deployment runs deploy/promote.ps1 with its gates intact.';
+  } else if(Api.isLive()){
+    banner.classList.add('live');
+    banner.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' +
+      '<strong>LIVE READ-ONLY DATA.</strong> No operators are configured, so deployment is refused.';
   }
   document.querySelector('.sidebar').style.paddingTop = '38px';
   document.querySelector('.content').style.paddingTop = '38px';
@@ -451,10 +455,14 @@ async function viewNotes(){
 let confirmAction = null;
 const confirmModal = () => bootstrap.Modal.getOrCreateInstance($('confirmModal'));
 
-function ask(title, bodyHtml, onYes){
+function ask(title, bodyHtml, onYes, confirmWord){
   $('confirmTitle').textContent = title;
-  $('confirmBody').innerHTML = bodyHtml;
+  $('confirmBody').innerHTML = bodyHtml + (confirmWord
+    ? `<label class="form-label mt-2" for="confirmWord">Type <strong>${esc(confirmWord)}</strong> to continue</label>
+       <input class="form-control" id="confirmWord" autocomplete="off" spellcheck="false"/>`
+    : '');
   confirmAction = onYes;
+  $('confirmGo').dataset.word = confirmWord || '';
   confirmModal().show();
 }
 
@@ -470,36 +478,76 @@ function askDeploy(env, commit){
       <strong>${esc(env.name)}</strong> (${esc(env.hostname)}).
       <div class="mt-2">${esc(env.dataSensitivity)}</div>
     </div>
-    <p class="mb-0 small text-muted">Deployment runs <code>${esc(env.pipeline)}</code> on the server.</p>`,
-    () => runDeploy(env, commit));
+    <p class="mb-0 small text-muted">Deployment runs <code>${esc(env.pipeline)}</code> on the server,
+    so its own gates still apply: a clean tree, the commit on origin/main, and the previous
+    environment signed off at the same commit.</p>`,
+    word => runDeploy(env, commit, word),
+    env.tier === 'DEV' ? null : env.name);
 }
 
 function askRollback(env){
   ask('Roll back?', `
     <div class="alert-soft alert-hazard mb-3">
-      <strong>${esc(env.name)}</strong> (${esc(env.hostname)}) goes from
-      <code>${esc(env.commit)}</code> back to <code>${esc(env.rollbackCommit)}</code>.
+      <strong>${esc(env.name)}</strong> (${esc(env.hostname)}) will be put back on the previous image.
       <div class="mt-2">${esc(env.dataSensitivity)}</div>
     </div>
-    <p class="mb-0 small text-muted">Rollback re-tags <span class="mono">${esc(env.rollbackImage || '')}</span> and recreates the container.</p>`,
-    () => runRollback(env));
+    <p class="mb-0 small text-muted">Rollback re-tags the newest
+    <span class="mono">rollback-*</span> image on the box and recreates the API container.</p>`,
+    word => runRollback(env, word),
+    env.name);
 }
 
-async function runDeploy(env, commit){
+async function runDeploy(env, commit, confirmWord){
   try{
-    await Api.deploy({ appKey: state.appKey, envId: env.id, commit });
+    const { jobId } = await Api.deploy({ envId: env.id, commit, confirm: confirmWord });
     note(`Deployment of ${commit} to ${env.name} started.`);
+    watchJob(jobId);
   }catch(err){
     note(err.message, 'err');
   }
 }
 
-async function runRollback(env){
+async function runRollback(env, confirmWord){
   try{
-    await Api.rollback({ appKey: state.appKey, envId: env.id });
+    const { jobId } = await Api.rollback({ envId: env.id, confirm: confirmWord });
     note(`Rollback of ${env.name} started.`);
+    watchJob(jobId);
   }catch(err){
     note(err.message, 'err');
+  }
+}
+
+// Follows a running job. The output is whatever promote.ps1 printed, unedited.
+async function watchJob(jobId){
+  const host = $('view');
+  host.innerHTML = `
+    <div class="glass p-3">
+      <div class="section-title mt-0">Job <span class="mono">${esc(jobId)}</span>
+        <span class="badge-soft badge-muted ms-2" id="jobStatus">running</span></div>
+      <div class="logbox" id="jobOutput">starting…</div>
+    </div>`;
+
+  for(;;){
+    let job;
+    try{ job = await Api.getJob(jobId); }
+    catch(err){ note(err.message, 'err'); return; }
+
+    const out = $('jobOutput');
+    if(!out) return;                                     // the user navigated away
+    out.textContent = (job.output || []).join('\n');
+    out.scrollTop = out.scrollHeight;
+
+    const badge = $('jobStatus');
+    badge.textContent = job.status;
+    badge.className = 'badge-soft ms-2 ' +
+      (job.status === 'succeeded' ? 'badge-dev' : job.status === 'failed' ? 'badge-prod' : 'badge-muted');
+
+    if(job.status !== 'running'){
+      if(job.status === 'succeeded') note('Finished.');
+      else note(job.error || 'The job failed. The output above is unedited.', 'err');
+      return;
+    }
+    await new Promise(r => setTimeout(r, 1500));
   }
 }
 
@@ -518,12 +566,20 @@ document.addEventListener('DOMContentLoaded', () => {
   $('menuBtn').addEventListener('click', () => $('sidebar').classList.toggle('open'));
 
   $('confirmGo').addEventListener('click', () => {
+    const required = $('confirmGo').dataset.word;
+    if(required){
+      const typed = ($('confirmWord')?.value || '').trim();
+      if(typed.toLowerCase() !== required.toLowerCase()){
+        $('confirmWord').classList.add('is-invalid');
+        return;                                          // keep the dialog open
+      }
+    }
     // Blur first: hiding a modal that still holds focus trips an aria-hidden warning.
     $('confirmGo').blur();
     confirmModal().hide();
     const action = confirmAction;
     confirmAction = null;
-    if(action) action();
+    if(action) action(required || null);
   });
 
   document.addEventListener('click', async e => {

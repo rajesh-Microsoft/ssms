@@ -50,3 +50,6 @@ uat-capture/
 # OS
 Thumbs.db
 .DS_Store
+
+# Developer portal audit log (local record of who deployed what)
+devportal/audit.log

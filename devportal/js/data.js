@@ -372,16 +372,34 @@ function toUiEnvironment(s){
 const Api = {
   _live: false,
   _meta: null,
+  _token: null,
+  _session: null,
 
   _delay(value, ms = 180) {
     return new Promise(resolve => setTimeout(() => resolve(structuredClone(value)), ms));
   },
 
+  _headers() {
+    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+    if (this._token) headers['Authorization'] = 'Bearer ' + this._token;
+    return headers;
+  },
+
   async _get(path) {
-    const res = await fetch(API_BASE + path, { headers: { 'Accept': 'application/json' } });
+    const res = await fetch(API_BASE + path, { headers: this._headers() });
     if (!res.ok) throw new Error(`Backend returned ${res.status} for ${path}`);
     return res.json();
   },
+
+  async _post(path, body) {
+    const res = await fetch(API_BASE + path, { method: 'POST', headers: this._headers(), body: JSON.stringify(body) });
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : {};
+    if (!res.ok) throw new Error(data.message || `Backend returned ${res.status}`);
+    return data;
+  },
+
+  authConfigured() { return this._meta?.authConfigured === true; },
 
   /// Decides once, at start-up, whether this session shows real data.
   async init() {
@@ -403,12 +421,21 @@ const Api = {
   isLive() { return this._live; },
   meta() { return this._meta || { live: false }; },
 
-  // POST /api/auth/login — still local. Entra ID replaces this in a later phase.
+  // POST /api/auth/login. Real when the backend has operators configured; otherwise the
+  // local list, and the portal says so.
   async login(username, password) {
+    if (this._live && this.authConfigured()) {
+      const res = await this._post('/auth/login', { username, password });
+      this._token = res.token;
+      this._session = res;
+      return { username: res.username, name: res.name, role: res.role };
+    }
     const user = SAMPLE.users.find(u => u.username === username && u.password === password);
     if (!user) throw new Error('Wrong username or password.');
     return this._delay({ username: user.username, name: user.name, role: user.role });
   },
+
+  logout() { this._token = null; this._session = null; },
 
   // GET /api/applications  + /api/environments
   async getApplications() {
@@ -466,19 +493,31 @@ const Api = {
   },
   async getNotes() { return this._delay(SAMPLE.notes); },
   async saveNotes(notes) { Object.assign(SAMPLE.notes, notes); return this._delay(true); },
-  async getPermissions(role) { return this._delay(SAMPLE.permissions[role] || SAMPLE.permissions.Developer); },
 
-  // POST /api/deployments — deliberately absent from the backend for now.
-  async deploy() {
-    throw new Error(this._live
-      ? 'The backend is read-only. Deployment arrives in a later phase, behind real authentication.'
-      : 'This portal is running on sample data, so nothing was deployed.');
+  // The server decides this; the copy held here only shapes the UI.
+  async getPermissions(role) {
+    if (this._session) {
+      return { deploy: this._session.deploy || [], rollback: this._session.rollback === true, logs: true };
+    }
+    return this._delay(SAMPLE.permissions[role] || SAMPLE.permissions.Developer);
   },
 
-  async rollback() {
-    throw new Error(this._live
-      ? 'The backend is read-only. Rollback arrives in a later phase, behind real authentication.'
-      : 'This portal is running on sample data, so nothing was rolled back.');
-  }
+  async deploy({ envId, commit, confirm }) {
+    if (!this._live || !this.authConfigured()) {
+      throw new Error('This portal is running on sample data, so nothing was deployed.');
+    }
+    return this._post('/deployments', { environmentId: envId, commit, confirm });
+  },
+
+  async rollback({ envId, confirm }) {
+    if (!this._live || !this.authConfigured()) {
+      throw new Error('This portal is running on sample data, so nothing was rolled back.');
+    }
+    return this._post('/deployments/rollback', { environmentId: envId, confirm });
+  },
+
+  async getJob(id) { return this._get('/jobs/' + encodeURIComponent(id)); },
+
+  async getAudit() { return this._live ? this._get('/audit') : this._delay([]); }
 };
 

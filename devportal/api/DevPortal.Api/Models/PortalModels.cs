@@ -39,6 +39,14 @@ public class EnvironmentConfig
     public string? Note { get; set; }
     public string? Image { get; set; }
     public string? Pipeline { get; set; }
+
+    /// <summary>The -Environment value promote.ps1 expects. Absent means this environment
+    /// cannot be deployed from the portal at all.</summary>
+    public string? PromoteTarget { get; set; }
+
+    /// <summary>Compose service to recreate on rollback.</summary>
+    public string? ApiService { get; set; }
+
     public string? Database { get; set; }
     public string? Server { get; set; }
     public ProbeConfig Probe { get; set; } = new();
