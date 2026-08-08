@@ -66,6 +66,15 @@ public class ApplicationConfig
 
 public record ContainerStatus(string Name, string Status);
 
+/// <summary>One line of DEPLOYED_HISTORY, written by deploy/promote.ps1 at deploy time.</summary>
+public record DeploymentRecord(
+    string Commit,
+    string ShortCommit,
+    DateTimeOffset? At,
+    string By,
+    string Environment,
+    string? Message);
+
 /// <summary>What the portal renders. Anything the probe could not establish stays null
 /// and <see cref="ProbeState"/> explains why — never a stand-in value.</summary>
 public record EnvironmentStatus
@@ -90,6 +99,17 @@ public record EnvironmentStatus
     public string? VerifiedCommit { get; init; }
     public bool SignedOff => Commit is not null && Commit == VerifiedCommit;
     public IReadOnlyList<ContainerStatus> Containers { get; init; } = Array.Empty<ContainerStatus>();
+
+    /// <summary>Filled from the local clone; a box records only the sha it runs.</summary>
+    public string? CommitMessage { get; init; }
+    public string? CommitAuthor { get; init; }
+    public DateTimeOffset? CommitDate { get; init; }
+
+    /// <summary>Commits on the reference branch that this environment does not have.
+    /// Null when the sha is not in the clone.</summary>
+    public int? CommitsBehind { get; init; }
+
+    public IReadOnlyList<DeploymentRecord> History { get; init; } = Array.Empty<DeploymentRecord>();
 
     public int? SiteHttpCode { get; init; }
     public int? ApiHttpCode { get; init; }

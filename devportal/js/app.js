@@ -116,6 +116,10 @@ function setView(view, opts = {}){
   $('viewTitle').textContent = titles[view] || view;
   $('sidebar').classList.remove('open');
 
+  // Probing shells out to ssh/az, so a view can take seconds. Clear first: leaving the
+  // previous screen under a new title is how someone reads the wrong environment.
+  $('view').innerHTML = '<div class="text-muted small"><span class="spinner-border spinner-border-sm me-2"></span>Reading from the servers…</div>';
+
   ({ dashboard: viewDashboard, environment: viewEnvironment, deploy: viewDeploy,
      history: viewHistory, servers: viewServers, notes: viewNotes }[view] || viewDashboard)();
 }
@@ -160,7 +164,10 @@ function viewDashboard(){
 
       <dl class="kv">
         <dt>Status</dt><dd><span class="dot ${esc(env.statusTone)}"></span>${esc(env.status)}</dd>
-        <dt>Commit</dt><dd><code>${esc(env.commit)}</code> ${env.signedOff ? '<span class="badge-soft badge-dev ms-1">SIGNED OFF</span>' : ''}</dd>
+        <dt>Commit</dt><dd><code>${esc(env.commit)}</code> ${env.signedOff ? '<span class="badge-soft badge-dev ms-1">SIGNED OFF</span>' : ''}
+          ${Number.isInteger(env.commitsBehind) && env.commitsBehind > 0
+            ? `<span class="badge-soft badge-preprod ms-1">${env.commitsBehind} BEHIND</span>` : ''}</dd>
+        <dt>Message</dt><dd>${esc(env.commitMessage)}</dd>
         <dt>Image</dt><dd class="mono">${esc(env.image)}</dd>
         <dt>Deployed</dt><dd>${when(env.deployedAt)}</dd>
         <dt>By</dt><dd>${esc(env.deployedBy)}</dd>
@@ -221,6 +228,10 @@ async function viewEnvironment(){
             ['Purpose', esc(env.purpose)],
             ['Commit', `<code>${esc(env.commit)}</code>`],
             ['Commit message', esc(env.commitMessage)],
+            ['Commit author', esc(env.commitAuthor || '—')],
+            ['Behind branch', Number.isInteger(env.commitsBehind)
+                ? (env.commitsBehind === 0 ? 'up to date' : `${env.commitsBehind} commit(s)`)
+                : 'unknown (sha not in this clone)'],
             ['Branch', esc(env.branch)],
             ['Signed off', env.signedOff ? 'Yes' : 'No'],
             ['Docker image', `<span class="mono">${esc(env.image)}</span>`],
@@ -345,6 +356,16 @@ async function viewDeploy(){
 async function viewHistory(){
   setBanner(null);
   const history = await Api.getHistory();
+
+  if(!history.length){
+    $('view').innerHTML = `<div class="alert-soft alert-info-soft">
+      <i class="bi bi-clock-history me-1"></i>
+      No deployments recorded yet. Each box now appends to <code>DEPLOYED_HISTORY</code> when
+      <code>promote.ps1</code> deploys to it, so this fills in from the next deployment onwards.
+      Earlier deployments were never recorded and cannot be recovered.
+    </div>`;
+    return;
+  }
 
   const counts = history.reduce((acc, h) => (acc[h.env] = (acc[h.env] || 0) + 1, acc), {});
   const max = Math.max(...Object.values(counts), 1);

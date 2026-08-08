@@ -13,6 +13,8 @@ public class EnvironmentStatusService(
     IOptions<PortalOptions> options,
     IEnumerable<IHostRunner> runners,
     IHttpClientFactory httpFactory,
+    GitService git,
+    IConfiguration config,
     ILogger<EnvironmentStatusService> log)
 {
     private readonly PortalOptions _options = options.Value;
@@ -43,30 +45,40 @@ public class EnvironmentStatusService(
         return status;
     }
 
-    private async Task<EnvironmentStatus> BuildAsync(EnvironmentConfig config, CancellationToken ct)
+    private async Task<EnvironmentStatus> BuildAsync(EnvironmentConfig config_, CancellationToken ct)
     {
-        var health = await ProbeHttpAsync(config, ct);
-        var (probeState, error, commit, verified, containers) = await ProbeHostAsync(config, ct);
+        var health = await ProbeHttpAsync(config_, ct);
+        var (probeState, error, commit, verified, containers, history) = await ProbeHostAsync(config_, ct);
+
+        var reference = config["Portal:ReferenceBranch"] ?? "origin/main";
+        var info = await git.GetCommitAsync(commit, ct);
+        var behind = await git.GetCommitsBehindAsync(commit, reference, ct);
+        var enriched = await EnrichHistoryAsync(history, ct);
 
         return new EnvironmentStatus
         {
-            Id = config.Id,
-            App = config.App,
-            Tier = config.Tier,
-            Name = config.Name,
-            Hostname = config.Hostname,
-            AppUrl = config.AppUrl,
-            ApiUrl = config.ApiUrl,
-            DataSensitivity = config.DataSensitivity,
-            DeploymentEnabled = config.DeploymentEnabled,
-            Hazard = config.Hazard,
-            Note = config.Note,
-            Image = config.Image,
-            Pipeline = config.Pipeline,
-            Database = config.Database,
-            Server = config.Server,
+            Id = config_.Id,
+            App = config_.App,
+            Tier = config_.Tier,
+            Name = config_.Name,
+            Hostname = config_.Hostname,
+            AppUrl = config_.AppUrl,
+            ApiUrl = config_.ApiUrl,
+            DataSensitivity = config_.DataSensitivity,
+            DeploymentEnabled = config_.DeploymentEnabled,
+            Hazard = config_.Hazard,
+            Note = config_.Note,
+            Image = config_.Image,
+            Pipeline = config_.Pipeline,
+            Database = config_.Database,
+            Server = config_.Server,
             Commit = commit,
             VerifiedCommit = verified,
+            CommitMessage = info?.Subject,
+            CommitAuthor = info?.Author,
+            CommitDate = info?.Date,
+            CommitsBehind = behind,
+            History = enriched,
             Containers = containers,
             SiteHttpCode = health.Site,
             ApiHttpCode = health.Api,
@@ -75,6 +87,17 @@ public class EnvironmentStatusService(
             ProbeError = error,
             CheckedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    private async Task<List<DeploymentRecord>> EnrichHistoryAsync(List<DeploymentRecord> history, CancellationToken ct)
+    {
+        var result = new List<DeploymentRecord>();
+        foreach (var record in history)
+        {
+            var info = await git.GetCommitAsync(record.Commit, ct);
+            result.Add(record with { Message = info?.Subject, ShortCommit = info?.ShortSha ?? record.ShortCommit });
+        }
+        return result;
     }
 
     private async Task<(int? Site, int? Api, string Summary)> ProbeHttpAsync(EnvironmentConfig config, CancellationToken ct)
@@ -109,12 +132,12 @@ public class EnvironmentStatusService(
         }
     }
 
-    private async Task<(string State, string? Error, string? Commit, string? Verified, List<ContainerStatus> Containers)>
+    private async Task<(string State, string? Error, string? Commit, string? Verified, List<ContainerStatus> Containers, List<DeploymentRecord> History)>
         ProbeHostAsync(EnvironmentConfig config, CancellationToken ct)
     {
         var runner = runners.FirstOrDefault(r => r.Type == config.Probe.Type) ?? runners.First(r => r.Type == "none");
         if (runner.Type == "none")
-            return ("unavailable", "no probe is configured for this environment", null, null, new());
+            return ("unavailable", "no probe is configured for this environment", null, null, new(), new());
 
         var root = config.Probe.Root ?? "";
         var project = config.Probe.ComposeProject ?? "";
@@ -130,6 +153,7 @@ public class EnvironmentStatusService(
             echo "__COMMIT__ $(cat DEPLOYED_COMMIT 2>/dev/null | tr -d '\r\n')"
             echo "__VERIFIED__ $(cat DEPLOYED_VERIFIED 2>/dev/null | tr -d '\r\n')"
             docker ps --filter label=com.docker.compose.project=__PROJECT__ --format '__CONTAINER__ {{.Names}}|{{.Status}}' 2>/dev/null
+            tail -n 15 DEPLOYED_HISTORY 2>/dev/null | sed 's/^/__HISTORY__ /'
             echo "__END__"
             """;
 
@@ -137,16 +161,17 @@ public class EnvironmentStatusService(
 
         var result = await runner.RunAsync(config.Probe, script, ct);
         if (!result.Ok)
-            return ("unavailable", result.Error ?? "probe failed", null, null, new());
+            return ("unavailable", result.Error ?? "probe failed", null, null, new(), new());
 
         if (!result.Stdout.Contains("__END__"))
         {
             log.LogWarning("probe for {Id} did not complete: {Out}", config.Id, Trim(result.Stdout));
-            return ("unavailable", "the probe did not run to completion", null, null, new());
+            return ("unavailable", "the probe did not run to completion", null, null, new(), new());
         }
 
         string? commit = null, verified = null;
         var containers = new List<ContainerStatus>();
+        var history = new List<DeploymentRecord>();
         string? err = null;
 
         foreach (var line in result.Stdout.Split('\n').Select(l => l.Trim()))
@@ -159,10 +184,25 @@ public class EnvironmentStatusService(
                 var parts = line["__CONTAINER__".Length..].Trim().Split('|', 2);
                 if (parts.Length == 2) containers.Add(new ContainerStatus(parts[0], parts[1]));
             }
+            else if (line.StartsWith("__HISTORY__"))
+            {
+                // sha|iso8601|who|environment
+                var parts = line["__HISTORY__".Length..].Trim().Split('|');
+                if (parts.Length < 2 || string.IsNullOrWhiteSpace(parts[0])) continue;
+                DateTimeOffset? at = DateTimeOffset.TryParse(parts[1], out var parsed) ? parsed : null;
+                history.Add(new DeploymentRecord(
+                    parts[0],
+                    parts[0].Length >= 7 ? parts[0][..7] : parts[0],
+                    at,
+                    parts.Length > 2 ? parts[2] : "—",
+                    parts.Length > 3 ? parts[3] : config.Tier,
+                    null));
+            }
         }
 
-        if (err is not null) return ("unavailable", err, null, null, new());
-        return ("ok", null, commit, verified, containers);
+        if (err is not null) return ("unavailable", err, null, null, new(), new());
+        history.Reverse();
+        return ("ok", null, commit, verified, containers, history);
     }
 
     private static string? Blank(string s) => string.IsNullOrWhiteSpace(s) ? null : s;

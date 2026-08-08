@@ -236,6 +236,10 @@ echo -n "compose project: " ; grep -m1 '^name:' docker-compose.yml || echo "(non
 
 echo "$sha" > DEPLOYED_COMMIT
 rm -f DEPLOYED_VERIFIED
+# Append-only record of what landed here. A box otherwise remembers only the commit it is
+# running, so without this there is no deployment history to read back.
+# The date subexpression is backtick-escaped so it runs on the box, not here.
+echo "$sha|`$(date -u +%Y-%m-%dT%H:%M:%SZ)|$env:USERNAME|$Environment" >> DEPLOYED_HISTORY
 $($t.Own)
 echo -n "DEPLOYED_COMMIT: " ; cat DEPLOYED_COMMIT
 

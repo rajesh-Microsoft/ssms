@@ -7,6 +7,7 @@ builder.Services.Configure<PortalOptions>(builder.Configuration.GetSection("Port
 builder.Services.AddSingleton<IHostRunner, SshHostRunner>();
 builder.Services.AddSingleton<IHostRunner, AzRunCommandRunner>();
 builder.Services.AddSingleton<IHostRunner, NullHostRunner>();
+builder.Services.AddSingleton<GitService>();
 builder.Services.AddSingleton<EnvironmentStatusService>();
 
 // Health probes hit public hostnames; a slow box must not hold the dashboard open.
@@ -39,6 +40,30 @@ app.MapGet("/api/environments", async (EnvironmentStatusService service, string?
 
 app.MapGet("/api/environments/{id}", async (string id, EnvironmentStatusService service, CancellationToken ct)
     => await service.GetAsync(id, ct) is { } status ? Results.Ok(status) : Results.NotFound());
+
+// Recent commits on the branch, i.e. what could be deployed.
+app.MapGet("/api/builds", async (GitService git, CancellationToken ct)
+    => Results.Ok(await git.GetRecentAsync(15, ct)));
+
+// Deployment history is per box: each deploy appends a line to DEPLOYED_HISTORY.
+// Boxes deployed before that existed simply have a shorter history, which is stated
+// rather than padded out.
+app.MapGet("/api/deployments", async (EnvironmentStatusService service, string? app, CancellationToken ct) =>
+{
+    var environments = await service.GetAllAsync(app, ct);
+    var records = environments
+        .SelectMany(e => e.History.Select(h => new { environment = e.Name, tier = e.Tier, record = h }))
+        .OrderByDescending(x => x.record.At)
+        .ToList();
+    return Results.Ok(records);
+});
+
+app.MapGet("/api/repository", async (GitService git, IConfiguration cfg, CancellationToken ct) => Results.Ok(new
+{
+    name = cfg["Portal:RepositoryName"] ?? "unknown",
+    url = cfg["Portal:RepositoryUrl"],
+    branch = await git.GetBranchAsync(ct) ?? "unknown"
+}));
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 

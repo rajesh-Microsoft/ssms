@@ -338,7 +338,10 @@ function toUiEnvironment(s){
     hazard: s.hazard,
     dataSensitivity: s.dataSensitivity,
     commit: s.commit ? s.commit.slice(0, 7) : '—',
-    commitMessage: '—',
+    commitMessage: s.commitMessage || '—',
+    commitAuthor: s.commitAuthor || '—',
+    commitDate: s.commitDate || null,
+    commitsBehind: s.commitsBehind,
     branch: '—',
     signedOff: s.signedOff,
     image: s.image || '—',
@@ -432,11 +435,35 @@ const Api = {
     return toUiEnvironment(await this._get('/environments/' + encodeURIComponent(envId)));
   },
 
-  // Deployment history is not collected yet; the boxes only keep the current commit.
-  async getHistory() { return this._delay(this._live ? [] : SAMPLE.history); },
-  async getBuilds() { return this._delay(SAMPLE.builds); },
+  // Deployment history comes from DEPLOYED_HISTORY on each box, which promote.ps1
+  // started appending to. Boxes deployed before that have a shorter history.
+  async getHistory() {
+    if (!this._live) return this._delay(SAMPLE.history);
+    const rows = await this._get('/deployments');
+    return rows.map(r => ({
+      commit: r.record.shortCommit,
+      app: 'SMMS',
+      env: r.tier,
+      message: r.record.message || '(not in this clone)',
+      at: r.record.at,
+      by: r.record.by,
+      status: 'Succeeded'
+    }));
+  },
+
+  async getBuilds() {
+    if (!this._live) return this._delay(SAMPLE.builds);
+    const commits = await this._get('/builds');
+    return commits.map(c => ({ commit: c.shortSha, branch: '—', message: c.subject, by: c.author, at: c.date }));
+  },
+
   async getServers() { return this._delay(SAMPLE.servers); },
-  async getRepository() { return this._delay(SAMPLE.repository); },
+
+  async getRepository() {
+    if (!this._live) return this._delay(SAMPLE.repository);
+    const repo = await this._get('/repository');
+    return { name: repo.name, url: repo.url, branch: repo.branch, visibility: 'Private' };
+  },
   async getNotes() { return this._delay(SAMPLE.notes); },
   async saveNotes(notes) { Object.assign(SAMPLE.notes, notes); return this._delay(true); },
   async getPermissions(role) { return this._delay(SAMPLE.permissions[role] || SAMPLE.permissions.Developer); },
