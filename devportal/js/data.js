@@ -315,66 +315,143 @@ const SAMPLE = {
 };
 
 // ── The seam ────────────────────────────────────────────────
-// Each method is what the ASP.NET Core API will replace. Keep the shapes.
+// If the read-only backend is reachable the portal shows real state; otherwise it
+// falls back to SAMPLE and says so. It never silently mixes the two.
+const API_BASE = 'http://127.0.0.1:5099/api';
+
+const TIER_BADGE = { DEV: 'ACTIVE DEV', PREPROD: 'PRE-PROD', UAT: 'UAT', PROD: 'PRODUCTION' };
+
+// The backend reports only what it could actually read. Anything it could not is
+// left as an em dash here rather than filled with something plausible.
+function toUiEnvironment(s){
+  return {
+    id: s.id,
+    tier: s.tier,
+    name: s.name,
+    hostname: s.hostname,
+    hostPattern: '—',
+    purpose: s.note || '',
+    status: s.hazard ? 'Hazard' : (s.probeState === 'ok' ? 'Running' : s.health),
+    statusTone: s.hazard ? 'danger' : (s.health === 'Healthy' ? 'ok' : (s.health === 'Unknown' ? 'muted' : 'warn')),
+    badge: s.hazard ? 'DO NOT USE' : (TIER_BADGE[s.tier] || s.tier),
+    deploymentEnabled: s.deploymentEnabled,
+    hazard: s.hazard,
+    dataSensitivity: s.dataSensitivity,
+    commit: s.commit ? s.commit.slice(0, 7) : '—',
+    commitMessage: '—',
+    branch: '—',
+    signedOff: s.signedOff,
+    image: s.image || '—',
+    rollbackImage: null,
+    rollbackCommit: null,
+    containers: s.containers || [],
+    deployedAt: null,
+    deployedBy: '—',
+    health: s.health,
+    appUrl: s.appUrl || '',
+    apiUrl: s.apiUrl || '',
+    database: s.database || '—',
+    server: s.server || '—',
+    pipeline: s.pipeline || '—',
+    deployDuration: '—',
+    migration: '—',
+    storageUsed: '—',
+    releaseNotes: '—',
+    note: s.note,
+    envVars: [],
+    logs: [],
+    probeState: s.probeState,
+    probeError: s.probeError,
+    checkedAt: s.checkedAt
+  };
+}
+
 const Api = {
+  _live: false,
+  _meta: null,
+
   _delay(value, ms = 180) {
     return new Promise(resolve => setTimeout(() => resolve(structuredClone(value)), ms));
   },
 
-  isLive() { return SAMPLE.meta.live; },
+  async _get(path) {
+    const res = await fetch(API_BASE + path, { headers: { 'Accept': 'application/json' } });
+    if (!res.ok) throw new Error(`Backend returned ${res.status} for ${path}`);
+    return res.json();
+  },
 
-  // POST /api/auth/login
+  /// Decides once, at start-up, whether this session shows real data.
+  async init() {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(API_BASE + '/meta', { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error('meta not ok');
+      this._meta = await res.json();
+      this._live = this._meta.live === true;
+    } catch {
+      this._live = false;
+      this._meta = { live: false, readOnly: true, source: SAMPLE.meta.source };
+    }
+    return this._live;
+  },
+
+  isLive() { return this._live; },
+  meta() { return this._meta || { live: false }; },
+
+  // POST /api/auth/login — still local. Entra ID replaces this in a later phase.
   async login(username, password) {
     const user = SAMPLE.users.find(u => u.username === username && u.password === password);
     if (!user) throw new Error('Wrong username or password.');
     return this._delay({ username: user.username, name: user.name, role: user.role });
   },
 
-  // GET /api/applications
-  async getApplications() { return this._delay(SAMPLE.applications); },
+  // GET /api/applications  + /api/environments
+  async getApplications() {
+    if (!this._live) return this._delay(SAMPLE.applications);
 
-  // GET /api/applications/{app}/environments/{id}
-  async getEnvironment(appKey, envId) {
-    const app = SAMPLE.applications.find(a => a.key === appKey);
-    const env = app?.environments.find(e => e.id === envId);
-    if (!env) throw new Error('Environment not found.');
-    return this._delay(env);
+    const [apps, envs] = await Promise.all([this._get('/applications'), this._get('/environments')]);
+    return apps.map(a => ({
+      key: a.key,
+      name: a.name,
+      icon: a.icon,
+      description: a.description,
+      active: a.active,
+      environments: envs.filter(e => e.app === a.key).map(toUiEnvironment)
+    }));
   },
 
-  // GET /api/deployments
-  async getHistory() { return this._delay(SAMPLE.history); },
+  async getEnvironment(appKey, envId) {
+    if (!this._live) {
+      const app = SAMPLE.applications.find(a => a.key === appKey);
+      const env = app?.environments.find(e => e.id === envId);
+      if (!env) throw new Error('Environment not found.');
+      return this._delay(env);
+    }
+    return toUiEnvironment(await this._get('/environments/' + encodeURIComponent(envId)));
+  },
 
-  // GET /api/builds
+  // Deployment history is not collected yet; the boxes only keep the current commit.
+  async getHistory() { return this._delay(this._live ? [] : SAMPLE.history); },
   async getBuilds() { return this._delay(SAMPLE.builds); },
-
-  // GET /api/servers
   async getServers() { return this._delay(SAMPLE.servers); },
-
-  // GET /api/repository
   async getRepository() { return this._delay(SAMPLE.repository); },
-
-  // GET/PUT /api/notes
   async getNotes() { return this._delay(SAMPLE.notes); },
   async saveNotes(notes) { Object.assign(SAMPLE.notes, notes); return this._delay(true); },
-
-  // GET /api/permissions
   async getPermissions(role) { return this._delay(SAMPLE.permissions[role] || SAMPLE.permissions.Developer); },
 
-  // POST /api/deployments  — will run deploy/promote.ps1 server-side
-  async deploy({ appKey, envId, commit }) {
-    if (!SAMPLE.meta.live) {
-      throw new Error('This portal is running on sample data, so nothing was deployed. ' +
-                      'Wire Api.deploy() to the backend before using this button for real.');
-    }
-    return this._delay({ ok: true, appKey, envId, commit });
+  // POST /api/deployments — deliberately absent from the backend for now.
+  async deploy() {
+    throw new Error(this._live
+      ? 'The backend is read-only. Deployment arrives in a later phase, behind real authentication.'
+      : 'This portal is running on sample data, so nothing was deployed.');
   },
 
-  // POST /api/deployments/rollback
-  async rollback({ appKey, envId }) {
-    if (!SAMPLE.meta.live) {
-      throw new Error('This portal is running on sample data, so nothing was rolled back. ' +
-                      'Wire Api.rollback() to the backend before using this button for real.');
-    }
-    return this._delay({ ok: true, appKey, envId });
+  async rollback() {
+    throw new Error(this._live
+      ? 'The backend is read-only. Rollback arrives in a later phase, behind real authentication.'
+      : 'This portal is running on sample data, so nothing was rolled back.');
   }
 };
+

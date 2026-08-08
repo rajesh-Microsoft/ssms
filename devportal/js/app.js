@@ -77,9 +77,15 @@ async function startPortal(){
   $('branchChip').innerHTML = `<i class="bi bi-git me-1"></i> ${esc(repo.branch)}`;
 
   // Sample mode is stated on the login screen too, but this is the one people stare at.
-  $('mockBanner').style.display = Api.isLive() ? 'none' : '';
-  document.querySelector('.sidebar').style.paddingTop = Api.isLive() ? '0' : '38px';
-  document.querySelector('.content').style.paddingTop = Api.isLive() ? '0' : '38px';
+  const banner = $('mockBanner');
+  if(Api.isLive()){
+    banner.classList.add('live');
+    banner.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i>' +
+      '<strong>LIVE READ-ONLY DATA.</strong> Commits, sign-off and containers are read from each box. ' +
+      'Sign-in is not yet real and deployment is disabled.';
+  }
+  document.querySelector('.sidebar').style.paddingTop = '38px';
+  document.querySelector('.content').style.paddingTop = '38px';
 
   renderAppNav();
   setView('dashboard');
@@ -165,6 +171,9 @@ function viewDashboard(){
 
       ${env.hazard ? `<div class="alert-soft alert-hazard mt-3">
         <i class="bi bi-exclamation-triangle-fill me-1"></i>${esc(env.note)}</div>` : ''}
+
+      ${env.probeState && env.probeState !== 'ok' && !env.hazard ? `<div class="alert-soft alert-info-soft mt-3">
+        <i class="bi bi-question-circle me-1"></i>Could not read this box: ${esc(env.probeError || 'unknown reason')}</div>` : ''}
 
       <div class="d-flex gap-2 mt-3">
         <button class="btn btn-sm btn-outline-light" data-open="${esc(env.id)}">Details</button>
@@ -475,6 +484,13 @@ async function runRollback(env){
 
 // ── Wiring ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  Api.init().then(live => {
+    const note = $('loginMsg');
+    if(live && note){
+      note.innerHTML = '<div class="alert-soft alert-info-soft mb-3">Connected to the read-only backend.</div>';
+    }
+  });
+
   $('loginBtn').addEventListener('click', doLogin);
   $('password').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
   $('logoutBtn').addEventListener('click', doLogout);
