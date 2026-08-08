@@ -292,6 +292,14 @@ if ($saKey) {
 
 Write-Host "`n$short is live on $Environment." -ForegroundColor Green
 Write-Host "Roll back with:  docker tag $($t.Image):rollback-$stamp $($t.Image) && docker compose up -d --force-recreate smms-api"
+
+# The hosted portal cannot reach pre-prod, so refresh its mirror here. Best-effort: a
+# dashboard that is briefly out of date must never fail a deployment that has succeeded.
+if ($Environment -eq 'pprod') {
+    try { & (Join-Path $PSScriptRoot 'pprod/mirror-state.ps1') }
+    catch { Write-Warning "portal mirror not updated: $_. Run deploy/pprod/mirror-state.ps1 once the JIT window is open." }
+}
+
 if ($nextEnv) {
     Write-Host "Test it, then sign off:  ./deploy/promote.ps1 -Environment $Environment -MarkVerified"
     Write-Host "Then promote onward:    ./deploy/promote.ps1 -Environment $nextEnv"

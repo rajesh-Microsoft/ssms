@@ -29,6 +29,9 @@ services:
       - ./secrets.json:/app/appsettings.Secrets.json:ro
       - /home/ssmsadmin/smms-dev/SMMS:/stacks/dev:ro
       - /home/ssmsadmin/smms/SMMS:/stacks/uat:ro
+      # Pre-prod is on another VM this container cannot reach. Its DEPLOYED_* files are
+      # mirrored here by deploy/pprod/mirror-state.ps1 after each promotion.
+      - ./state/pprod:/stacks/pprod:ro
 
   devportal-ui:
     image: nginx:alpine
