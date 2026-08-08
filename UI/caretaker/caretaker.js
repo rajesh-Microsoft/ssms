@@ -11,6 +11,8 @@ let purpose = 'Guest';
 let courier = 'Amazon';
 let issue = null;
 let flats = [];
+let collectingDeliveryId = null;
+let photoUrl = null;
 
 const $ = id => document.getElementById(id);
 
@@ -129,7 +131,9 @@ async function loadFlats(){
 
 async function loadVisitors(){
   try{
-    const rows = await apiFetch('/caretaker/visitors') || [];
+    const search = $('vSearch').value.trim();
+    const path = '/caretaker/visitors' + (search ? `?search=${encodeURIComponent(search)}` : '');
+    const rows = await apiFetch(path) || [];
     $('visitorList').innerHTML = rows.length ? rows.map(v => `
       <div class="card">
         <div class="row">
@@ -180,7 +184,9 @@ async function markOut(id){
 
 async function loadDeliveries(){
   try{
-    const rows = await apiFetch('/caretaker/deliveries') || [];
+    const search = $('dSearch').value.trim();
+    const path = '/caretaker/deliveries' + (search ? `?search=${encodeURIComponent(search)}` : '');
+    const rows = await apiFetch(path) || [];
     $('deliveryList').innerHTML = rows.length ? rows.map(d => `
       <div class="card">
         <div class="row">
@@ -211,15 +217,33 @@ async function saveDelivery(){
   finally{ $('dSave').disabled = false; }
 }
 
-async function markCollected(id){
+function openCollection(id){
+  collectingDeliveryId = id;
+  $('collectionForm').reset();
+  $('collectionDialog').showModal();
+  $('collectedBy').focus();
+}
+
+function closeCollection(){
+  collectingDeliveryId = null;
+  $('collectionDialog').close();
+}
+
+async function markCollected(){
+  const collectedBy = $('collectedBy').value.trim();
+  if(!collectedBy) return;
+
+  $('collectionConfirm').disabled = true;
   try{
-    await apiFetch(`/caretaker/deliveries/${id}/collected`, {
+    await apiFetch(`/caretaker/deliveries/${collectingDeliveryId}/collected`, {
       method: 'POST',
-      body: JSON.stringify({ collectedBy: null })
+      body: JSON.stringify({ collectedBy })
     });
+    closeCollection();
     note('Handed over.');
     await loadDeliveries();
   }catch(err){ note(err.message, 'err'); }
+  finally{ $('collectionConfirm').disabled = false; }
 }
 
 // ── Issues ──
@@ -239,8 +263,25 @@ async function loadIssues(){
       <div class="card">
         <h3>${escapeHtml(c.subject)} ${c.hasPhoto ? '📷' : ''}</h3>
         <div class="sub">${escapeHtml(c.status)} · ${escapeHtml(c.priority)} priority · ${new Date(c.createdAt).toLocaleDateString()}</div>
+        ${c.hasPhoto ? `<button class="btn small photo-btn" data-photo="${c.id}">View photo</button>` : ''}
       </div>`).join('') : '<div class="empty">Nothing reported yet.</div>';
   }catch(err){ note(err.message, 'err'); }
+}
+
+// The photo sits behind [Authorize], so it needs a Bearer fetch rather than a plain img src.
+async function openPhoto(id){
+  try{
+    const url = await apiFetchObjectUrl(`/complaints/${id}/photo`);
+    releasePhoto();
+    photoUrl = url;
+    $('photoImg').src = url;
+    $('photoDialog').showModal();
+  }catch(err){ note(err.message, 'err'); }
+}
+
+function releasePhoto(){
+  if(photoUrl){ URL.revokeObjectURL(photoUrl); photoUrl = null; }
+  $('photoImg').removeAttribute('src');
 }
 
 async function saveIssue(){
@@ -279,19 +320,26 @@ async function loadChecklist(){
       : 'Walk the premises and tick what you checked.';
     $('cNotes').value = c.notes || '';
     $('checkItems').innerHTML = c.items.map((i, n) => `
-      <label class="check ${i.done ? 'done' : ''}">
-        <input type="checkbox" data-check="${n}" ${i.done ? 'checked' : ''}/>
-        <span>${escapeHtml(i.label)}</span>
-      </label>`).join('');
+      <div class="check-row">
+        <label class="check ${i.done ? 'done' : ''}">
+          <input type="checkbox" data-check="${n}" ${i.done ? 'checked' : ''}/>
+          <span>${escapeHtml(i.label)}</span>
+        </label>
+        <input class="remark" type="text" maxlength="200" placeholder="Why not? (optional)"
+               value="${escapeHtml(i.remark || '')}" ${i.done ? 'hidden' : ''}/>
+      </div>`).join('');
   }catch(err){ note(err.message, 'err'); }
 }
 
 async function saveChecklist(){
-  const items = [...document.querySelectorAll('#checkItems .check')].map(row => ({
-    label: row.querySelector('span').textContent,
-    done: row.querySelector('input').checked,
-    remark: null
-  }));
+  const items = [...document.querySelectorAll('#checkItems .check-row')].map(row => {
+    const remark = row.querySelector('.remark').value.trim();
+    return {
+      label: row.querySelector('span').textContent,
+      done: row.querySelector('input[type=checkbox]').checked,
+      remark: remark || null
+    };
+  });
   if(!items.some(i => i.done)) return note('Tick at least one item.', 'err');
 
   $('cSave').disabled = true;
@@ -320,6 +368,14 @@ function chip(containerId, values, onPick, initial){
   });
 }
 
+function debounce(action, delay = 300){
+  let timer;
+  return () => {
+    clearTimeout(timer);
+    timer = setTimeout(action, delay);
+  };
+}
+
 async function startApp(){
   $('loginView').classList.add('hidden');
   $('appView').classList.remove('hidden');
@@ -339,6 +395,15 @@ document.addEventListener('DOMContentLoaded', () => {
   $('dSave').addEventListener('click', saveDelivery);
   $('iSave').addEventListener('click', saveIssue);
   $('cSave').addEventListener('click', saveChecklist);
+  $('vSearch').addEventListener('input', debounce(loadVisitors));
+  $('dSearch').addEventListener('input', debounce(loadDeliveries));
+  $('collectionCancel').addEventListener('click', closeCollection);
+  $('photoClose').addEventListener('click', () => $('photoDialog').close());
+  $('photoDialog').addEventListener('close', releasePhoto);
+  $('collectionForm').addEventListener('submit', e => {
+    e.preventDefault();
+    markCollected();
+  });
 
   document.addEventListener('click', e => {
     const nav = e.target.closest('[data-go]');
@@ -348,7 +413,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if(exit) return markOut(exit.dataset.exit);
 
     const collect = e.target.closest('[data-collect]');
-    if(collect) return markCollected(collect.dataset.collect);
+    if(collect) return openCollection(collect.dataset.collect);
+
+    const photo = e.target.closest('[data-photo]');
+    if(photo) return openPhoto(photo.dataset.photo);
 
     const pick = e.target.closest('#issueChips button[data-issue]');
     if(pick){
@@ -361,7 +429,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Ticking an item recolours the row immediately, so a glance confirms the round.
   document.addEventListener('change', e => {
     const box = e.target.closest('#checkItems input[type=checkbox]');
-    if(box) box.closest('.check').classList.toggle('done', box.checked);
+    if(!box) return;
+    const row = box.closest('.check-row');
+    row.querySelector('.check').classList.toggle('done', box.checked);
+    const remark = row.querySelector('.remark');
+    remark.hidden = box.checked;
+    if(box.checked) remark.value = '';
   });
 
   const session = apiGetSession();

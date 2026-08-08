@@ -101,7 +101,9 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
     // ── Visitors ──
 
     [HttpGet("visitors")]
-    public async Task<ActionResult<IEnumerable<VisitorDto>>> Visitors([FromQuery] bool insideOnly = false)
+    public async Task<ActionResult<IEnumerable<VisitorDto>>> Visitors(
+        [FromQuery] bool insideOnly = false,
+        [FromQuery] string? search = null)
     {
         var dayStart = DateTime.UtcNow.Date;
         var query = db.Visitors.AsQueryable();
@@ -110,6 +112,16 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
         query = insideOnly
             ? query.Where(v => v.OutAt == null)
             : query.Where(v => v.InAt >= dayStart || v.OutAt == null);
+
+        search = search?.Trim();
+        if (!string.IsNullOrEmpty(search))
+        {
+            query = query.Where(v =>
+                v.Name.Contains(search) ||
+                v.Flat.Contains(search) ||
+                (v.Mobile != null && v.Mobile.Contains(search)) ||
+                (v.VehicleNumber != null && v.VehicleNumber.Contains(search)));
+        }
 
         var rows = await query.OrderByDescending(v => v.InAt).Take(200).ToListAsync();
         return Ok(rows.Select(ToDto));
@@ -153,7 +165,9 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
     // ── Deliveries ──
 
     [HttpGet("deliveries")]
-    public async Task<ActionResult<IEnumerable<DeliveryDto>>> Deliveries([FromQuery] bool waitingOnly = false)
+    public async Task<ActionResult<IEnumerable<DeliveryDto>>> Deliveries(
+        [FromQuery] bool waitingOnly = false,
+        [FromQuery] string? search = null)
     {
         var dayStart = DateTime.UtcNow.Date;
         var query = db.Deliveries.AsQueryable();
@@ -162,6 +176,15 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
         query = waitingOnly
             ? query.Where(d => d.Status == "Waiting")
             : query.Where(d => d.ReceivedAt >= dayStart || d.Status == "Waiting");
+
+        search = search?.Trim();
+        if (!string.IsNullOrEmpty(search))
+        {
+            query = query.Where(d =>
+                d.Courier.Contains(search) ||
+                d.Flat.Contains(search) ||
+                (d.CollectedBy != null && d.CollectedBy.Contains(search)));
+        }
 
         var rows = await query.OrderByDescending(d => d.ReceivedAt).Take(200).ToListAsync();
         return Ok(rows.Select(ToDto));

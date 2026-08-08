@@ -34,6 +34,7 @@
     <div class="nav-sec admin-only">Management</div>
     <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
     <div class="nav-item admin-only" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
+    <div class="nav-item admin-only" onclick="showTab('gatelog',this)"><span class="ni">🚪</span> Gate Log</div>
     <div class="nav-item admin-only" onclick="showTab('reports',this)"><span class="ni">📋</span> Reports</div>
     <div class="nav-sec admin-only">System</div>
     <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">&#128228;</span> Export</div>
@@ -116,6 +117,9 @@
 
     <!-- COMPLAINTS (lazy-loaded from partials/complaints.html) -->
     <div id="tab-complaints" class="tab-content" data-partial="complaints"></div>
+
+    <!-- GATE LOG (lazy-loaded from partials/gatelog.html) -->
+    <div id="tab-gatelog" class="tab-content" data-partial="gatelog"></div>
 
     <!-- REPORTS (lazy-loaded from partials/reports.html) -->
     <div id="tab-reports" class="tab-content" data-partial="reports"></div>

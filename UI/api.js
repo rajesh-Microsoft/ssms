@@ -181,6 +181,10 @@ const Api = {
   updateComplaint: (id, payload) => apiFetch(`/complaints/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteComplaint: (id) => apiFetch(`/complaints/${id}`, { method: 'DELETE' }),
 
+  // Gate log (the caretaker's routes, which admins share)
+  getGateVisitors: (search) => apiFetch('/caretaker/visitors' + (search ? `?search=${encodeURIComponent(search)}` : '')),
+  getGateDeliveries: (search) => apiFetch('/caretaker/deliveries' + (search ? `?search=${encodeURIComponent(search)}` : '')),
+
   // Me (resident self-service — works for any authenticated user)
   getMe: () => apiFetch('/me'),
   getMyAdvance: () => apiFetch('/me/advance'),

@@ -73,6 +73,8 @@
         <button class="btn" id="vSave">Save entry</button>
       </div>
       <h3>Today</h3>
+      <label class="search-label" for="vSearch">Find a visitor</label>
+      <input class="list-search" id="vSearch" type="search" placeholder="Name, flat, mobile or vehicle" autocomplete="off"/>
       <div id="visitorList"></div>
       <div class="pad"></div>
     </div>
@@ -90,6 +92,8 @@
         <button class="btn" id="dSave">Save parcel</button>
       </div>
       <h3>Waiting &amp; today</h3>
+      <label class="search-label" for="dSearch">Find a parcel</label>
+      <input class="list-search" id="dSearch" type="search" placeholder="Courier, flat or collected by" autocomplete="off"/>
       <div id="deliveryList"></div>
       <div class="pad"></div>
     </div>
@@ -125,6 +129,27 @@
     </div>
   </div>
 </section>
+
+<dialog id="collectionDialog" aria-labelledby="collectionTitle">
+  <form id="collectionForm">
+    <h2 id="collectionTitle">Hand over parcel</h2>
+    <p>Record who collected it.</p>
+    <label for="collectedBy">Collected by</label>
+    <input id="collectedBy" type="text" maxlength="100" autocapitalize="words" autocomplete="off" required/>
+    <div class="dialog-actions">
+      <button class="btn ghost" id="collectionCancel" type="button">Cancel</button>
+      <button class="btn" id="collectionConfirm" type="submit">Confirm handover</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="photoDialog" aria-labelledby="photoTitle">
+  <div class="photo-view">
+    <h2 id="photoTitle">Reported photo</h2>
+    <img id="photoImg" alt="Photo attached to this report"/>
+    <button class="btn ghost" id="photoClose" type="button">Close</button>
+  </div>
+</dialog>
 
 <script src="../api.js"></script>
 <script src="caretaker.js"></script>

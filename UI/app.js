@@ -512,11 +512,12 @@ async function ensurePartial(tab){
 async function showTab(t, el){
   if(t==='admin' && !isAdmin()) return toast('Admin access required.','warn');
   if(t==='auditlog' && !isAdmin()) return toast('Admin access required.','warn');
+  if(t==='gatelog' && !isAdmin()) return toast('Admin access required.','warn');
   document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -542,6 +543,9 @@ async function showTab(t, el){
   }
   if(t==='admin'){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
+  }
+  if(t==='gatelog'){
+    try{ await loadGateLog(); }catch(err){ toast('Failed to load gate log: '+err.message,'warn'); }
   }
 
   const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, budget:(typeof renderBudget==='function'?renderBudget:null), mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
@@ -1647,6 +1651,58 @@ function renderAudit(){
   const mod=document.getElementById('auditModF').value;
   const data=[...DB.auditLog].reverse().filter(a=>(!mod||a.module===mod)&&(!search||a.details.toLowerCase().includes(search)||a.action.toLowerCase().includes(search)));
   renderPage('audit',data,a=>`<tr><td style="font-size:10px;color:var(--sub)">${a.timestamp}</td><td>${a.user}</td><td>${a.module}</td><td>${a.action}</td><td>${a.details}</td></tr>`);
+}
+
+// ═══════════════════════════════════════════════
+// GATE LOG — read-only view of what the caretaker recorded at the gate.
+// Reuses the caretaker's own routes, which admins already share.
+// ═══════════════════════════════════════════════
+let _gateVisitorTimer, _gateDeliveryTimer;
+
+// Gate entries are free text typed on a phone, so they are escaped on the way into the table.
+function escGate(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+function gateTime(iso){
+  if(!iso) return '—';
+  return new Date(iso).toLocaleString([], { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+
+async function loadGateLog(){
+  await Promise.all([renderGateVisitors(), renderGateDeliveries()]);
+}
+
+async function renderGateVisitors(){
+  const body = document.getElementById('gate-visitors-tbody');
+  if(!body) return;                                     // partial not loaded yet
+  const rows = await Api.getGateVisitors(document.getElementById('gateVisitorSearch').value.trim()) || [];
+  body.innerHTML = rows.length ? rows.map(v => `<tr>
+    <td>${gateTime(v.inAt)}</td><td>${v.outAt ? gateTime(v.outAt) : 'Inside'}</td>
+    <td>${escGate(v.name)}</td><td>${escGate(v.flat)}</td><td>${escGate(v.purpose)}</td>
+    <td>${escGate(v.mobile)}</td><td>${escGate(v.vehicleNumber)}</td></tr>`).join('')
+    : '<tr><td colspan="7">No visitors logged.</td></tr>';
+}
+
+async function renderGateDeliveries(){
+  const body = document.getElementById('gate-deliveries-tbody');
+  if(!body) return;
+  const rows = await Api.getGateDeliveries(document.getElementById('gateDeliverySearch').value.trim()) || [];
+  body.innerHTML = rows.length ? rows.map(d => `<tr>
+    <td>${gateTime(d.receivedAt)}</td><td>${escGate(d.courier)}</td><td>${escGate(d.flat)}</td>
+    <td>${escGate(d.status)}</td><td>${gateTime(d.collectedAt)}</td><td>${escGate(d.collectedBy)}</td></tr>`).join('')
+    : '<tr><td colspan="6">No parcels logged.</td></tr>';
+}
+
+function searchGateVisitors(){
+  clearTimeout(_gateVisitorTimer);
+  _gateVisitorTimer = setTimeout(() => renderGateVisitors().catch(err => toast('Search failed: '+err.message,'warn')), 300);
+}
+
+function searchGateDeliveries(){
+  clearTimeout(_gateDeliveryTimer);
+  _gateDeliveryTimer = setTimeout(() => renderGateDeliveries().catch(err => toast('Search failed: '+err.message,'warn')), 300);
 }
 
 // ═══════════════════════════════════════════════

@@ -1,0 +1,23 @@
+<div class="card">
+  <div class="card-hdr"><h3>👤 Visitors</h3>
+    <div class="search-row">
+      <input type="text" id="gateVisitorSearch" placeholder="🔍 Name, flat, mobile or vehicle" oninput="searchGateVisitors()" style="width:220px;">
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>In</th><th>Out</th><th>Name</th><th>Flat</th><th>Purpose</th><th>Mobile</th><th>Vehicle</th></tr></thead>
+    <tbody id="gate-visitors-tbody"></tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hdr"><h3>📦 Parcels</h3>
+    <div class="search-row">
+      <input type="text" id="gateDeliverySearch" placeholder="🔍 Courier, flat or collected by" oninput="searchGateDeliveries()" style="width:220px;">
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Received</th><th>Courier</th><th>Flat</th><th>Status</th><th>Collected</th><th>Collected by</th></tr></thead>
+    <tbody id="gate-deliveries-tbody"></tbody></table>
+  </div>
+</div>
