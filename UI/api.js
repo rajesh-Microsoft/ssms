@@ -160,6 +160,17 @@ const Api = {
   settleLiability: (id, payload) => apiFetch(`/society-liabilities/${id}/settle`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteLiability: (id) => apiFetch(`/society-liabilities/${id}`, { method: 'DELETE' }),
 
+  // Reimbursement claims (a member asking for money back)
+  getMyReimbursements: () => apiFetch('/reimbursements/mine'),
+  getReimbursements: (status) => apiFetch('/reimbursements' + (status ? `?status=${encodeURIComponent(status)}` : '')),
+  getReimbursementSummary: () => apiFetch('/reimbursements/summary'),
+  createReimbursement: (payload) => apiFetch('/reimbursements', { method: 'POST', body: JSON.stringify(payload) }),
+  updateReimbursement: (id, payload) => apiFetch(`/reimbursements/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  withdrawReimbursement: (id) => apiFetch(`/reimbursements/${id}`, { method: 'DELETE' }),
+  approveReimbursement: (id) => apiFetch(`/reimbursements/${id}/approve`, { method: 'POST' }),
+  rejectReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
+  requestInfoReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/request-info`, { method: 'POST', body: JSON.stringify({ note }) }),
+
   // Settings
   getSettings: () => apiFetch('/settings'),
   updateSettings: (payload) => apiFetch('/settings', { method: 'PUT', body: JSON.stringify(payload) }),

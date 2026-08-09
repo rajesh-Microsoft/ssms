@@ -21,6 +21,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<AdvanceLedgerEntry> AdvanceLedger => Set<AdvanceLedgerEntry>();
     public DbSet<SocietyLiability> SocietyLiabilities => Set<SocietyLiability>();
     public DbSet<SocietyLiabilitySettlement> SocietyLiabilitySettlements => Set<SocietyLiabilitySettlement>();
+    public DbSet<ReimbursementRequest> ReimbursementRequests => Set<ReimbursementRequest>();
     public DbSet<SocietyIncome> SocietyIncomes => Set<SocietyIncome>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<BudgetItem> BudgetItems => Set<BudgetItem>();
@@ -175,6 +176,32 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         modelBuilder.Entity<SocietyLiability>()
             .HasIndex(l => new { l.Status, l.Date });
 
+        modelBuilder.Entity<ReimbursementRequest>()
+            .Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+
+        modelBuilder.Entity<ReimbursementRequest>()
+            .Property(r => r.Amount).HasPrecision(12, 2);
+
+        modelBuilder.Entity<ReimbursementRequest>()
+            .HasOne(r => r.Member)
+            .WithMany()
+            .HasForeignKey(r => r.MemberId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict, not Cascade: deleting the liability must not silently erase the paperwork
+        // that justified it.
+        modelBuilder.Entity<ReimbursementRequest>()
+            .HasOne(r => r.Liability)
+            .WithMany()
+            .HasForeignKey(r => r.LiabilityId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // The admin queue reads pending-first; the member reads their own, newest-first.
+        modelBuilder.Entity<ReimbursementRequest>()
+            .HasIndex(r => new { r.Status, r.ExpenseDate });
+        modelBuilder.Entity<ReimbursementRequest>()
+            .HasIndex(r => new { r.MemberId, r.Status });
+
         // Speeds up the income list/summary scans by period.
         modelBuilder.Entity<SocietyIncome>()
             .HasIndex(i => new { i.Year, i.Month });
@@ -245,5 +272,6 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         modelBuilder.Entity<Complaint>().HasQueryFilter(c => !c.IsDeleted);
         modelBuilder.Entity<SocietyLiability>().HasQueryFilter(l => !l.IsDeleted);
         modelBuilder.Entity<SocietyIncome>().HasQueryFilter(i => !i.IsDeleted);
+        modelBuilder.Entity<ReimbursementRequest>().HasQueryFilter(r => !r.IsDeleted);
     }
 }

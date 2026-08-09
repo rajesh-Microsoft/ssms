@@ -34,6 +34,7 @@ const COMPLAINT_CATEGORIES = ['Plumbing','Electrical','Security','Housekeeping',
 // ═══════════════════════════════════════════════
 let DB = {
   members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [], liabilities: [],
+  reimbursements: [], myReimbursements: [], reimbSummary: null,
   settings: {
     societyName:'', address:'', email:'', phone:'',
     registrationNumber:'', gst:'', pan:'', logoBase64:'',
@@ -517,7 +518,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -550,8 +551,14 @@ async function showTab(t, el){
   if(t==='mgate'){
     try{ await loadMyGate(); }catch(err){ toast('Failed to load your gate activity: '+err.message,'warn'); }
   }
+  if(t==='reimb'){
+    try{ await loadReimbursements(); }catch(err){ toast('Failed to load reimbursements: '+err.message,'warn'); }
+  }
+  if(t==='mreimb'){
+    try{ await loadMyReimbursements(); }catch(err){ toast('Failed to load your claims: '+err.message,'warn'); }
+  }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, budget:(typeof renderBudget==='function'?renderBudget:null), mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, reimb:renderReimbursements, mreimb:renderMyReimbursements, budget:(typeof renderBudget==='function'?renderBudget:null), mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -1377,6 +1384,203 @@ async function deleteLiability(id){
     await Promise.all([loadLiabilities(), loadExpenses()]);
     renderLiabilities(); renderExpenses(); renderDashboard(); toast('Deleted!','warn');
   }catch(err){ toast(err.message || 'Delete failed','warn'); }
+}
+
+// ═══════════════════════════════════════════════
+// REIMBURSEMENT CLAIMS (a member asking for money back)
+// ═══════════════════════════════════════════════
+const REIMB_BADGES = {
+  Pending:'b-pending', NeedsInfo:'b-pending', Rejected:'b-overdue',
+  Approved:'b-paid', AwaitingSettlement:'b-pending', PartiallySettled:'b-pending', Settled:'b-paid'
+};
+const REIMB_LABELS = {
+  Pending:'Pending', NeedsInfo:'Needs info', Rejected:'Rejected',
+  Approved:'Approved', AwaitingSettlement:'Awaiting payment', PartiallySettled:'Part paid', Settled:'Settled'
+};
+function reimbBadge(s){
+  return `<span class="badge ${REIMB_BADGES[s]||'b-pending'}">${REIMB_LABELS[s]||escGate(s)}</span>`;
+}
+
+async function loadReimbursements(){
+  try{
+    const data = await Api.getReimbursements();
+    DB.reimbursements = Array.isArray(data) ? data : [];
+  }catch(err){ DB.reimbursements = []; throw err; }
+  try{
+    const s = await Api.getReimbursementSummary();
+    const b = document.getElementById('reimbBadge');
+    if(b){ const n = (s.pending||0)+(s.needsInfo||0); b.textContent = n; b.style.display = n ? '' : 'none'; }
+    DB.reimbSummary = s;
+  }catch(err){ DB.reimbSummary = null; }
+}
+
+async function loadMyReimbursements(){
+  try{
+    const data = await Api.getMyReimbursements();
+    DB.myReimbursements = Array.isArray(data) ? data : [];
+  }catch(err){ DB.myReimbursements = []; throw err; }
+}
+
+function renderReimbursements(){
+  const tb = document.getElementById('reimb-tbody'); if(!tb) return;
+  const q = (document.getElementById('reimbSearch')?.value || '').toLowerCase();
+  const f = document.getElementById('reimbStatusF')?.value || '';
+  const rows = (DB.reimbursements||[]).filter(r =>
+    (!f || r.status===f) &&
+    (!q || `${r.memberName} ${r.flat} ${r.category} ${r.description} ${r.vendor||''}`.toLowerCase().includes(q)));
+
+  const s = DB.reimbSummary;
+  const sum = document.getElementById('reimb-summary');
+  if(sum && s){
+    const tile = (label, value, warn) => `
+      <div style="text-align:center;padding:6px 16px;border-radius:8px;${warn
+        ? 'background:#fef3c7;'
+        : 'background:var(--card);border:1px solid var(--border);'}">
+        <div style="font-size:10px;${warn?'color:#92400e;':'color:var(--sub);'}margin-bottom:2px;">${label}</div>
+        <div style="font-size:16px;font-weight:800;${warn?'color:#92400e;':''}">${value}</div>
+      </div>`;
+    sum.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--bg);border-radius:10px;border:1px solid var(--border);width:100%;">
+        <span style="font-size:12px;font-weight:700;color:var(--sub);">💸 Reimbursements</span>
+        <span style="margin-left:auto"></span>
+        ${tile('Pending', s.pending||0, (s.pending||0) > 0)}
+        ${tile('Needs info', s.needsInfo||0)}
+        ${tile('Awaiting payment', s.awaitingSettlement||0)}
+        ${tile('Owed', '₹'+(s.awaitingSettlementValue||0).toLocaleString('en-IN'), (s.awaitingSettlementValue||0) > 0)}
+      </div>`;
+  }
+
+  if(!rows.length){ tb.innerHTML = '<tr><td colspan="10" class="empty">No reimbursement claims.</td></tr>'; return; }
+
+  tb.innerHTML = rows.map(r => {
+    const open = r.status==='Pending' || r.status==='NeedsInfo';
+    const acts = canEdit('Liabilities') && open ? `
+      <button class="ic-btn" title="Approve" onclick="approveReimbursement(${r.id})">✅</button>
+      <button class="ic-btn" title="Ask for more information" onclick="reviewReimbursement(${r.id},'info')">❓</button>
+      <button class="ic-btn" title="Reject" onclick="reviewReimbursement(${r.id},'reject')">✖</button>` : '';
+    const note = r.reviewNote ? `<div style="font-size:11px;color:var(--sub);">${escGate(r.reviewNote)}</div>` : '';
+    return `<tr>
+      <td>${r.id}</td>
+      <td>${escGate(r.memberName)}</td>
+      <td>${escGate(r.flat)}</td>
+      <td>${fmtDate(r.expenseDate)}</td>
+      <td>${escGate(r.category)}</td>
+      <td>${escGate(r.vendor||'—')}</td>
+      <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
+      <td>${escGate(r.transactionReference||'—')}</td>
+      <td>${reimbBadge(r.displayStatus)}${note}</td>
+      <td>${acts}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderMyReimbursements(){
+  const tb = document.getElementById('mreimb-tbody'); if(!tb) return;
+  const rows = DB.myReimbursements || [];
+  if(!rows.length){
+    tb.innerHTML = '<tr><td colspan="7" class="empty">No claims yet. Paid for something the society needed? Raise one.</td></tr>';
+    return;
+  }
+  tb.innerHTML = rows.map(r => {
+    const open = r.status==='Pending' || r.status==='NeedsInfo';
+    const acts = open ? `
+      <button class="ic-btn" title="Edit" onclick="openReimbModal(${r.id})">✏️</button>
+      <button class="ic-btn" title="Withdraw" onclick="withdrawReimbursement(${r.id})">🗑</button>` : '';
+    const note = r.reviewNote ? `<div style="font-size:11px;color:var(--sub);">${escGate(r.reviewNote)}</div>` : '';
+    return `<tr>
+      <td>${r.id}</td>
+      <td>${fmtDate(r.expenseDate)}</td>
+      <td>${escGate(r.category)}</td>
+      <td>${escGate(r.description)}${note}</td>
+      <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
+      <td>${reimbBadge(r.displayStatus)}</td>
+      <td>${acts}</td>
+    </tr>`;
+  }).join('');
+}
+
+let editReimbId = null;
+function openReimbModal(id){
+  editReimbId = id || null;
+  const r = id ? (DB.myReimbursements||[]).find(x=>x.id===id) : null;
+  document.getElementById('reimb-title').textContent = r ? `Edit claim #${r.id}` : 'New reimbursement claim';
+  document.getElementById('rq-cat').value = r?.category || '';
+  document.getElementById('rq-amt').value = r?.amount ?? '';
+  document.getElementById('rq-date').value = (r?.expenseDate || new Date().toISOString()).slice(0,10);
+  document.getElementById('rq-vendor').value = r?.vendor || '';
+  document.getElementById('rq-desc').value = r?.description || '';
+  document.getElementById('rq-mode').value = r?.paymentMode || '';
+  document.getElementById('rq-ref').value = r?.transactionReference || '';
+
+  // Offer the same categories the society already books expenses under.
+  const dl = document.getElementById('rq-cats');
+  if(dl){
+    const cats = [...new Set((DB.expenses||[]).map(e=>e.category).filter(Boolean))].sort();
+    dl.innerHTML = cats.map(c=>`<option value="${escGate(c)}">`).join('');
+  }
+  openModal('reimb');
+}
+
+async function saveReimbursement(){
+  const payload = {
+    category: document.getElementById('rq-cat').value.trim(),
+    description: document.getElementById('rq-desc').value.trim(),
+    vendor: document.getElementById('rq-vendor').value.trim() || null,
+    amount: parseFloat(document.getElementById('rq-amt').value),
+    expenseDate: document.getElementById('rq-date').value,
+    paymentMode: document.getElementById('rq-mode').value || null,
+    transactionReference: document.getElementById('rq-ref').value.trim() || null
+  };
+  if(!payload.category) return toast('Pick a category.','warn');
+  if(!payload.description) return toast('Say what the money was spent on.','warn');
+  if(!(payload.amount > 0)) return toast('Enter the amount you paid.','warn');
+  if(!payload.expenseDate) return toast('Enter the date you paid.','warn');
+
+  try{
+    if(editReimbId) await Api.updateReimbursement(editReimbId, payload);
+    else await Api.createReimbursement(payload);
+    closeModal('reimb');
+    await loadMyReimbursements();
+    renderMyReimbursements();
+    toast(editReimbId ? 'Claim updated — back with the committee.' : 'Claim submitted.');
+  }catch(e){ toast(e.message || 'Could not save the claim.','warn'); }
+}
+
+async function withdrawReimbursement(id){
+  if(!confirm('Withdraw this claim? The committee will no longer see it.')) return;
+  try{
+    await Api.withdrawReimbursement(id);
+    await loadMyReimbursements(); renderMyReimbursements(); toast('Claim withdrawn.','warn');
+  }catch(e){ toast(e.message || 'Could not withdraw the claim.','warn'); }
+}
+
+async function approveReimbursement(id){
+  const r = (DB.reimbursements||[]).find(x=>x.id===id); if(!r) return;
+  if(!confirm(`Approve \u20b9${(r.amount||0).toLocaleString('en-IN')} for ${r.memberName}?\n\n` +
+              `This books the ${r.category} cost to ${fmtDate(r.expenseDate)} and records that the society owes them the money. ` +
+              `Repay it from the Liabilities tab.`)) return;
+  try{
+    await Api.approveReimbursement(id);
+    await Promise.all([loadReimbursements(), loadLiabilities(), loadExpenses()]);
+    renderReimbursements(); renderDashboard();
+    toast('Approved — liability raised.');
+  }catch(e){ toast(e.message || 'Could not approve the claim.','warn'); }
+}
+
+async function reviewReimbursement(id, kind){
+  const prompts = {
+    reject: 'Why is this claim being rejected? The member will see this.',
+    info:   'What do you need from the member? They can edit and resubmit.'
+  };
+  const note = prompt(prompts[kind]);
+  if(note === null) return;
+  if(!note.trim()) return toast('A reason is required.','warn');
+  try{
+    if(kind==='reject') await Api.rejectReimbursement(id, note.trim());
+    else await Api.requestInfoReimbursement(id, note.trim());
+    await loadReimbursements(); renderReimbursements();
+    toast(kind==='reject' ? 'Claim rejected.' : 'Sent back to the member.','warn');
+  }catch(e){ toast(e.message || 'Could not update the claim.','warn'); }
 }
 
 // ═══════════════════════════════════════════════

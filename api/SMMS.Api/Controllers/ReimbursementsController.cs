@@ -1,0 +1,287 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SMMS.Api.Data;
+using SMMS.Api.Dtos;
+using SMMS.Api.Models;
+using SMMS.Api.Services;
+
+namespace SMMS.Api.Controllers;
+
+/// <summary>
+/// Expense reimbursement: a member claims money they spent on the society's behalf, a reviewer
+/// accepts or declines it, and acceptance turns it into a real liability.
+/// </summary>
+/// <remarks>
+/// Members reach their own claims without any granted permission, the same way they can always see
+/// their own payments. Reviewing needs Liabilities:Edit, because approving one commits the society
+/// to paying it.
+/// </remarks>
+[ApiController]
+[Route("api/reimbursements")]
+[Authorize]
+public class ReimbursementsController(
+    SmmsDbContext db,
+    SocietyLiabilityService liabilities,
+    AuditService audit) : ControllerBase
+{
+    private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    /// <summary>Residents are linked to their Member row by flat, not a foreign key, so a user with
+    /// no flat (or a flat that matches nothing) has no member to claim on behalf of.</summary>
+    private async Task<Member?> ResolveMemberAsync()
+    {
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == CurrentUserId);
+        if (user is null || string.IsNullOrWhiteSpace(user.Flat)) return null;
+        var flat = user.Flat!.Trim().ToLower();
+        return await db.Members.AsNoTracking().FirstOrDefaultAsync(m => m.Flat.ToLower() == flat);
+    }
+
+    // ── Member's own claims ──────────────────────────────────────────────────
+
+    [HttpGet("mine")]
+    public async Task<ActionResult<IEnumerable<ReimbursementDto>>> Mine()
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null) return Ok(Array.Empty<ReimbursementDto>());
+
+        var rows = await Query().Where(r => r.MemberId == member.Id)
+            .OrderByDescending(r => r.Id)
+            .ToListAsync();
+
+        return Ok(rows.Select(ToDto));
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<ReimbursementDto>> Create(ReimbursementCreateRequest req)
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null)
+            return BadRequest(new { message = "Your account is not linked to a flat, so a claim cannot be raised. Ask an admin to set your flat." });
+
+        if (req.ExpenseDate.Date > DateTime.UtcNow.Date)
+            return BadRequest(new { message = "The expense date cannot be in the future." });
+
+        var request = new ReimbursementRequest
+        {
+            MemberId = member.Id,
+            SubmittedByUserId = CurrentUserId,
+            Category = req.Category.Trim(),
+            Description = req.Description.Trim(),
+            Vendor = string.IsNullOrWhiteSpace(req.Vendor) ? null : req.Vendor.Trim(),
+            Amount = req.Amount,
+            ExpenseDate = req.ExpenseDate.Date,
+            PaymentMode = string.IsNullOrWhiteSpace(req.PaymentMode) ? null : req.PaymentMode.Trim(),
+            TransactionReference = string.IsNullOrWhiteSpace(req.TransactionReference) ? null : req.TransactionReference.Trim(),
+            Status = ReimbursementStatus.Pending
+        };
+
+        db.ReimbursementRequests.Add(request);
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("Reimbursements", "Create",
+            $"{member.Flat} claimed {req.Amount:0.00} for {request.Category}.");
+
+        var saved = await Query().FirstAsync(r => r.Id == request.Id);
+        return CreatedAtAction(nameof(Mine), new { }, ToDto(saved));
+    }
+
+    /// <summary>Lets a member correct a claim while it is still theirs to change. An approved claim
+    /// is immutable: money has already moved in the ledger.</summary>
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<ReimbursementDto>> Update(int id, ReimbursementCreateRequest req)
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null) return Forbid();
+
+        var request = await db.ReimbursementRequests.FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.MemberId != member.Id) return Forbid();
+
+        if (request.Status is not (ReimbursementStatus.Pending or ReimbursementStatus.NeedsInfo))
+            return BadRequest(new { message = $"A {request.Status} claim can no longer be edited." });
+
+        request.Category = req.Category.Trim();
+        request.Description = req.Description.Trim();
+        request.Vendor = string.IsNullOrWhiteSpace(req.Vendor) ? null : req.Vendor.Trim();
+        request.Amount = req.Amount;
+        request.ExpenseDate = req.ExpenseDate.Date;
+        request.PaymentMode = string.IsNullOrWhiteSpace(req.PaymentMode) ? null : req.PaymentMode.Trim();
+        request.TransactionReference = string.IsNullOrWhiteSpace(req.TransactionReference) ? null : req.TransactionReference.Trim();
+
+        // Resubmitting answers the reviewer's question, so it goes back into the queue.
+        if (request.Status == ReimbursementStatus.NeedsInfo)
+        {
+            request.Status = ReimbursementStatus.Pending;
+            request.ReviewNote = null;
+        }
+
+        await db.SaveChangesAsync();
+        await audit.LogAsync("Reimbursements", "Update", $"Claim #{id} updated by {member.Flat}.");
+
+        return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
+    }
+
+    /// <summary>Withdraws a claim the member no longer wants reviewed.</summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Withdraw(int id)
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null) return Forbid();
+
+        var request = await db.ReimbursementRequests.FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.MemberId != member.Id) return Forbid();
+
+        if (request.Status is not (ReimbursementStatus.Pending or ReimbursementStatus.NeedsInfo))
+            return BadRequest(new { message = $"A {request.Status} claim cannot be withdrawn." });
+
+        request.IsDeleted = true;
+        await db.SaveChangesAsync();
+        await audit.LogAsync("Reimbursements", "Withdraw", $"Claim #{id} withdrawn by {member.Flat}.");
+        return NoContent();
+    }
+
+    // ── Reviewer ─────────────────────────────────────────────────────────────
+
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<ReimbursementDto>>> List([FromQuery] string? status)
+    {
+        if (!User.CanView(PermissionModules.Liabilities)) return Forbid();
+
+        var q = Query();
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ReimbursementStatus>(status, true, out var parsed))
+            q = q.Where(r => r.Status == parsed);
+
+        // Pending first: this list is a work queue, not an archive.
+        var rows = await q.ToListAsync();
+        return Ok(rows
+            .OrderBy(r => r.Status == ReimbursementStatus.Pending ? 0 : 1)
+            .ThenByDescending(r => r.Id)
+            .Select(ToDto));
+    }
+
+    [HttpGet("summary")]
+    public async Task<ActionResult<ReimbursementSummaryDto>> Summary()
+    {
+        if (!User.CanView(PermissionModules.Liabilities)) return Forbid();
+
+        var rows = await Query().ToListAsync();
+        var awaiting = rows
+            .Where(r => r.Status == ReimbursementStatus.Approved && r.Liability is not null)
+            .Select(r => r.Liability!.Amount - r.Liability!.SettledAmount)
+            .Where(outstanding => outstanding > 0)
+            .ToList();
+
+        return Ok(new ReimbursementSummaryDto(
+            rows.Count(r => r.Status == ReimbursementStatus.Pending),
+            rows.Count(r => r.Status == ReimbursementStatus.NeedsInfo),
+            awaiting.Count,
+            awaiting.Sum()));
+    }
+
+    [HttpPost("{id:int}/approve")]
+    public async Task<ActionResult<ReimbursementDto>> Approve(int id)
+    {
+        if (!User.CanEdit(PermissionModules.Liabilities)) return Forbid();
+
+        var request = await db.ReimbursementRequests.Include(r => r.Member).FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.Status is ReimbursementStatus.Approved)
+            return BadRequest(new { message = "This claim has already been approved." });
+        if (request.Status is ReimbursementStatus.Rejected)
+            return BadRequest(new { message = "A rejected claim cannot be approved. Ask the member to resubmit." });
+
+        // Nobody signs off their own money, whatever permissions they hold.
+        var reviewer = await ResolveMemberAsync();
+        if (reviewer is not null && reviewer.Id == request.MemberId)
+            return BadRequest(new { message = "You cannot approve your own reimbursement. Another committee member must review it." });
+
+        var member = await db.Members.FirstOrDefaultAsync(m => m.Id == request.MemberId);
+        if (member is null) return BadRequest(new { message = "The member on this claim no longer exists." });
+
+        // Creating the liability books the cost as an expense in the month it was incurred, and
+        // records that the society still owes the money. Settlement stays a separate decision.
+        var liability = liabilities.Create(
+            LiabilitySource.MemberContribution, member, null,
+            request.ExpenseDate, request.Amount, request.Category,
+            string.IsNullOrWhiteSpace(request.Description) ? null : request.Description);
+
+        request.Status = ReimbursementStatus.Approved;
+        request.Liability = liability;
+        request.ReviewedByUserId = CurrentUserId;
+        request.ReviewedOn = DateTime.UtcNow;
+        request.ReviewNote = null;
+
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("Reimbursements", "Approve",
+            $"Approved claim #{id} for {member.Flat}: {request.Amount:0.00} ({request.Category}). " +
+            $"Liability #{liability.Id} raised and the cost booked to {request.ExpenseDate:MMM yyyy}.");
+
+        return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
+    }
+
+    [HttpPost("{id:int}/reject")]
+    public Task<ActionResult<ReimbursementDto>> Reject(int id, ReimbursementReviewRequest req) =>
+        ReviewAsync(id, ReimbursementStatus.Rejected, req.Note, "Reject");
+
+    [HttpPost("{id:int}/request-info")]
+    public Task<ActionResult<ReimbursementDto>> RequestInfo(int id, ReimbursementReviewRequest req) =>
+        ReviewAsync(id, ReimbursementStatus.NeedsInfo, req.Note, "RequestInfo");
+
+    private async Task<ActionResult<ReimbursementDto>> ReviewAsync(
+        int id, ReimbursementStatus target, string note, string action)
+    {
+        if (!User.CanEdit(PermissionModules.Liabilities)) return Forbid();
+
+        var request = await db.ReimbursementRequests.FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.Status == ReimbursementStatus.Approved)
+            return BadRequest(new { message = "An approved claim cannot be changed. Settle or delete the liability instead." });
+
+        var reviewer = await ResolveMemberAsync();
+        if (reviewer is not null && reviewer.Id == request.MemberId)
+            return BadRequest(new { message = "You cannot review your own reimbursement." });
+
+        request.Status = target;
+        request.ReviewNote = note.Trim();
+        request.ReviewedByUserId = CurrentUserId;
+        request.ReviewedOn = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("Reimbursements", action, $"Claim #{id} -> {target}: {note.Trim()}");
+        return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
+    }
+
+    private IQueryable<ReimbursementRequest> Query() =>
+        db.ReimbursementRequests.AsNoTracking().Include(r => r.Member).Include(r => r.Liability);
+
+    private static ReimbursementDto ToDto(ReimbursementRequest r)
+    {
+        var settled = r.Liability?.SettledAmount ?? 0m;
+        var outstanding = r.Liability is null ? 0m : r.Liability.Amount - settled;
+
+        // Before approval the approval state is the interesting one; after it, what the member
+        // wants to know is whether they have actually been paid.
+        var display = r.Status switch
+        {
+            ReimbursementStatus.Approved when r.Liability is null => "Approved",
+            ReimbursementStatus.Approved => r.Liability!.Status switch
+            {
+                LiabilityStatus.Settled => "Settled",
+                LiabilityStatus.PartiallySettled => "PartiallySettled",
+                _ => "AwaitingSettlement"
+            },
+            _ => r.Status.ToString()
+        };
+
+        return new ReimbursementDto(
+            r.Id, r.MemberId, r.Member?.Name ?? "(unknown)", r.Member?.Flat ?? "",
+            r.Category, r.Description, r.Vendor, r.Amount, r.ExpenseDate,
+            r.PaymentMode, r.TransactionReference, r.Status.ToString(),
+            r.CreatedOn, r.ReviewNote, r.ReviewedOn,
+            r.LiabilityId, settled, outstanding, display);
+    }
+}

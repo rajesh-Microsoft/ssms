@@ -1,0 +1,21 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Reimbursement Requests</h3>
+    <div class="search-row">
+      <input type="text" id="reimbSearch" placeholder="🔍 Search..." oninput="renderReimbursements()" style="width:160px;">
+      <select id="reimbStatusF" onchange="renderReimbursements()" style="width:auto;">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="NeedsInfo">Needs Info</option>
+        <option value="Approved">Approved</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+    </div>
+  </div>
+  <p style="color:var(--sub);font-size:13px;margin:0 0 10px;">Members claiming back money they spent on the society's behalf. Approving one raises a liability and books the cost as an expense in the month it was incurred — settle it from the Liabilities tab. You cannot approve your own claim.</p>
+  <div id="reimb-summary" style="margin-bottom:10px;display:flex;gap:10px;flex-wrap:wrap;"></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>#</th><th>Member</th><th>Flat</th><th>Spent on</th><th>Category</th><th>Vendor</th><th>Amount</th><th>Reference</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="reimb-tbody"></tbody></table>
+  </div>
+</div>

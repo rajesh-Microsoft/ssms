@@ -167,7 +167,8 @@ public partial class TenantProvisioningService(
     /// <summary>Azure SQL defaults a bare CREATE DATABASE to General Purpose, so the tier is stated
     /// explicitly. CREATE DATABASE must also be alone in its batch, hence the separate existence check.
     /// Also called from startup, where a tenant listed in the control plane may have no database yet.</summary>
-    public static async Task EnsureDatabaseAsync(string connectionString, string? sqlOptions)    {
+    public static async Task EnsureDatabaseAsync(string connectionString, string? sqlOptions)
+    {
         if (string.IsNullOrWhiteSpace(sqlOptions))
             return; // local SQL Server: let EF create the database with server defaults
 

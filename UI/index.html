@@ -30,6 +30,7 @@
     <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
     <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
     <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
+    <div class="nav-item admin-only" onclick="showTab('reimb',this)"><span class="ni">💸</span> Reimbursements <span class="nbadge" id="reimbBadge" style="display:none;">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Collections</div>
     <div class="nav-sec admin-only">Management</div>
     <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
@@ -48,6 +49,7 @@
     <div class="nav-item member-only" id="mnav-dash" onclick="showTab('mdash',this)"><span class="ni">📊</span> Dashboard</div>
     <div class="nav-item member-only" onclick="showTab('mpay',this)"><span class="ni">💰</span> My Payments</div>
     <div class="nav-item member-only" onclick="showTab('mreceipts',this)"><span class="ni">🧾</span> Receipts</div>
+    <div class="nav-item member-only" onclick="showTab('mreimb',this)"><span class="ni">💸</span> Reimbursements</div>
     <div class="nav-sec member-only">Society (read-only)</div>
     <div class="nav-item member-only" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Overview</div>
     <div class="nav-item member-only" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
@@ -112,6 +114,10 @@
 
     <!-- SOCIETY LIABILITIES (lazy-loaded from partials/liabilities.html) -->
     <div id="tab-liabilities" class="tab-content" data-partial="liabilities"></div>
+
+    <!-- REIMBURSEMENTS: admin review queue and the member's own claims -->
+    <div id="tab-reimb" class="tab-content" data-partial="reimb"></div>
+    <div id="tab-mreimb" class="tab-content" data-partial="mreimb"></div>
 
     <!-- MEMBERS (lazy-loaded from partials/members.html) -->
     <div id="tab-members" class="tab-content" data-partial="members"></div>
@@ -337,6 +343,26 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('liab')">Cancel</button>
       <button class="btn btn-primary" onclick="saveLiability()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-reimb">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="reimb-title">New reimbursement claim</h3><button class="modal-close" onclick="closeModal('reimb')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Expense Category *</label><input type="text" id="rq-cat" list="rq-cats" placeholder="e.g. Plumbing"><datalist id="rq-cats"></datalist></div>
+      <div class="form-group"><label>Amount (₹) *</label><input type="number" id="rq-amt" step="0.01" min="0.01" placeholder="2850.00"></div>
+      <div class="form-group"><label>Date you paid *</label><input type="date" id="rq-date"></div>
+      <div class="form-group"><label>Vendor</label><input type="text" id="rq-vendor" placeholder="ABC Plumbing Services"></div>
+      <div class="form-group full"><label>What was it for? *</label><input type="text" id="rq-desc" placeholder="Repaired the common water pipeline"></div>
+      <div class="form-group"><label>How you paid</label><select id="rq-mode"><option value="">—</option><option>UPI</option><option>Cash</option><option>Card</option><option>Bank Transfer</option><option>Cheque</option></select></div>
+      <div class="form-group"><label>Payment reference</label><input type="text" id="rq-ref" placeholder="UPI transaction ID"></div>
+      <div class="form-group full"><p style="margin:0;font-size:12px;color:var(--sub);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">📎 Keep the bill and the payment screenshot — the committee may ask for them before approving.</p></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('reimb')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveReimbursement()">💾 Submit claim</button>
     </div>
   </div>
 </div>
