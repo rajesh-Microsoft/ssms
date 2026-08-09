@@ -1463,7 +1463,7 @@ function renderReimbursements(){
       <td>${r.id}</td>
       <td>${escGate(r.memberName)}</td>
       <td>${escGate(r.flat)}</td>
-      <td>${fmtDate(r.expenseDate)}</td>
+      <td>${mDate(r.expenseDate)}</td>
       <td>${escGate(r.category)}</td>
       <td>${escGate(r.vendor||'—')}</td>
       <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
@@ -1489,7 +1489,7 @@ function renderMyReimbursements(){
     const note = r.reviewNote ? `<div style="font-size:11px;color:var(--sub);">${escGate(r.reviewNote)}</div>` : '';
     return `<tr>
       <td>${r.id}</td>
-      <td>${fmtDate(r.expenseDate)}</td>
+      <td>${mDate(r.expenseDate)}</td>
       <td>${escGate(r.category)}</td>
       <td>${escGate(r.description)}${note}</td>
       <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
@@ -1557,7 +1557,7 @@ async function withdrawReimbursement(id){
 async function approveReimbursement(id){
   const r = (DB.reimbursements||[]).find(x=>x.id===id); if(!r) return;
   if(!confirm(`Approve \u20b9${(r.amount||0).toLocaleString('en-IN')} for ${r.memberName}?\n\n` +
-              `This books the ${r.category} cost to ${fmtDate(r.expenseDate)} and records that the society owes them the money. ` +
+              `This books the ${r.category} cost to ${mDate(r.expenseDate)} and records that the society owes them the money. ` +
               `Repay it from the Liabilities tab.`)) return;
   try{
     await Api.approveReimbursement(id);
