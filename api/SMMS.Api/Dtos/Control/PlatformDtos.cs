@@ -41,6 +41,10 @@ public record RenewSocietyRequest(
     DateTime ExpiryDate,
     string? Plan);
 
+/// <summary>Confirmation for permanent deletion. The key must be retyped, so the destructive
+/// call cannot be made by a client that only knows the URL.</summary>
+public record DeleteSocietyRequest(string ConfirmKey);
+
 /// <summary>A society as seen by the super-admin, including a live member count.</summary>
 public record SocietyDto(
     string Key,

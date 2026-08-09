@@ -167,8 +167,7 @@ public partial class TenantProvisioningService(
     /// <summary>Azure SQL defaults a bare CREATE DATABASE to General Purpose, so the tier is stated
     /// explicitly. CREATE DATABASE must also be alone in its batch, hence the separate existence check.
     /// Also called from startup, where a tenant listed in the control plane may have no database yet.</summary>
-    public static async Task EnsureDatabaseAsync(string connectionString, string? sqlOptions)
-    {
+    public static async Task EnsureDatabaseAsync(string connectionString, string? sqlOptions)    {
         if (string.IsNullOrWhiteSpace(sqlOptions))
             return; // local SQL Server: let EF create the database with server defaults
 
@@ -195,6 +194,122 @@ public partial class TenantProvisioningService(
         create.CommandText = $"CREATE DATABASE [{dbName}] {sqlOptions}";
         create.CommandTimeout = 300;
         await create.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>What a permanent deletion destroyed. Gathered before the drop so the platform
+    /// audit records the size of what was lost, not an empty shell.</summary>
+    public sealed record SocietyDeletionReport(
+        string Key, string DisplayName, string DbName, string PreviousStatus,
+        bool DatabaseExisted, int Members, int Users, int Collections, decimal BilledValue);
+
+    /// <summary>
+    /// Permanently removes a society: drops its database and deletes the control-plane record.
+    /// There is no backup and no undo — the caller is responsible for being certain.
+    /// </summary>
+    /// <remarks>
+    /// Refuses an Active society outright. Suspending first is a deliberate speed bump: it forces
+    /// the tenant offline, gives residents a chance to complain, and makes deletion a second
+    /// decision taken later rather than one click on a live society.
+    /// </remarks>
+    public async Task<SocietyDeletionReport> DeletePermanentlyAsync(string key)
+    {
+        var society = await controlDb.Societies.FirstOrDefaultAsync(s => s.Key == key)
+            ?? throw new InvalidOperationException($"No society with key '{key}'.");
+
+        if (string.Equals(society.Status, SocietyStatus.Active, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(society.Status, SocietyStatus.Trial, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                $"'{society.Key}' is {society.Status}. Suspend it first: a live society cannot be deleted in one step.");
+        }
+
+        if (!DbNameRegex().IsMatch(society.DbName))
+            throw new InvalidOperationException($"Unsafe tenant database name '{society.DbName}'.");
+
+        var report = await MeasureBeforeDeletionAsync(society);
+        await DropDatabaseAsync(society.DbName);
+
+        controlDb.Societies.Remove(society);
+        await controlDb.SaveChangesAsync();
+        tenantStore.Reload();
+
+        return report;
+    }
+
+    /// <summary>Counts what is about to be destroyed. Never throws: a database that is already
+    /// gone or unreachable must not block the removal of its control-plane record.</summary>
+    private async Task<SocietyDeletionReport> MeasureBeforeDeletionAsync(Society society)
+    {
+        var empty = new SocietyDeletionReport(
+            society.Key, society.DisplayName, society.DbName, society.Status,
+            DatabaseExisted: false, 0, 0, 0, 0m);
+
+        var tenant = tenantStore.GetByKey(society.Key);
+        if (tenant is null) return empty;
+
+        try
+        {
+            using var scope = scopeFactory.CreateScope();
+            scope.ServiceProvider.GetRequiredService<ITenantContext>().Current = tenant;
+            var db = scope.ServiceProvider.GetRequiredService<SmmsDbContext>();
+
+            if (!await db.Database.CanConnectAsync()) return empty;
+
+            return empty with
+            {
+                DatabaseExisted = true,
+                Members = await db.Members.CountAsync(),
+                Users = await db.Users.CountAsync(),
+                Collections = await db.Collections.CountAsync(),
+                BilledValue = await db.Collections.SumAsync(c => (decimal?)c.Amount) ?? 0m
+            };
+        }
+        catch (SqlException)
+        {
+            return empty;
+        }
+    }
+
+    /// <summary>Drops the tenant database. Pooled connections are cleared and existing sessions
+    /// are kicked, otherwise the drop fails with "database is currently in use". Azure SQL rejects
+    /// SET SINGLE_USER, so that step is best-effort.</summary>
+    private async Task DropDatabaseAsync(string dbName)
+    {
+        var template = configuration["ControlPlane:TenantConnectionTemplate"]
+            ?? throw new InvalidOperationException("ControlPlane:TenantConnectionTemplate is not configured.");
+
+        var builder = new SqlConnectionStringBuilder(template.Replace("{DbName}", dbName))
+        {
+            InitialCatalog = "master"
+        };
+        SqlConnection.ClearAllPools();
+
+        await using var conn = new SqlConnection(builder.ConnectionString);
+        await conn.OpenAsync();
+
+        await using (var check = conn.CreateCommand())
+        {
+            check.CommandText = "SELECT 1 FROM sys.databases WHERE name = @name";
+            check.Parameters.AddWithValue("@name", dbName);
+            if (await check.ExecuteScalarAsync() is null) return;
+        }
+
+        try
+        {
+            await using var single = conn.CreateCommand();
+            single.CommandText = $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE";
+            single.CommandTimeout = 120;
+            await single.ExecuteNonQueryAsync();
+        }
+        catch (SqlException)
+        {
+            // Azure SQL does not support SINGLE_USER; DROP below still works there.
+        }
+
+        await using var drop = conn.CreateCommand();
+        drop.CommandText = $"DROP DATABASE [{dbName}]";
+        drop.CommandTimeout = 300;
+        await drop.ExecuteNonQueryAsync();
     }
 
     /// <summary>Readable 12-char temp password (no ambiguous 0/O/1/l/I) for a newly approved admin.</summary>
