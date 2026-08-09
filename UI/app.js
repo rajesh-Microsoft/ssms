@@ -735,6 +735,15 @@ function renderDashboard(){
   setText('kpi-liab','₹'+liabTotal.toLocaleString('en-IN'));
   setText('kpi-liab-sub', openLiabs.length+' open item'+(openLiabs.length===1?'':'s'));
 
+  const rs = DB.reimbSummary;
+  if(rs){
+    const waiting = (rs.pending||0) + (rs.needsInfo||0);
+    setText('kpi-reimb', waiting);
+    setText('kpi-reimb-sub', waiting
+      ? waiting+' awaiting review · ₹'+(rs.awaitingSettlementValue||0).toLocaleString('en-IN')+' to repay'
+      : ((rs.awaitingSettlement||0) ? '₹'+(rs.awaitingSettlementValue||0).toLocaleString('en-IN')+' to repay' : 'Nothing outstanding'));
+  }
+
   document.getElementById('dash-col-tbody').innerHTML = [...DB.collections].reverse().slice(0,6).map(c=>{
     const st=getStatus(c)||'Unknown'; const stk=st.toLowerCase();
     return `<tr><td>${fld(c,'memberName','MemberName','name','Name')}</td><td>${fld(c,'flat','Flat')}</td><td>₹${getAmt(c).toLocaleString('en-IN')}</td><td><span class="badge b-${stk}">${st}</span></td></tr>`;
@@ -1457,7 +1466,9 @@ function renderReimbursements(){
     const acts = canEdit('Liabilities') && open ? `
       <button class="ic-btn" title="Approve" onclick="approveReimbursement(${r.id})">✅</button>
       <button class="ic-btn" title="Ask for more information" onclick="reviewReimbursement(${r.id},'info')">❓</button>
-      <button class="ic-btn" title="Reject" onclick="reviewReimbursement(${r.id},'reject')">✖</button>` : '';
+      <button class="ic-btn" title="Reject" onclick="reviewReimbursement(${r.id},'reject')">✖</button>`
+      : (canEdit('Liabilities') && r.status==='Approved' && (r.outstanding||0) > 0
+        ? `<button class="ic-btn" title="Repay the member" onclick="openReimbSettle(${r.id})">💰</button>` : '');
     const evidence = r.attachmentCount
       ? `<button class="ic-btn" title="View the bill / screenshot" onclick="showReimbAttachments(${r.id})">📎 ${r.attachmentCount}</button>`
       : '<span style="font-size:11px;color:var(--sub);" title="Nothing attached">—</span>';
@@ -1609,8 +1620,51 @@ async function approveReimbursement(id){
   }catch(e){ toast(e.message || 'Could not approve the claim.','warn'); }
 }
 
-async function reviewReimbursement(id, kind){
-  const prompts = {
+// Repaying from the claim screen. Same endpoint semantics as the liabilities ledger, so a
+// partial repayment leaves the rest outstanding rather than closing the claim.
+function openReimbSettle(id){
+  const r = (DB.reimbursements||[]).find(x=>x.id===id); if(!r) return;
+  const outstanding = r.outstanding || 0;
+  document.getElementById('rs-title').textContent = `Repay ${r.memberName} — claim #${r.id}`;
+  document.getElementById('rs-info').textContent =
+    `${r.category} · claimed ₹${(r.amount||0).toLocaleString('en-IN')} · outstanding ₹${outstanding.toLocaleString('en-IN')}`;
+  document.getElementById('rs-amount').value = outstanding;
+  document.getElementById('rs-method').value = 'Repaid';
+  document.getElementById('rs-mode').value = 'UPI';
+  document.getElementById('rs-ref').value = '';
+  document.getElementById('rs-note').value = '';
+  settleReimbId = id;
+  onReimbSettleMethodChange();
+  openModal('rsettle');
+}
+
+function onReimbSettleMethodChange(){
+  const advance = document.getElementById('rs-method').value === 'ConvertedToAdvance';
+  const row = document.getElementById('rs-mode-row');
+  if(row) row.style.display = advance ? 'none' : '';
+}
+
+let settleReimbId = null;
+async function saveReimbSettle(){
+  const amount = parseFloat(document.getElementById('rs-amount').value);
+  if(!(amount > 0)) return toast('Enter the amount being repaid.','warn');
+  const payload = {
+    amount,
+    method: document.getElementById('rs-method').value,
+    paymentMode: document.getElementById('rs-mode').value || null,
+    reference: document.getElementById('rs-ref').value.trim() || null,
+    note: document.getElementById('rs-note').value.trim() || null
+  };
+  try{
+    await Api.settleReimbursement(settleReimbId, payload);
+    closeModal('rsettle');
+    await Promise.all([loadReimbursements(), loadLiabilities(), loadExpenses(), loadMembers()]);
+    renderReimbursements(); renderDashboard();
+    toast('Repayment recorded.');
+  }catch(e){ toast(e.message || 'Could not record the repayment.','warn'); }
+}
+
+async function reviewReimbursement(id, kind){  const prompts = {
     reject: 'Why is this claim being rejected? The member will see this.',
     info:   'What do you need from the member? They can edit and resubmit.'
   };

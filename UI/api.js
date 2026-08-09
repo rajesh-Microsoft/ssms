@@ -168,6 +168,7 @@ const Api = {
   updateReimbursement: (id, payload) => apiFetch(`/reimbursements/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   withdrawReimbursement: (id) => apiFetch(`/reimbursements/${id}`, { method: 'DELETE' }),
   approveReimbursement: (id) => apiFetch(`/reimbursements/${id}/approve`, { method: 'POST' }),
+  settleReimbursement: (id, payload) => apiFetch(`/reimbursements/${id}/settle`, { method: 'POST', body: JSON.stringify(payload) }),
   rejectReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
   requestInfoReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/request-info`, { method: 'POST', body: JSON.stringify({ note }) }),
   getReimbAttachments: (id) => apiFetch(`/reimbursements/${id}/attachments`),

@@ -368,6 +368,28 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-rsettle">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="rs-title">Repay member</h3><button class="modal-close" onclick="closeModal('rsettle')">✕</button></div>
+    <p id="rs-info" style="color:var(--sub);font-size:13px;margin:0 0 6px;padding:0 4px;"></p>
+    <div class="form-grid">
+      <div class="form-group"><label>Amount (₹) *</label><input type="number" id="rs-amount" step="0.01" min="0.01"></div>
+      <div class="form-group"><label>Method *</label><select id="rs-method" onchange="onReimbSettleMethodChange()">
+        <option value="Repaid">Repay cash to the member</option>
+        <option value="ConvertedToAdvance">Credit their advance wallet</option>
+      </select></div>
+      <div class="form-group" id="rs-mode-row"><label>Payment Mode</label><select id="rs-mode"><option>UPI</option><option>Cash</option><option>Cheque</option><option>NEFT</option></select></div>
+      <div class="form-group"><label>Reference</label><input type="text" id="rs-ref" placeholder="UTR / cheque no"></div>
+      <div class="form-group full"><label>Note</label><input type="text" id="rs-note" placeholder="Optional"></div>
+      <div class="form-group full"><p style="margin:0;font-size:12px;color:var(--sub);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;">📒 The cost was already booked when this claim was approved. This records the cash going back to the member, not a new expense.</p></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('rsettle')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveReimbSettle()">💾 Record repayment</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-stl">
   <div class="modal">
     <div class="modal-hdr"><h3>Settle Liability</h3><button class="modal-close" onclick="closeModal('stl')">✕</button></div>

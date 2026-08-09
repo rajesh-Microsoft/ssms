@@ -260,8 +260,45 @@ public class ReimbursementsController(
         return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
     }
 
-    // ── Attachments: the bill and the proof of payment ───────────────────────
+    /// <summary>Repays the member without leaving the claim screen. Delegates to the same service
+    /// the liabilities ledger uses, so partial settlement, advance conversion and the audit trail
+    /// behave identically however the treasurer got here.</summary>
+    [HttpPost("{id:int}/settle")]
+    public async Task<ActionResult<ReimbursementDto>> Settle(int id, ReimbursementSettleRequest req)
+    {
+        if (!User.CanEdit(PermissionModules.Liabilities)) return Forbid();
 
+        var request = await db.ReimbursementRequests.FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.Status != ReimbursementStatus.Approved || request.LiabilityId is null)
+            return BadRequest(new { message = "Only an approved claim can be settled." });
+
+        var liability = await db.SocietyLiabilities
+            .Include(l => l.Member).Include(l => l.Settlements)
+            .FirstOrDefaultAsync(l => l.Id == request.LiabilityId);
+        if (liability is null) return BadRequest(new { message = "The liability behind this claim is missing." });
+        if (liability.Status == LiabilityStatus.Settled)
+            return BadRequest(new { message = "This claim has already been repaid in full." });
+
+        if (!Enum.TryParse<LiabilitySettlementMethod>(req.Method, true, out var method))
+            return BadRequest(new { message = "Settle either by Repaid or ConvertedToAdvance." });
+        if (method == LiabilitySettlementMethod.ConvertedToAdvance && liability.Member is null)
+            return BadRequest(new { message = "Cannot convert to an advance without a linked member." });
+
+        var expense = await db.Expenses.FirstOrDefaultAsync(e => e.FundedByLiabilityId == liability.Id);
+        var applied = liabilities.Settle(liability, req.Amount, method, liability.Member,
+            costAlreadyBooked: expense is not null, req.PaymentMode, req.Reference, req.Note);
+        if (applied <= 0) return BadRequest(new { message = "There is nothing outstanding to settle." });
+
+        await db.SaveChangesAsync();
+        await audit.LogAsync("Reimbursements", "Settle",
+            $"Repaid {applied:0.00} on claim #{id} (liability #{liability.Id}) via {method}" +
+            (string.IsNullOrWhiteSpace(req.Reference) ? "." : $", ref {req.Reference.Trim()}."));
+
+        return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
+    }
+
+    // ── Attachments: the bill and the proof of payment ───────────────────────
     /// <summary>Whether the caller may see this claim's evidence: the member who raised it, or
     /// somebody who can act on the queue.</summary>
     private async Task<bool> CanSeeAsync(ReimbursementRequest request)
@@ -369,11 +406,13 @@ public class ReimbursementsController(
 
     private IQueryable<ReimbursementRequest> Query() =>
         db.ReimbursementRequests.AsNoTracking()
-            .Include(r => r.Member).Include(r => r.Liability).Include(r => r.Attachments);
+            .Include(r => r.Member).Include(r => r.Attachments)
+            .Include(r => r.Liability).ThenInclude(l => l!.Settlements);
     private static ReimbursementDto ToDto(ReimbursementRequest r)
     {
         var settled = r.Liability?.SettledAmount ?? 0m;
         var outstanding = r.Liability is null ? 0m : r.Liability.Amount - settled;
+        var last = r.Liability?.Settlements.OrderByDescending(s => s.Id).FirstOrDefault();
 
         // Before approval the approval state is the interesting one; after it, what the member
         // wants to know is whether they have actually been paid.
@@ -394,6 +433,7 @@ public class ReimbursementsController(
             r.Category, r.Description, r.Vendor, r.Amount, r.ExpenseDate,
             r.PaymentMode, r.TransactionReference, r.Status.ToString(),
             r.CreatedOn, r.ReviewNote, r.ReviewedOn,
-            r.LiabilityId, settled, outstanding, r.Attachments.Count, display);
+            r.LiabilityId, settled, outstanding, r.Attachments.Count,
+            last?.Date, last?.Method.ToString(), last?.Reference, display);
     }
 }

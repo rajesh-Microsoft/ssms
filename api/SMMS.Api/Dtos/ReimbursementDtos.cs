@@ -18,6 +18,14 @@ public record ReimbursementCreateRequest(
 public record ReimbursementReviewRequest(
     [Required, MaxLength(500)] string Note);
 
+/// <summary>Repaying the member, from the claim screen rather than the liabilities ledger.</summary>
+public record ReimbursementSettleRequest(
+    [Range(0.01, 100_000_000)] decimal Amount,
+    [Required] string Method,
+    [MaxLength(30)] string? PaymentMode,
+    [MaxLength(60)] string? Reference,
+    [MaxLength(300)] string? Note);
+
 /// <summary>A claim as shown to members and reviewers. Settlement figures are read from the linked
 /// liability rather than stored here, so they cannot disagree with the ledger.</summary>
 public record ReimbursementDto(
@@ -40,6 +48,9 @@ public record ReimbursementDto(
     decimal SettledAmount,
     decimal Outstanding,
     int AttachmentCount,
+    DateTime? SettledOn,
+    string? SettlementMethod,
+    string? SettlementReference,
     /// <summary>Pending | NeedsInfo | Rejected | Approved | PartiallySettled | Settled — the
     /// approval state until approved, the money's state afterwards.</summary>
     string DisplayStatus);
