@@ -148,7 +148,10 @@ public class ReimbursementsController(
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ReimbursementDto>>> List([FromQuery] string? status)
     {
-        if (!User.CanView(PermissionModules.Liabilities)) return Forbid();
+        // Edit, not View: permissions default to View for anyone without an explicit grant, and a
+        // claim names a neighbour, what they bought and their payment reference. Only people who
+        // can actually act on the queue should read it; members use /mine for their own.
+        if (!User.CanEdit(PermissionModules.Liabilities)) return Forbid();
 
         var q = Query();
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ReimbursementStatus>(status, true, out var parsed))
@@ -165,7 +168,7 @@ public class ReimbursementsController(
     [HttpGet("summary")]
     public async Task<ActionResult<ReimbursementSummaryDto>> Summary()
     {
-        if (!User.CanView(PermissionModules.Liabilities)) return Forbid();
+        if (!User.CanEdit(PermissionModules.Liabilities)) return Forbid();
 
         var rows = await Query().ToListAsync();
         var awaiting = rows
