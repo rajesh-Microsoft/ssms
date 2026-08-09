@@ -6,6 +6,7 @@ using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
 using SMMS.Api.Services;
+using SMMS.Api.Services.Storage;
 
 namespace SMMS.Api.Controllers;
 
@@ -24,6 +25,7 @@ namespace SMMS.Api.Controllers;
 public class ReimbursementsController(
     SmmsDbContext db,
     SocietyLiabilityService liabilities,
+    IFileStorage storage,
     AuditService audit) : ControllerBase
 {
     private int CurrentUserId => int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -258,9 +260,116 @@ public class ReimbursementsController(
         return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
     }
 
-    private IQueryable<ReimbursementRequest> Query() =>
-        db.ReimbursementRequests.AsNoTracking().Include(r => r.Member).Include(r => r.Liability);
+    // ── Attachments: the bill and the proof of payment ───────────────────────
 
+    /// <summary>Whether the caller may see this claim's evidence: the member who raised it, or
+    /// somebody who can act on the queue.</summary>
+    private async Task<bool> CanSeeAsync(ReimbursementRequest request)
+    {
+        if (User.CanEdit(PermissionModules.Liabilities)) return true;
+        var member = await ResolveMemberAsync();
+        return member is not null && member.Id == request.MemberId;
+    }
+
+    [HttpGet("{id:int}/attachments")]
+    public async Task<ActionResult<IEnumerable<ReimbursementAttachmentDto>>> Attachments(int id)
+    {
+        var request = await db.ReimbursementRequests.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (!await CanSeeAsync(request)) return Forbid();
+
+        var rows = await db.ReimbursementAttachments.AsNoTracking()
+            .Where(a => a.RequestId == id).OrderBy(a => a.Id).ToListAsync();
+
+        return Ok(rows.Select(a => new ReimbursementAttachmentDto(
+            a.Id, a.FileName ?? "attachment", a.ContentType ?? "application/octet-stream",
+            a.SizeBytes, a.UploadedOn)));
+    }
+
+    [HttpPost("{id:int}/attachments")]
+    [RequestSizeLimit(UploadRules.MaxBytes + 1024 * 1024)]
+    public async Task<ActionResult<ReimbursementAttachmentDto>> Attach(int id, IFormFile file)
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null) return Forbid();
+
+        var request = await db.ReimbursementRequests.FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.MemberId != member.Id) return Forbid();
+
+        // Once approved the claim is evidence for money already committed; it must not change.
+        if (request.Status is not (ReimbursementStatus.Pending or ReimbursementStatus.NeedsInfo))
+            return BadRequest(new { message = $"A {request.Status} claim cannot take new attachments." });
+
+        var problem = UploadRules.Validate(file, UploadRules.ImagesAndPdf);
+        if (problem is not null) return BadRequest(new { message = problem });
+
+        await using var stream = file.OpenReadStream();
+        var stored = await storage.SaveAsync(stream, "reimbursements", file.FileName);
+
+        var attachment = new ReimbursementAttachment
+        {
+            RequestId = id,
+            StoredPath = stored,
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            SizeBytes = file.Length,
+            UploadedByUserId = CurrentUserId
+        };
+        db.ReimbursementAttachments.Add(attachment);
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("Reimbursements", "Attach", $"Attached '{file.FileName}' to claim #{id}.");
+
+        return Ok(new ReimbursementAttachmentDto(
+            attachment.Id, attachment.FileName!, attachment.ContentType!, attachment.SizeBytes, attachment.UploadedOn));
+    }
+
+    [HttpGet("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> Download(int id, int attachmentId)
+    {
+        var request = await db.ReimbursementRequests.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (!await CanSeeAsync(request)) return Forbid();
+
+        var attachment = await db.ReimbursementAttachments.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.RequestId == id);
+        if (attachment is null) return NotFound();
+
+        var bytes = await storage.ReadAsync(attachment.StoredPath);
+        if (bytes is null) return NotFound(new { message = "The stored file is missing." });
+
+        // inline so the reviewer can eyeball a bill without downloading it first.
+        Response.Headers.ContentDisposition = $"inline; filename=\"{Path.GetFileName(attachment.FileName ?? "attachment")}\"";
+        return File(bytes, attachment.ContentType ?? "application/octet-stream");
+    }
+
+    [HttpDelete("{id:int}/attachments/{attachmentId:int}")]
+    public async Task<IActionResult> RemoveAttachment(int id, int attachmentId)
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null) return Forbid();
+
+        var request = await db.ReimbursementRequests.AsNoTracking().FirstOrDefaultAsync(r => r.Id == id);
+        if (request is null) return NotFound();
+        if (request.MemberId != member.Id) return Forbid();
+        if (request.Status is not (ReimbursementStatus.Pending or ReimbursementStatus.NeedsInfo))
+            return BadRequest(new { message = "Evidence on a reviewed claim cannot be removed." });
+
+        var attachment = await db.ReimbursementAttachments.FirstOrDefaultAsync(a => a.Id == attachmentId && a.RequestId == id);
+        if (attachment is null) return NotFound();
+
+        db.ReimbursementAttachments.Remove(attachment);
+        await db.SaveChangesAsync();
+        storage.Delete(attachment.StoredPath);
+
+        await audit.LogAsync("Reimbursements", "RemoveAttachment", $"Removed '{attachment.FileName}' from claim #{id}.");
+        return NoContent();
+    }
+
+    private IQueryable<ReimbursementRequest> Query() =>
+        db.ReimbursementRequests.AsNoTracking()
+            .Include(r => r.Member).Include(r => r.Liability).Include(r => r.Attachments);
     private static ReimbursementDto ToDto(ReimbursementRequest r)
     {
         var settled = r.Liability?.SettledAmount ?? 0m;
@@ -285,6 +394,6 @@ public class ReimbursementsController(
             r.Category, r.Description, r.Vendor, r.Amount, r.ExpenseDate,
             r.PaymentMode, r.TransactionReference, r.Status.ToString(),
             r.CreatedOn, r.ReviewNote, r.ReviewedOn,
-            r.LiabilityId, settled, outstanding, display);
+            r.LiabilityId, settled, outstanding, r.Attachments.Count, display);
     }
 }

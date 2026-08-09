@@ -170,6 +170,13 @@ const Api = {
   approveReimbursement: (id) => apiFetch(`/reimbursements/${id}/approve`, { method: 'POST' }),
   rejectReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
   requestInfoReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/request-info`, { method: 'POST', body: JSON.stringify({ note }) }),
+  getReimbAttachments: (id) => apiFetch(`/reimbursements/${id}/attachments`),
+  // Multipart must go through apiPostForm: apiFetch forces application/json and the
+  // boundary would be lost. The download is [Authorize]d, so it needs the blob helper
+  // rather than a bare href, which would send no token and 401.
+  uploadReimbAttachment: (id, file) => { const fd = new FormData(); fd.append('file', file); return apiPostForm(`/reimbursements/${id}/attachments`, fd); },
+  viewReimbAttachment: (id, attId) => apiFetchObjectUrl(`/reimbursements/${id}/attachments/${attId}`),
+  deleteReimbAttachment: (id, attId) => apiFetch(`/reimbursements/${id}/attachments/${attId}`, { method: 'DELETE' }),
 
   // Settings
   getSettings: () => apiFetch('/settings'),

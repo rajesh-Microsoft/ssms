@@ -264,9 +264,8 @@ public class MemberPaymentsController(
         string? fileName = null, contentType = null;
         if (screenshot is { Length: > 0 })
         {
-            if (screenshot.Length > MaxUploadBytes) return BadRequest(new { message = "Screenshot must be under 5 MB." });
-            if (!screenshot.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { message = "Only image files are allowed." });
+            var problem = UploadRules.Validate(screenshot, UploadRules.Images, MaxUploadBytes);
+            if (problem is not null) return BadRequest(new { message = problem });
             stream = screenshot.OpenReadStream();
             fileName = screenshot.FileName;
             contentType = screenshot.ContentType;

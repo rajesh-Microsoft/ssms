@@ -1450,7 +1450,7 @@ function renderReimbursements(){
       </div>`;
   }
 
-  if(!rows.length){ tb.innerHTML = '<tr><td colspan="10" class="empty">No reimbursement claims.</td></tr>'; return; }
+  if(!rows.length){ tb.innerHTML = '<tr><td colspan="11" class="empty">No reimbursement claims.</td></tr>'; return; }
 
   tb.innerHTML = rows.map(r => {
     const open = r.status==='Pending' || r.status==='NeedsInfo';
@@ -1458,6 +1458,9 @@ function renderReimbursements(){
       <button class="ic-btn" title="Approve" onclick="approveReimbursement(${r.id})">✅</button>
       <button class="ic-btn" title="Ask for more information" onclick="reviewReimbursement(${r.id},'info')">❓</button>
       <button class="ic-btn" title="Reject" onclick="reviewReimbursement(${r.id},'reject')">✖</button>` : '';
+    const evidence = r.attachmentCount
+      ? `<button class="ic-btn" title="View the bill / screenshot" onclick="showReimbAttachments(${r.id})">📎 ${r.attachmentCount}</button>`
+      : '<span style="font-size:11px;color:var(--sub);" title="Nothing attached">—</span>';
     const note = r.reviewNote ? `<div style="font-size:11px;color:var(--sub);">${escGate(r.reviewNote)}</div>` : '';
     return `<tr>
       <td>${r.id}</td>
@@ -1468,6 +1471,7 @@ function renderReimbursements(){
       <td>${escGate(r.vendor||'—')}</td>
       <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
       <td>${escGate(r.transactionReference||'—')}</td>
+      <td>${evidence}</td>
       <td>${reimbBadge(r.displayStatus)}${note}</td>
       <td>${acts}</td>
     </tr>`;
@@ -1486,6 +1490,9 @@ function renderMyReimbursements(){
     const acts = open ? `
       <button class="ic-btn" title="Edit" onclick="openReimbModal(${r.id})">✏️</button>
       <button class="ic-btn" title="Withdraw" onclick="withdrawReimbursement(${r.id})">🗑</button>` : '';
+    const evidence = r.attachmentCount
+      ? `<button class="ic-btn" title="View what you attached" onclick="showReimbAttachments(${r.id})">📎 ${r.attachmentCount}</button>`
+      : '';
     const note = r.reviewNote ? `<div style="font-size:11px;color:var(--sub);">${escGate(r.reviewNote)}</div>` : '';
     return `<tr>
       <td>${r.id}</td>
@@ -1494,7 +1501,7 @@ function renderMyReimbursements(){
       <td>${escGate(r.description)}${note}</td>
       <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
       <td>${reimbBadge(r.displayStatus)}</td>
-      <td>${acts}</td>
+      <td>${evidence}${acts}</td>
     </tr>`;
   }).join('');
 }
@@ -1537,13 +1544,48 @@ async function saveReimbursement(){
   if(!payload.expenseDate) return toast('Enter the date you paid.','warn');
 
   try{
+    let claimId = editReimbId;
     if(editReimbId) await Api.updateReimbursement(editReimbId, payload);
-    else await Api.createReimbursement(payload);
+    else claimId = (await Api.createReimbursement(payload)).id;
+
+    // Uploaded after the claim exists, because each file is attached to its id.
+    const picker = document.getElementById('rq-files');
+    const files = picker && picker.files ? Array.from(picker.files) : [];
+    const failed = [];
+    for(const f of files){
+      try{ await Api.uploadReimbAttachment(claimId, f); }
+      catch(e){ failed.push(`${f.name}: ${e.message}`); }
+    }
+    if(picker) picker.value = '';
+
     closeModal('reimb');
     await loadMyReimbursements();
     renderMyReimbursements();
-    toast(editReimbId ? 'Claim updated — back with the committee.' : 'Claim submitted.');
+    if(failed.length) toast('Claim saved, but some files did not attach — ' + failed.join('; '), 'warn');
+    else toast(editReimbId ? 'Claim updated — back with the committee.' : 'Claim submitted.');
   }catch(e){ toast(e.message || 'Could not save the claim.','warn'); }
+}
+
+// Attachments are [Authorize]d, so they are fetched as a blob and opened from an object URL.
+async function viewReimbAttachment(claimId, attId){
+  try{
+    const url = await Api.viewReimbAttachment(claimId, attId);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }catch(e){ toast(e.message || 'Could not open the file.','warn'); }
+}
+
+async function showReimbAttachments(claimId){
+  try{
+    const list = await Api.getReimbAttachments(claimId);
+    if(!list.length) return toast('No bill or screenshot was attached to this claim.','warn');
+    const pick = list.map((a,i) => `${i+1}. ${a.fileName} (${Math.round(a.sizeBytes/1024)} KB)`).join('\n');
+    const n = list.length === 1 ? '1' : prompt(`Which file?\n\n${pick}\n\nEnter a number:`, '1');
+    if(n === null) return;
+    const chosen = list[parseInt(n,10)-1];
+    if(!chosen) return toast('No such file.','warn');
+    await viewReimbAttachment(claimId, chosen.id);
+  }catch(e){ toast(e.message || 'Could not list the files.','warn'); }
 }
 
 async function withdrawReimbursement(id){

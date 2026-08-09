@@ -22,6 +22,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<SocietyLiability> SocietyLiabilities => Set<SocietyLiability>();
     public DbSet<SocietyLiabilitySettlement> SocietyLiabilitySettlements => Set<SocietyLiabilitySettlement>();
     public DbSet<ReimbursementRequest> ReimbursementRequests => Set<ReimbursementRequest>();
+    public DbSet<ReimbursementAttachment> ReimbursementAttachments => Set<ReimbursementAttachment>();
     public DbSet<SocietyIncome> SocietyIncomes => Set<SocietyIncome>();
     public DbSet<Budget> Budgets => Set<Budget>();
     public DbSet<BudgetItem> BudgetItems => Set<BudgetItem>();
@@ -201,6 +202,16 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .HasIndex(r => new { r.Status, r.ExpenseDate });
         modelBuilder.Entity<ReimbursementRequest>()
             .HasIndex(r => new { r.MemberId, r.Status });
+
+        // Cascade here, unlike the liability link: an attachment has no meaning without its claim.
+        modelBuilder.Entity<ReimbursementAttachment>()
+            .HasOne(a => a.Request)
+            .WithMany(r => r.Attachments)
+            .HasForeignKey(a => a.RequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ReimbursementAttachment>()
+            .HasIndex(a => a.RequestId);
 
         // Speeds up the income list/summary scans by period.
         modelBuilder.Entity<SocietyIncome>()

@@ -39,6 +39,7 @@ public record ReimbursementDto(
     int? LiabilityId,
     decimal SettledAmount,
     decimal Outstanding,
+    int AttachmentCount,
     /// <summary>Pending | NeedsInfo | Rejected | Approved | PartiallySettled | Settled — the
     /// approval state until approved, the money's state afterwards.</summary>
     string DisplayStatus);
@@ -49,3 +50,12 @@ public record ReimbursementSummaryDto(
     int NeedsInfo,
     int AwaitingSettlement,
     decimal AwaitingSettlementValue);
+
+/// <summary>An uploaded bill or payment screenshot. The stored path is deliberately not exposed —
+/// files are fetched through the download endpoint, which checks who is asking.</summary>
+public record ReimbursementAttachmentDto(
+    int Id,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    DateTime UploadedOn);

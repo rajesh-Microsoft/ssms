@@ -333,9 +333,8 @@ public class CaretakerController(SmmsDbContext db, AuditService audit, IFileStor
         string? storedPath = null, contentType = null;
         if (photo is not null && photo.Length > 0)
         {
-            if (photo.Length > MaxPhotoBytes) return BadRequest(new { message = "Photo must be under 5 MB." });
-            if (!photo.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { message = "Only image files are allowed." });
+            var problem = UploadRules.Validate(photo, UploadRules.Images, MaxPhotoBytes);
+            if (problem is not null) return BadRequest(new { message = problem });
 
             await using var stream = photo.OpenReadStream();
             storedPath = await storage.SaveAsync(stream, "caretaker", photo.FileName);

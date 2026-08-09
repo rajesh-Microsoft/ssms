@@ -73,6 +73,8 @@ public class ReimbursementRequest : IAuditable, ISoftDelete
     public int? ReviewedByUserId { get; set; }
     public DateTime? ReviewedOn { get; set; }
 
+    public List<ReimbursementAttachment> Attachments { get; set; } = [];
+
     /// <summary>Why it was rejected, or what the reviewer needs to see. Shown to the member.</summary>
     [MaxLength(500)]
     public string? ReviewNote { get; set; }
