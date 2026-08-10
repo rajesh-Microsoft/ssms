@@ -184,6 +184,15 @@ public class PlatformSocietiesController(
             await audit.LogAsync("SocietyDeleteRefused", "Society", key, ex.Message);
             return BadRequest(new { message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            // Anything else means the deletion stopped part-way. The audit entry is the only
+            // record of that, so it must be written even though the request is failing.
+            await audit.LogAsync("SocietyDeleteFailed", "Society", key,
+                $"Deletion of '{society.DisplayName}' (db {society.DbName}) failed: {ex.Message}. " +
+                "Check whether the control-plane row and the database are still consistent.");
+            throw;
+        }
     }
 
     private string BuildPortalUrl(string key)

@@ -204,13 +204,18 @@ public partial class TenantProvisioningService(
         bool DatabaseExisted, int Members, int Users, int Collections, decimal BilledValue);
 
     /// <summary>
-    /// Permanently removes a society: drops its database and deletes the control-plane record.
+    /// Permanently removes a society: deletes the control-plane record and drops its database.
     /// There is no backup and no undo — the caller is responsible for being certain.
     /// </summary>
     /// <remarks>
     /// Refuses an Active society outright. Suspending first is a deliberate speed bump: it forces
     /// the tenant offline, gives residents a chance to complain, and makes deletion a second
     /// decision taken later rather than one click on a live society.
+    ///
+    /// ORDER MATTERS. This used to drop the database first and remove the row second; a society
+    /// with a platform invoice then failed on the foreign key AFTER its data was already gone,
+    /// leaving a tenant pointing at a database that no longer existed. Blocking references are
+    /// now checked up front, and the recoverable step is committed before the irreversible one.
     /// </remarks>
     public async Task<SocietyDeletionReport> DeletePermanentlyAsync(string key)
     {
@@ -227,12 +232,29 @@ public partial class TenantProvisioningService(
         if (!DbNameRegex().IsMatch(society.DbName))
             throw new InvalidOperationException($"Unsafe tenant database name '{society.DbName}'.");
 
-        var report = await MeasureBeforeDeletionAsync(society);
-        await DropDatabaseAsync(society.DbName);
+        // Checked before anything irreversible happens. These are the only rows that reference a
+        // society, and hitting them after the drop is what left brij-a orphaned.
+        var invoices = await controlDb.PlatformInvoices.CountAsync(i => i.SocietyId == society.Id);
+        var tickets = await controlDb.SupportTickets.CountAsync(t => t.SocietyId == society.Id);
+        if (invoices > 0 || tickets > 0)
+        {
+            var blockers = new List<string>();
+            if (invoices > 0) blockers.Add($"{invoices} platform invoice{(invoices == 1 ? "" : "s")}");
+            if (tickets > 0) blockers.Add($"{tickets} support ticket{(tickets == 1 ? "" : "s")}");
+            throw new InvalidOperationException(
+                $"'{society.Key}' still has {string.Join(" and ", blockers)}. Remove or reassign them first — " +
+                "deleting the society would otherwise destroy its database and leave the billing history dangling.");
+        }
 
+        var report = await MeasureBeforeDeletionAsync(society);
+
+        // The recoverable half first: if the drop then fails we are left with a stray database,
+        // which costs disk and can be cleaned up. The reverse order costs a working tenant.
         controlDb.Societies.Remove(society);
         await controlDb.SaveChangesAsync();
         tenantStore.Reload();
+
+        await DropDatabaseAsync(society.DbName);
 
         return report;
     }
