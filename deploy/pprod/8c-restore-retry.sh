@@ -27,9 +27,14 @@ for f in /tmp/bak/*.bak; do
   fi
 done
 
+if [ -d /tmp/bak/uploads ]; then
+  docker cp /tmp/bak/uploads/. smms-pprod-api:/app/uploads/ 2>/dev/null \
+    && echo "uploads restored: $(docker exec smms-pprod-api sh -c 'find /app/uploads -type f | wc -l') file(s)" \
+    || echo "WARNING: uploads present in the archive but could not be copied into smms-pprod-api"
+fi
+
 echo "--- databases ---"
-sq "SELECT name, state_desc FROM sys.databases WHERE name LIKE 'Smms%' ORDER BY name;"
-echo "--- societies ---"
+sq "SELECT name, state_desc FROM sys.databases WHERE name LIKE 'Smms%' ORDER BY name;"echo "--- societies ---"
 docker exec smms-pprod-sql /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$PW" -C -h -1 -W -s '|' -d SmmsControlDb \
   -Q "SET NOCOUNT ON; SELECT [Key], DbName, Status FROM Societies ORDER BY [Key];"
 echo "--- aadya sanity (should match UAT: 25 members, 304 collections, 11 liabilities) ---"

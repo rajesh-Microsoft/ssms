@@ -14,8 +14,11 @@ tar -xzf /tmp/smms-dbs.tar.gz -C /tmp/bak
 docker exec -u root smms-pprod-sql mkdir -p /var/opt/mssql/backup
 docker cp /tmp/bak/. smms-pprod-sql:/var/opt/mssql/backup/ >/dev/null
 # docker cp lands files as root:root 0640; the engine runs as mssql and cannot read them.
+# The DIRECTORY must stay traversable — a blanket `chmod -R 644` removes its execute bit and
+# every restore then fails with "Cannot open backup device ... error 2".
 docker exec -u root smms-pprod-sql chown -R mssql:root /var/opt/mssql/backup
-docker exec -u root smms-pprod-sql chmod -R 644 /var/opt/mssql/backup
+docker exec -u root smms-pprod-sql chmod 755 /var/opt/mssql/backup
+docker exec -u root smms-pprod-sql find /var/opt/mssql/backup -type f -exec chmod 644 {} +
 
 fail=0
 for f in /tmp/bak/*.bak; do
@@ -27,6 +30,16 @@ for f in /tmp/bak/*.bak; do
     echo "FAIL $db"; echo "$out" | tail -n 3; fail=1
   fi
 done
+
+# Uploaded evidence rides along with the databases; restored attachment rows would otherwise
+# point at files that do not exist here.
+if [ -d /tmp/bak/uploads ]; then
+  docker cp /tmp/bak/uploads/. smms-pprod-api:/app/uploads/ 2>/dev/null \
+    && echo "uploads restored: $(docker exec smms-pprod-api sh -c 'find /app/uploads -type f | wc -l') file(s)" \
+    || echo "WARNING: uploads present in the archive but could not be copied into smms-pprod-api"
+else
+  echo "no uploads in the archive"
+fi
 
 echo "--- databases ---"
 sq "SELECT name, state_desc FROM sys.databases WHERE name LIKE 'Smms%' ORDER BY name;"

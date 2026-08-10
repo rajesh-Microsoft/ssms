@@ -11,8 +11,14 @@ for db in $DBS; do
   echo "backed up $db"
 done
 
-rm -rf /tmp/bak && mkdir -p /tmp/bak
+rm -rf /tmp/bak && mkdir -p /tmp/bak/uploads
 docker cp sqlserver:/var/opt/mssql/backup/. /tmp/bak/
+
+# Uploaded evidence travels with the databases. Without it, restored attachment rows point at
+# files that do not exist on the target.
+docker cp smms-api:/app/uploads/. /tmp/bak/uploads/ 2>/dev/null || echo "no uploads to copy"
+echo "uploads: $(find /tmp/bak/uploads -type f | wc -l) file(s)"
+
 tar -czf /tmp/smms-dbs.tar.gz -C /tmp/bak .
 ls -lh /tmp/smms-dbs.tar.gz
 
