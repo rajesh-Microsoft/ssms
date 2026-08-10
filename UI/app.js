@@ -1415,6 +1415,7 @@ async function loadReimbursements(){
     const data = await Api.getReimbursements();
     DB.reimbursements = Array.isArray(data) ? data : [];
   }catch(err){ DB.reimbursements = []; throw err; }
+  await loadReimbCategories();
   try{
     const s = await Api.getReimbursementSummary();
     const b = document.getElementById('reimbBadge');
@@ -1428,6 +1429,26 @@ async function loadMyReimbursements(){
     const data = await Api.getMyReimbursements();
     DB.myReimbursements = Array.isArray(data) ? data : [];
   }catch(err){ DB.myReimbursements = []; throw err; }
+  await loadReimbCategories();
+}
+
+// The society's own expense categories. Fetched from the reimbursements endpoint rather than
+// settings, so filing a claim does not depend on having Settings permission.
+async function loadReimbCategories(){
+  if(DB.reimbCategories && DB.reimbCategories.length) return DB.reimbCategories;
+  try{ DB.reimbCategories = await Api.getReimbursementCategories(); }
+  catch(err){ DB.reimbCategories = []; }
+  return DB.reimbCategories;
+}
+
+function fillCategorySelect(el, selected){
+  if(!el) return;
+  const cats = DB.reimbCategories || [];
+  // A claim raised before a category was renamed must still show its own value.
+  const all = selected && !cats.some(c => c.toLowerCase() === String(selected).toLowerCase())
+    ? [selected, ...cats] : cats;
+  el.innerHTML = all.map(c => `<option${c===selected?' selected':''}>${escGate(c)}</option>`).join('')
+    || '<option value="">(no categories configured)</option>';
 }
 
 function renderReimbursements(){
@@ -1522,20 +1543,13 @@ function openReimbModal(id){
   editReimbId = id || null;
   const r = id ? (DB.myReimbursements||[]).find(x=>x.id===id) : null;
   document.getElementById('reimb-title').textContent = r ? `Edit claim #${r.id}` : 'New reimbursement claim';
-  document.getElementById('rq-cat').value = r?.category || '';
+  fillCategorySelect(document.getElementById('rq-cat'), r?.category);
   document.getElementById('rq-amt').value = r?.amount ?? '';
   document.getElementById('rq-date').value = (r?.expenseDate || new Date().toISOString()).slice(0,10);
   document.getElementById('rq-vendor').value = r?.vendor || '';
   document.getElementById('rq-desc').value = r?.description || '';
   document.getElementById('rq-mode').value = r?.paymentMode || '';
   document.getElementById('rq-ref').value = r?.transactionReference || '';
-
-  // Offer the same categories the society already books expenses under.
-  const dl = document.getElementById('rq-cats');
-  if(dl){
-    const cats = [...new Set((DB.expenses||[]).map(e=>e.category).filter(Boolean))].sort();
-    dl.innerHTML = cats.map(c=>`<option value="${escGate(c)}">`).join('');
-  }
   openModal('reimb');
 }
 
@@ -1607,16 +1621,30 @@ async function withdrawReimbursement(id){
   }catch(e){ toast(e.message || 'Could not withdraw the claim.','warn'); }
 }
 
+// Approval is where the category is decided, because the member is guessing and the reviewer
+// is the one who owns the books. Whatever is chosen here is what the expense is filed under.
+let approveReimbId = null;
 async function approveReimbursement(id){
   const r = (DB.reimbursements||[]).find(x=>x.id===id); if(!r) return;
-  if(!confirm(`Approve \u20b9${(r.amount||0).toLocaleString('en-IN')} for ${r.memberName}?\n\n` +
-              `This books the ${r.category} cost to ${mDate(r.expenseDate)} and records that the society owes them the money. ` +
-              `Repay it from the Liabilities tab.`)) return;
+  approveReimbId = id;
+  await loadReimbCategories();
+  document.getElementById('ra-info').textContent =
+    `${r.memberName} (${r.flat}) — ₹${(r.amount||0).toLocaleString('en-IN')} spent on ${mDate(r.expenseDate)}. ${r.description}`;
+  fillCategorySelect(document.getElementById('ra-cat'), r.category);
+  document.getElementById('ra-note').textContent =
+    `Claimed as "${r.category}". Approving books ₹${(r.amount||0).toLocaleString('en-IN')} as an expense dated ${mDate(r.expenseDate)} under the category you choose, and records that the society owes ${r.memberName} the money.`;
+  openModal('rappr');
+}
+
+async function confirmApproveReimbursement(){
+  const category = document.getElementById('ra-cat').value;
+  if(!category) return toast('Choose a category to book this under.','warn');
   try{
-    await Api.approveReimbursement(id);
+    await Api.approveReimbursement(approveReimbId, category);
+    closeModal('rappr');
     await Promise.all([loadReimbursements(), loadLiabilities(), loadExpenses()]);
     renderReimbursements(); renderDashboard();
-    toast('Approved — liability raised.');
+    toast(`Approved and booked under ${category}.`);
   }catch(e){ toast(e.message || 'Could not approve the claim.','warn'); }
 }
 

@@ -26,6 +26,12 @@ public record ReimbursementSettleRequest(
     [MaxLength(60)] string? Reference,
     [MaxLength(300)] string? Note);
 
+/// <summary>Approval, optionally correcting the category. Members pick from the society's list but
+/// still guess; the category chosen here is the one the expense is booked under, so the reviewer
+/// gets the final say.</summary>
+public record ReimbursementApproveRequest(
+    [MaxLength(60)] string? Category);
+
 /// <summary>A claim as shown to members and reviewers. Settlement figures are read from the linked
 /// liability rather than stored here, so they cannot disagree with the ledger.</summary>
 public record ReimbursementDto(

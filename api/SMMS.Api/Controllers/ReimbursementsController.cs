@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using SMMS.Api.Data;
 using SMMS.Api.Dtos;
@@ -38,6 +39,21 @@ public class ReimbursementsController(
         if (user is null || string.IsNullOrWhiteSpace(user.Flat)) return null;
         var flat = user.Flat!.Trim().ToLower();
         return await db.Members.AsNoTracking().FirstOrDefaultAsync(m => m.Flat.ToLower() == flat);
+    }
+
+    /// <summary>The society's expense categories, so a member picks from the same list the books
+    /// use instead of inventing one. Deliberately not behind the Settings permission: filing a
+    /// claim must not require permission to read settings.</summary>
+    [HttpGet("categories")]
+    public async Task<ActionResult<IEnumerable<string>>> Categories()
+    {
+        var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync();
+        var list = (settings?.Categories ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c)
+            .ToList();
+        return Ok(list);
     }
 
     // ── Member's own claims ──────────────────────────────────────────────────
@@ -187,7 +203,9 @@ public class ReimbursementsController(
     }
 
     [HttpPost("{id:int}/approve")]
-    public async Task<ActionResult<ReimbursementDto>> Approve(int id)
+    public async Task<ActionResult<ReimbursementDto>> Approve(
+        int id,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ReimbursementApproveRequest? req = null)
     {
         if (!User.CanEdit(PermissionModules.Liabilities)) return Forbid();
 
@@ -206,11 +224,17 @@ public class ReimbursementsController(
         var member = await db.Members.FirstOrDefaultAsync(m => m.Id == request.MemberId);
         if (member is null) return BadRequest(new { message = "The member on this claim no longer exists." });
 
+        // The reviewer's category wins: whatever they choose here is what the books will show.
+        var claimed = request.Category;
+        var category = string.IsNullOrWhiteSpace(req?.Category) ? request.Category : req!.Category!.Trim();
+        var recategorised = !string.Equals(category, claimed, StringComparison.OrdinalIgnoreCase);
+        request.Category = category;
+
         // Creating the liability books the cost as an expense in the month it was incurred, and
         // records that the society still owes the money. Settlement stays a separate decision.
         var liability = liabilities.Create(
             LiabilitySource.MemberContribution, member, null,
-            request.ExpenseDate, request.Amount, request.Category,
+            request.ExpenseDate, request.Amount, category,
             string.IsNullOrWhiteSpace(request.Description) ? null : request.Description);
 
         request.Status = ReimbursementStatus.Approved;
@@ -222,7 +246,8 @@ public class ReimbursementsController(
         await db.SaveChangesAsync();
 
         await audit.LogAsync("Reimbursements", "Approve",
-            $"Approved claim #{id} for {member.Flat}: {request.Amount:0.00} ({request.Category}). " +
+            $"Approved claim #{id} for {member.Flat}: {request.Amount:0.00} ({category}). " +
+            (recategorised ? $"Recategorised from '{claimed}'. " : "") +
             $"Liability #{liability.Id} raised and the cost booked to {request.ExpenseDate:MMM yyyy}.");
 
         return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));

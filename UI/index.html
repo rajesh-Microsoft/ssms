@@ -351,7 +351,7 @@
   <div class="modal">
     <div class="modal-hdr"><h3 id="reimb-title">New reimbursement claim</h3><button class="modal-close" onclick="closeModal('reimb')">✕</button></div>
     <div class="form-grid">
-      <div class="form-group"><label>Expense Category *</label><input type="text" id="rq-cat" list="rq-cats" placeholder="e.g. Plumbing"><datalist id="rq-cats"></datalist></div>
+      <div class="form-group"><label>Expense Category *</label><select id="rq-cat"></select></div>
       <div class="form-group"><label>Amount (₹) *</label><input type="number" id="rq-amt" step="0.01" min="0.01" placeholder="2850.00"></div>
       <div class="form-group"><label>Date you paid *</label><input type="date" id="rq-date"></div>
       <div class="form-group"><label>Vendor</label><input type="text" id="rq-vendor" placeholder="ABC Plumbing Services"></div>
@@ -364,6 +364,21 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('reimb')">Cancel</button>
       <button class="btn btn-primary" onclick="saveReimbursement()">💾 Submit claim</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-rappr">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Approve reimbursement</h3><button class="modal-close" onclick="closeModal('rappr')">✕</button></div>
+    <p id="ra-info" style="color:var(--sub);font-size:13px;margin:0 0 6px;padding:0 4px;"></p>
+    <div class="form-grid">
+      <div class="form-group full"><label>Book this cost under *</label><select id="ra-cat"></select></div>
+      <div class="form-group full"><p id="ra-note" style="margin:0;font-size:12px;color:var(--sub);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;"></p></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('rappr')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmApproveReimbursement()">✅ Approve</button>
     </div>
   </div>
 </div>
