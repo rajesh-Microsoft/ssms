@@ -49,6 +49,8 @@ body.logged-out .app{display:none}
   display:inline-flex;align-items:center;gap:6px;transition:.15s;white-space:nowrap}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{background:var(--accent-dark)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-danger:hover{background:#b53a3a}
 .btn-light{background:#eef0fb;color:var(--accent-dark)}
 .btn-light:hover{background:#e2e5f7}
 .btn-ghost{background:transparent;color:#c7cbe0;border:1px solid rgba(255,255,255,.2)}

@@ -64,6 +64,7 @@ const Platform = {
   pending: () => pfetch('/platform/societies/pending'),
   approve: (key, payload) => pfetch(`/platform/societies/${encodeURIComponent(key)}/approve`, { method:'POST', body: JSON.stringify(payload || {}) }),
   reject:  (key) => pfetch(`/platform/societies/${encodeURIComponent(key)}/reject`, { method:'POST' }),
+  deletePermanently: (key, confirmKey) => pfetch(`/platform/societies/${encodeURIComponent(key)}`, { method:'DELETE', body: JSON.stringify({ confirmKey }) }),
   plans:            () => pfetch('/platform/plans'),
   createPlan:       (p) => pfetch('/platform/plans', { method:'POST', body: JSON.stringify(p) }),
   updatePlan:       (id, p) => pfetch(`/platform/plans/${id}`, { method:'PUT', body: JSON.stringify(p) }),
@@ -227,6 +228,7 @@ function societyTable(list, withActions){
                <button class="btn btn-light btn-sm" onclick="doSuspend('${esc(s.key)}')">⏸ Suspend</button>`}
         <a class="btn btn-light btn-sm" href="${tenantUrl(s.key)}" target="_blank" rel="noopener">↗ Open</a>
         ${s.isDemo ? `<button class="btn btn-light btn-sm" onclick="openDemoTools('${esc(s.key)}')">🧪 Demo Tools</button>` : ''}
+        ${blocked ? `<button class="btn btn-danger btn-sm" onclick="doDeletePermanently('${esc(s.key)}','${esc(s.displayName)}')">🗑 Delete forever</button>` : ''}
       </div></td>` : '';
     return `<tr>
       <td><div class="society-name">${esc(s.displayName)}</div><div class="sub-key">${esc(s.key)}.localhost</div></td>
@@ -268,6 +270,30 @@ async function doSuspend(key){
 async function doActivate(key){
   try{ await Platform.activate(key); toast(`Activated ${key}`, 'ok'); refreshCurrentView(); }
   catch(e){ toast(e.message, 'warn'); }
+}
+
+// Two gates on purpose. The first states plainly what is lost; the second makes the operator
+// type the key, so muscle memory on a confirm dialog cannot destroy a tenant.
+async function doDeletePermanently(key, displayName){
+  const warning =
+    `PERMANENTLY DELETE "${displayName}" (${key})?\n\n` +
+    `This drops the entire tenant database: members, residents' logins, collections,\n` +
+    `payments, expenses and complaints.\n\n` +
+    `There is no backup and no undo. Nobody can recover this, including support.`;
+  if(!confirm(warning)) return;
+
+  const typed = prompt(`Type the society key "${key}" to confirm permanent deletion:`);
+  if(typed === null) return;
+  if(typed !== key){ toast('The key did not match. Nothing was deleted.', 'warn'); return; }
+
+  try{
+    const r = await Platform.deletePermanently(key, typed);
+    const d = r.destroyed || {};
+    toast(r.databaseExisted
+      ? `Deleted ${key}: ${d.members ?? 0} members, ${d.collections ?? 0} collections destroyed.`
+      : `Deleted ${key} (no database existed).`, 'ok');
+    refreshCurrentView();
+  }catch(e){ toast(e.message, 'warn'); }
 }
 async function doRenew(key){
   const def = new Date(); def.setFullYear(def.getFullYear() + 1);

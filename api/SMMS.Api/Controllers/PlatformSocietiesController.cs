@@ -137,6 +137,55 @@ public class PlatformSocietiesController(
         return Ok(new { message = "Registration rejected." });
     }
 
+    /// <summary>
+    /// Permanently deletes a society: drops its database and removes the control-plane record.
+    /// No backup is taken and there is no undo.
+    /// </summary>
+    /// <remarks>
+    /// Three gates, because this is the only call in the system that destroys a tenant:
+    /// the society must already be suspended (or pending/expired), the caller must retype its
+    /// key, and the audit entry is written before the drop so the record outlives the data.
+    /// </remarks>
+    [HttpDelete("{key}")]
+    public async Task<IActionResult> DeletePermanently(string key, DeleteSocietyRequest req)
+    {
+        var society = await controlDb.Societies.AsNoTracking().FirstOrDefaultAsync(s => s.Key == key);
+        if (society is null) return NotFound();
+
+        if (!string.Equals(req.ConfirmKey, key, StringComparison.Ordinal))
+            return BadRequest(new { message = $"Type the society key '{key}' exactly to confirm permanent deletion." });
+
+        // Written first: once the tenant database is gone this is the only remaining trace.
+        await audit.LogAsync("SocietyDeleteRequested", "Society", key,
+            $"Permanent deletion requested for '{society.DisplayName}' (db {society.DbName}, status {society.Status}).");
+
+        try
+        {
+            var report = await provisioning.DeletePermanentlyAsync(key);
+
+            await audit.LogAsync("SocietyDeleted", "Society", key,
+                $"PERMANENTLY DELETED '{report.DisplayName}'. Database {report.DbName} " +
+                (report.DatabaseExisted
+                    ? $"dropped with {report.Members} members, {report.Users} users, {report.Collections} collections worth {report.BilledValue:0.00}."
+                    : "did not exist; control-plane record removed.") +
+                " No backup was taken.");
+
+            return Ok(new
+            {
+                message = $"'{report.DisplayName}' has been permanently deleted.",
+                society = report.Key,
+                database = report.DbName,
+                databaseExisted = report.DatabaseExisted,
+                destroyed = new { report.Members, report.Users, report.Collections, report.BilledValue }
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            await audit.LogAsync("SocietyDeleteRefused", "Society", key, ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     private string BuildPortalUrl(string key)
     {
         var baseDomain = config["ControlPlane:TenantBaseDomain"] ?? "ssms.yuvaansoft.shop";
