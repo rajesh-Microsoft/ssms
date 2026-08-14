@@ -73,7 +73,18 @@ $clientVersion = $null
 $fileWebhookPassword = $null
 
 if ($CredentialFile) {
-    if (-not (Test-Path $CredentialFile)) { throw "Credential file not found: $CredentialFile" }
+    if (-not (Test-Path $CredentialFile)) {
+        @'
+# Paste the values from the PhonePe Business dashboard after each = sign.
+# Save the file and close the editor to continue. This file is shredded afterwards.
+CLIENT_ID=
+CLIENT_SECRET=
+CLIENT_VERSION=1
+'@ | Set-Content -Path $CredentialFile -Encoding utf8
+        Write-Host "Opening $CredentialFile - paste the values, save, then CLOSE the editor." -ForegroundColor Yellow
+        Start-Process notepad.exe -ArgumentList $CredentialFile -Wait
+    }
+
     $map = @{}
     foreach ($line in Get-Content $CredentialFile) {
         if ($line -match '^\s*([A-Za-z_]+)\s*=\s*(.+?)\s*$') { $map[$Matches[1].ToUpper()] = $Matches[2] }
