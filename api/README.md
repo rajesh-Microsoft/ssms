@@ -136,6 +136,15 @@ PhonePe retries.
 The webhook arrives with no tenant subdomain, so the society is read from `metaInfo.udf1`, falling
 back to the society encoded in the merchant order id (`SMMS_<society>_<collectionId>_<random>`).
 
+### Reconciliation
+
+A webhook can still be missed — retries expire, and this host is not always reachable. So
+`PhonePeReconciliationService` polls any attempt left in `Initiated` on PhonePe's mandated
+cadence: nothing before ~20s, then every 3s, 6s, 10s, 30s and finally every minute until the
+order reaches a terminal state or passes its expiry. A COMPLETED order is settled through the
+same amount-checked path as the webhook; a FAILED one is marked Rejected so the resident can
+retry. The sweep idles at 30s when nothing is outstanding.
+
 **Not yet decided:** this uses a single platform merchant account, so settlement lands in one bank
 account rather than each society's. Collecting maintenance for many societies into one account has
 regulatory implications in India — resolve merchant onboarding per society before going live.

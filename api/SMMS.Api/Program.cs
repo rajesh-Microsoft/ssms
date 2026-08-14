@@ -98,6 +98,7 @@ builder.Services.AddHttpClient<SMMS.Api.Services.Payments.PhonePePaymentGateway>
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
+builder.Services.AddHostedService<SMMS.Api.Services.Payments.PhonePeReconciliationService>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.BankReconciliationService>();
 
 // Maintenance billing module (manual monthly-invoice generation; scheduler added in a later phase).

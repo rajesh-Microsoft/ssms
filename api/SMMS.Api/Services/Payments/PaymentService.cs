@@ -60,14 +60,16 @@ public class PaymentService(SmmsDbContext db, IFileStorage storage, AuditService
     {
         if (proof.Status == "Approved") return;
 
+        var gatewayName = string.IsNullOrWhiteSpace(proof.GatewayName) ? "the payment gateway" : proof.GatewayName;
+
         proof.Status = "Approved";
         proof.UpiReference = paymentId;
         proof.ReviewedAt = DateTime.UtcNow;
-        proof.ReviewRemarks = "Automatically verified by Razorpay.";
+        proof.ReviewRemarks = $"Automatically verified by {gatewayName}.";
 
         await CompleteChargeAsync(proof, ct);
         await audit.LogAsync("Payments", "GatewayApprove",
-            $"Razorpay payment {paymentId} verified for charge {proof.CollectionId}; marked Paid");
+            $"{gatewayName} payment {paymentId} verified for charge {proof.CollectionId}; marked Paid");
     }
 
     private async Task CompleteChargeAsync(PaymentProof proof, CancellationToken ct)
