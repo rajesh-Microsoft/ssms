@@ -2327,7 +2327,7 @@ function renderUsers(){
     const badgeClass = st==='Active' ? 'active' : st==='Pending' ? 'pending' : 'inactive';
     const approveBtn = st==='Pending' ? `<button class="ic-btn" onclick="approveUser(${u.id})" title="Approve account">✅</button>` : '';
     const permSummary = u.role==='Admin' ? 'Full access' : PERMISSION_MODULES.map(m=>`${m}:${(u.permissions&&u.permissions[m])||'View'}`).join(', ');
-    return `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.role}</td><td>${u.email||'-'}</td><td title="${permSummary}" style="font-size:11px;color:var(--sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${permSummary}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
+    return `<tr><td>${i+1}</td><td>${escGate(u.username)}</td><td>${escGate(u.flat || '-')}</td><td>${escGate(u.role)}</td><td>${escGate(u.email||'-')}</td><td title="${permSummary}" style="font-size:11px;color:var(--sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${permSummary}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
   }).join('');
 }
 function renderUserPermMatrix(perms){
