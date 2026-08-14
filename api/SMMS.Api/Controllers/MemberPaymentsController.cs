@@ -25,6 +25,7 @@ public class MemberPaymentsController(
     PaymentService payments,
     IPaymentGateway gateway,
     RazorpayPaymentGateway razorpay,
+    PhonePePaymentGateway phonepe,
     QrService qr,
     IFileStorage storage,
     ITenantContext tenantContext) : ControllerBase
@@ -47,10 +48,13 @@ public class MemberPaymentsController(
     {
         var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync();
         var online = razorpay.IsConfigured && settings?.OnlinePaymentsEnabled == true;
+        var phonePeOnline = phonepe.IsConfigured && settings?.OnlinePaymentsEnabled == true;
         return Ok(new PaymentOptionsDto(
             online,
             !string.IsNullOrWhiteSpace(settings?.UpiId),
-            online && razorpay.IsTestMode));
+            online && razorpay.IsTestMode,
+            phonePeOnline,
+            phonePeOnline && phonepe.IsSandbox));
     }
 
     [HttpGet("pending-invoices")]
@@ -112,6 +116,99 @@ public class MemberPaymentsController(
         var instruction = gateway.CreateInstruction(settings!, charge!, member!);
         var png = qr.PngFromText(instruction.Payload);
         return File(png, "image/png");
+    }
+
+    /// <summary>Starts a PhonePe hosted checkout and returns the URL to send the resident to.</summary>
+    [HttpPost("phonepe/checkout/{collectionId:int}")]
+    public async Task<ActionResult<PhonePeCheckoutDto>> CreatePhonePeCheckout(
+        int collectionId, CancellationToken ct)
+    {
+        if (!phonepe.IsConfigured)
+            return BadRequest(new { message = "PhonePe is not configured for this society." });
+
+        var (charge, member, settings, error) = await LoadPayableAsync(collectionId, requireUpi: false);
+        if (error is not null) return error;
+
+        if (!settings!.OnlinePaymentsEnabled)
+            return BadRequest(new { message = "This society has not enabled online payments." });
+
+        var society = tenantContext.Current!.Key;
+        var merchantOrderId = PhonePePaymentGateway.BuildMerchantOrderId(society, charge!.Id);
+        var invoiceNumber = PaymentNumbering.InvoiceNumber(charge);
+
+        // Built from the live request so each environment returns to its own host with no config.
+        var returnUrl = $"{Request.Scheme}://{Request.Host}/index.html?phonepe={Uri.EscapeDataString(merchantOrderId)}";
+
+        PhonePeCheckout checkout;
+        try
+        {
+            checkout = await phonepe.CreateCheckoutAsync(
+                merchantOrderId, charge.Amount, returnUrl,
+                society, charge.Id, invoiceNumber, member!.Flat, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Gateway outage or bad credentials: let the client fall back to manual UPI.
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
+        }
+
+        db.PaymentProofs.Add(new PaymentProof
+        {
+            CollectionId = charge.Id,
+            MemberId = member!.Id,
+            SubmittedByUserId = CurrentUserId,
+            Amount = charge.Amount,
+            Status = "Initiated",
+            SubmittedAt = DateTime.UtcNow,
+            GatewayName = "PhonePe",
+            GatewayReference = merchantOrderId
+        });
+        await db.SaveChangesAsync(ct);
+
+        return Ok(new PhonePeCheckoutDto(merchantOrderId, checkout.RedirectUrl, charge.Amount, invoiceNumber));
+    }
+
+    /// <summary>
+    /// Confirms a PhonePe order after the redirect back. Deliberately not gated on
+    /// OnlinePaymentsEnabled: the money has already left the resident's account by this point, so
+    /// an admin toggling the setting mid-checkout must not strand a real payment.
+    /// </summary>
+    [HttpPost("phonepe/confirm/{merchantOrderId}")]
+    public async Task<ActionResult<PhonePeStatusDto>> ConfirmPhonePePayment(
+        string merchantOrderId, CancellationToken ct)
+    {
+        var member = await ResolveMemberAsync();
+        if (member is null) return Forbid();
+
+        var attempt = await db.PaymentProofs.FirstOrDefaultAsync(
+            p => p.GatewayName == "PhonePe"
+                && p.GatewayReference == merchantOrderId
+                && p.MemberId == member.Id, ct);
+        if (attempt is null) return NotFound();
+
+        if (attempt.Status == "Approved")
+            return Ok(new PhonePeStatusDto("COMPLETED", attempt.CollectionId, null, "This payment is already settled."));
+
+        PhonePeOrderStatus status;
+        try
+        {
+            status = await phonepe.GetOrderStatusAsync(merchantOrderId, ct);
+        }
+        catch (InvalidOperationException ex)
+        {
+            // The webhook is the safety net: it settles this attempt once PhonePe reaches us.
+            return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
+        }
+
+        if (status.State != "COMPLETED")
+            return Ok(new PhonePeStatusDto(status.State, attempt.CollectionId, null,
+                status.State == "PENDING" ? "Payment is still processing." : "Payment did not go through."));
+
+        if (status.Amount != PhonePePaymentGateway.ToPaise(attempt.Amount))
+            return BadRequest(new { message = "PhonePe payment does not match this invoice." });
+
+        await payments.ApproveGatewayPaymentAsync(attempt, status.TransactionId ?? status.OrderId, ct);
+        return Ok(new PhonePeStatusDto("COMPLETED", attempt.CollectionId, status.TransactionId, "Payment received."));
     }
 
     [HttpPost("razorpay/order/{collectionId:int}")]

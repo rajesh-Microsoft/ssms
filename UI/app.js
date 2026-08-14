@@ -454,6 +454,7 @@ window.onload = async () => {
     applySettings();
     updateSidebarUserInfo();
     showTab('mdash', document.getElementById('mnav-dash'));
+    await resumePhonePePayment();
   }
 };
 
@@ -3198,7 +3199,7 @@ function renderPayHint(options){
   const online = 'Pay instantly by card, netbanking, UPI or wallet — your receipt is ready as soon as the payment succeeds.';
   const manual = 'Scan the UPI QR with any UPI app (GPay, PhonePe, Paytm…), pay the exact amount, then tap “I\'ve Paid” to submit your reference for verification.';
   if(options.razorpayEnabled && options.manualUpiEnabled) el.textContent = `${online} You can also scan the UPI QR and submit your reference for manual verification.`;
-  else if(options.razorpayEnabled) el.textContent = online;
+  else if(options.razorpayEnabled || options.phonePeEnabled) el.textContent = online;
   else if(options.manualUpiEnabled) el.textContent = manual;
   else el.textContent = 'Online payment is not configured for this society yet. Please contact your society office to pay.';
 }
@@ -3206,7 +3207,7 @@ function renderPayHint(options){
 async function openPayModal(collectionId){
   try{
     const options = await Api.getPaymentOptions();
-    if(!options.razorpayEnabled && !options.manualUpiEnabled){
+    if(!options.razorpayEnabled && !options.manualUpiEnabled && !options.phonePeEnabled){
       throw new Error('Online payment is not configured for this society yet.');
     }
 
@@ -3224,9 +3225,15 @@ async function openPayModal(collectionId){
     const manualDivider = document.getElementById('pay-manual-divider');
     const manualSubmit = document.getElementById('pay-submit-btn');
     razorpayWrap.style.display = options.razorpayEnabled ? 'flex' : 'none';
+    const phonePeWrap = document.getElementById('pay-phonepe-wrap');
+    if(phonePeWrap){
+      phonePeWrap.style.display = options.phonePeEnabled ? 'flex' : 'none';
+      const hint = document.getElementById('pay-phonepe-hint');
+      if(hint && options.phonePeSandbox) hint.textContent = 'Sandbox mode — no real money moves.';
+    }
     manualWrap.style.display = options.manualUpiEnabled ? 'flex' : 'none';
     manualSubmit.style.display = options.manualUpiEnabled ? 'inline-flex' : 'none';
-    manualDivider.style.display = options.razorpayEnabled && options.manualUpiEnabled ? 'flex' : 'none';
+    manualDivider.style.display = (options.razorpayEnabled || options.phonePeEnabled) && options.manualUpiEnabled ? 'flex' : 'none';
 
     let paymentDetails = null;
     if(options.razorpayEnabled){
@@ -3263,6 +3270,49 @@ async function openPayModal(collectionId){
     document.getElementById('modal-pay').classList.add('open');
   }catch(err){
     toast(err.message, 'warn');
+  }
+}
+
+async function startPhonePeCheckout(){
+  const collectionId = _payCtx.collectionId;
+  if(!collectionId) return toast('Payment is not ready. Please reopen the payment window.', 'warn');
+
+  const button = document.getElementById('pay-phonepe-btn');
+  button.disabled = true;
+  try{
+    const checkout = await Api.createPhonePeCheckout(collectionId);
+    // PhonePe hosts the payment page, so the resident leaves the app here and
+    // comes back to index.html?phonepe=<merchantOrderId>, where it is confirmed.
+    sessionStorage.setItem('smms_phonepe_order', checkout.merchantOrderId);
+    window.location.href = checkout.redirectUrl;
+  }catch(err){
+    button.disabled = false;
+    toast(err.message || 'Could not start the PhonePe payment.', 'warn');
+  }
+}
+
+// Runs after the redirect back from PhonePe. The webhook is the authoritative
+// settlement path; this only gives the resident an immediate answer.
+async function resumePhonePePayment(){
+  const params = new URLSearchParams(window.location.search);
+  const merchantOrderId = params.get('phonepe') || sessionStorage.getItem('smms_phonepe_order');
+  if(!merchantOrderId) return;
+
+  sessionStorage.removeItem('smms_phonepe_order');
+  // Strip the parameter so a refresh cannot replay it.
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  try{
+    const result = await Api.confirmPhonePePayment(merchantOrderId);
+    if(result.state === 'COMPLETED'){
+      toast('Payment received and your receipt is ready ✅');
+      await loadMe();
+      renderMemberPayments();
+    } else {
+      toast(result.message || 'Payment was not completed.', 'warn');
+    }
+  }catch(err){
+    toast(err.message || 'Could not confirm the PhonePe payment.', 'warn');
   }
 }
 

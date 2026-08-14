@@ -91,6 +91,12 @@ builder.Services.AddHttpClient<SMMS.Api.Services.Payments.RazorpayPaymentGateway
     client.BaseAddress = new Uri("https://api.razorpay.com/v1/");
     client.Timeout = TimeSpan.FromSeconds(15);
 });
+builder.Services.Configure<SMMS.Api.Services.Payments.PhonePeOptions>(builder.Configuration.GetSection("PhonePe"));
+// Absolute URLs are used per call because the auth host differs from the API host.
+builder.Services.AddHttpClient<SMMS.Api.Services.Payments.PhonePePaymentGateway>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
 builder.Services.AddScoped<SMMS.Api.Services.Payments.PaymentService>();
 builder.Services.AddScoped<SMMS.Api.Services.Payments.BankReconciliationService>();
 

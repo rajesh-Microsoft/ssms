@@ -86,6 +86,60 @@ re-checked against the SMMS invoice, and an already-approved attempt is a no-op.
 This is a sandbox integration for one platform Razorpay account. Before production use, decide
 how each society completes merchant onboarding and receives settlement into its own bank account.
 
+## PhonePe checkout
+
+PhonePe Standard Checkout (v2) is available alongside manual UPI and Razorpay. The resident is
+redirected to a PhonePe-hosted page, so no card or UPI credentials ever reach SMMS.
+
+Authentication is OAuth client-credentials: SMMS exchanges the client id/secret for a short-lived
+`O-Bearer` token, caches it, and refreshes it a minute before expiry. Sandbox and production use
+different hosts, selected by `PhonePe:Environment` (`Sandbox` or `Production`).
+
+1. Register at the [PhonePe Business dashboard](https://business.phonepe.com/) and complete
+   merchant KYC. From **Developer Settings**, copy the Client ID, Client Secret and Client Version.
+2. Store them outside Git:
+   ```powershell
+   cd api/SMMS.Api
+   dotnet user-secrets set "PhonePe:Enabled" "true"
+   dotnet user-secrets set "PhonePe:Environment" "Sandbox"
+   dotnet user-secrets set "PhonePe:ClientId" "<client id>"
+   dotnet user-secrets set "PhonePe:ClientSecret" "<client secret>"
+   dotnet user-secrets set "PhonePe:AllowedSocieties" "demo"
+   ```
+3. Under Docker Compose, use `PHONEPE_ENABLED`, `PHONEPE_ENVIRONMENT`, `PHONEPE_CLIENT_ID`,
+   `PHONEPE_CLIENT_SECRET`, `PHONEPE_CLIENT_VERSION`, `PHONEPE_WEBHOOK_USERNAME`,
+   `PHONEPE_WEBHOOK_PASSWORD` and `PHONEPE_ALLOWED_SOCIETIES`.
+
+As with Razorpay, two independent gates must both be open before a resident sees the button:
+`PhonePe:AllowedSocieties` must include the society (empty means nobody), **and** that society's
+`Settings.OnlinePaymentsEnabled` must be true.
+
+### Webhook (authoritative settlement)
+
+The redirect back from PhonePe is best-effort — a resident who closes the tab would otherwise
+leave the invoice unpaid. Configure a webhook in the PhonePe dashboard under \*\*Developer Settings
+
+> Webhook\*\*:
+
+- URL: `https://ssms.<your-domain>/api/webhooks/phonepe`
+- Authentication type: **SHA**, with a username and password you also supply as
+  `PhonePe:WebhookUsername` / `PhonePe:WebhookPassword`. Without them the endpoint returns 404.
+- Events: `checkout.order.completed` (and `checkout.order.failed` if you want failure logging).
+
+PhonePe authenticates with `SHA256(username:password)` in the `Authorization` header, which only
+proves the caller knows a shared secret — it does not sign the payload. So a valid header alone
+never settles anything: the webhook always re-confirms the order against the Order Status API and
+checks the amount against the SMMS invoice before marking it paid. An already-approved attempt is
+a no-op, so duplicate deliveries are safe. If confirmation fails the endpoint returns 503 so
+PhonePe retries.
+
+The webhook arrives with no tenant subdomain, so the society is read from `metaInfo.udf1`, falling
+back to the society encoded in the merchant order id (`SMMS_<society>_<collectionId>_<random>`).
+
+**Not yet decided:** this uses a single platform merchant account, so settlement lands in one bank
+account rather than each society's. Collecting maintenance for many societies into one account has
+regulatory implications in India — resolve merchant onboarding per society before going live.
+
 ## Utility bill integrations
 
 Utility connections are tenant-local and configured by society administrators from

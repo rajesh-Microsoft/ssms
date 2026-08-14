@@ -246,6 +246,8 @@ Api.getQrPayload         = (collectionId) => apiFetch(`/member/qrcode/${collecti
 Api.getQrImageUrl        = (collectionId) => apiFetchObjectUrl(`/member/qrcode/${collectionId}`);
 Api.uploadPaymentProof   = (formData) => apiPostForm('/member/upload-payment-proof', formData);
 Api.createRazorpayOrder  = (collectionId) => apiFetch(`/member/razorpay/order/${collectionId}`, { method: 'POST' });
+Api.createPhonePeCheckout = (collectionId) => apiFetch(`/member/phonepe/checkout/${collectionId}`, { method: 'POST' });
+Api.confirmPhonePePayment = (merchantOrderId) => apiFetch(`/member/phonepe/confirm/${encodeURIComponent(merchantOrderId)}`, { method: 'POST' });
 Api.verifyRazorpayPayment = (payload) => apiFetch('/member/razorpay/verify', { method: 'POST', body: JSON.stringify(payload) });
 Api.getMyPaymentHistory  = () => apiFetch('/member/payment-history');
 Api.getMyProofScreenshot = (proofId) => apiFetchObjectUrl(`/member/payment-proof/${proofId}/screenshot`);

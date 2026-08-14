@@ -25,7 +25,7 @@ public record QrPayloadDto(
     string PayeeName,
     string UpiId);
 
-public record PaymentOptionsDto(bool RazorpayEnabled, bool ManualUpiEnabled, bool RazorpayTestMode);
+public record PaymentOptionsDto(bool RazorpayEnabled, bool ManualUpiEnabled, bool RazorpayTestMode, bool PhonePeEnabled, bool PhonePeSandbox);
 
 public record RazorpayOrderDto(
     string KeyId,
@@ -41,6 +41,12 @@ public record RazorpayOrderDto(
 public record RazorpayVerifyRequest(string OrderId, string PaymentId, string Signature);
 
 public record RazorpayVerifyResponse(string Status, string PaymentId, int CollectionId);
+
+/// <summary>Where to send the resident to complete a PhonePe payment.</summary>
+public record PhonePeCheckoutDto(string MerchantOrderId, string RedirectUrl, decimal Amount, string InvoiceNumber);
+
+/// <summary>Result of confirming a PhonePe order against the gateway after the redirect back.</summary>
+public record PhonePeStatusDto(string State, int CollectionId, string? TransactionId, string Message);
 
 /// <summary>One row of a resident's payment-proof history.</summary>
 public record PaymentProofDto(
