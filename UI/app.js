@@ -3279,33 +3279,46 @@ async function startPhonePeCheckout(){
 
   const button = document.getElementById('pay-phonepe-btn');
   button.disabled = true;
+  let checkout;
   try{
-    const checkout = await Api.createPhonePeCheckout(collectionId);
-    // PhonePe hosts the payment page, so the resident leaves the app here and
-    // comes back to index.html?phonepe=<merchantOrderId>, where it is confirmed.
-    sessionStorage.setItem('smms_phonepe_order', checkout.merchantOrderId);
-    window.location.href = checkout.redirectUrl;
+    checkout = await Api.createPhonePeCheckout(collectionId);
   }catch(err){
     button.disabled = false;
-    toast(err.message || 'Could not start the PhonePe payment.', 'warn');
+    return toast(err.message || 'Could not start the PhonePe payment.', 'warn');
   }
+
+  // localStorage, not sessionStorage: a redirect fallback can land in a fresh tab.
+  localStorage.setItem('smms_phonepe_order', checkout.merchantOrderId);
+
+  // IFRAME keeps the resident on this page, so the session survives. A full redirect
+  // leaves the origin and can return to a tab with no sessionStorage, which bounces
+  // the resident to the login screen even though the payment succeeded.
+  if(window.PhonePeCheckout && typeof window.PhonePeCheckout.transact === 'function'){
+    window.PhonePeCheckout.transact({
+      tokenUrl: checkout.redirectUrl,
+      type: 'IFRAME',
+      callback: async response => {
+        button.disabled = false;
+        if(response === 'USER_CANCEL'){
+          localStorage.removeItem('smms_phonepe_order');
+          return toast('Payment cancelled.', 'warn');
+        }
+        if(response === 'CONCLUDED') await confirmPhonePeOrder(checkout.merchantOrderId);
+      }
+    });
+    return;
+  }
+
+  window.location.href = checkout.redirectUrl;
 }
 
-// Runs after the redirect back from PhonePe. The webhook is the authoritative
-// settlement path; this only gives the resident an immediate answer.
-async function resumePhonePePayment(){
-  const params = new URLSearchParams(window.location.search);
-  const merchantOrderId = params.get('phonepe') || sessionStorage.getItem('smms_phonepe_order');
-  if(!merchantOrderId) return;
-
-  sessionStorage.removeItem('smms_phonepe_order');
-  // Strip the parameter so a refresh cannot replay it.
-  window.history.replaceState({}, document.title, window.location.pathname);
-
+async function confirmPhonePeOrder(merchantOrderId){
   try{
     const result = await Api.confirmPhonePePayment(merchantOrderId);
+    localStorage.removeItem('smms_phonepe_order');
     if(result.state === 'COMPLETED'){
       toast('Payment received and your receipt is ready ✅');
+      closeModal('pay');
       await loadMe();
       renderMemberPayments();
     } else {
@@ -3314,6 +3327,18 @@ async function resumePhonePePayment(){
   }catch(err){
     toast(err.message || 'Could not confirm the PhonePe payment.', 'warn');
   }
+}
+
+// Runs after a redirect-mode return. The webhook is the authoritative settlement path;
+// this only gives the resident an immediate answer.
+async function resumePhonePePayment(){
+  const params = new URLSearchParams(window.location.search);
+  const merchantOrderId = params.get('phonepe') || localStorage.getItem('smms_phonepe_order');
+  if(!merchantOrderId) return;
+
+  // Strip the parameter so a refresh cannot replay it.
+  if(params.get('phonepe')) window.history.replaceState({}, document.title, window.location.pathname);
+  await confirmPhonePeOrder(merchantOrderId);
 }
 
 async function startRazorpayCheckout(){
