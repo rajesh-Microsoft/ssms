@@ -35,6 +35,7 @@ const COMPLAINT_CATEGORIES = ['Plumbing','Electrical','Security','Housekeeping',
 let DB = {
   members: [], collections: [], expenses: [], auditLog: [], users: [], complaints: [], liabilities: [],
   reimbursements: [], myReimbursements: [], reimbSummary: null,
+  utilityProviders: [], utilityConnections: [], utilityBills: [], utilityNotifications: [],
   settings: {
     societyName:'', address:'', email:'', phone:'',
     registrationNumber:'', gst:'', pan:'', logoBase64:'',
@@ -238,11 +239,23 @@ async function loadComplaints(){
   }));
 }
 
+async function loadUtilityData(){
+  const requests = [Api.getUtilityBills(), Api.getUtilityNotifications()];
+  if(isAdmin()) requests.push(Api.getUtilityProviders(), Api.getUtilityConnections());
+  const results = await Promise.all(requests);
+  DB.utilityBills = results[0] || [];
+  DB.utilityNotifications = results[1] || [];
+  if(isAdmin()){
+    DB.utilityProviders = results[2] || [];
+    DB.utilityConnections = results[3] || [];
+  }
+}
+
 async function loadCoreData(){
   if(isAdmin()){
     await Promise.all([loadMembers(), loadSettingsData()]);
     await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
-    await Promise.all([loadUsers(), loadAuditLogData(), loadLiabilities(), loadIncome()]);
+    await Promise.all([loadUsers(), loadAuditLogData(), loadLiabilities(), loadIncome(), loadUtilityData()]);
   } else {
     // Residents get their self-service snapshot (/api/me) plus a READ-ONLY view
     // of society-wide finances (Dashboard/Collections/Expenses). Members hold
@@ -250,6 +263,7 @@ async function loadCoreData(){
     // edit/add buttons stay hidden because they require "Edit" (see canEdit()).
     await Promise.all([loadMe(), loadSettingsData(), loadMembers()]);
     await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
+    await loadUtilityData();
     // Other Income + Liabilities are shown only if the admin granted this
     // resident View on those modules (per-user Module Permissions).
     const extra = [];
@@ -518,7 +532,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',utilities:'Utility Connections',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -557,8 +571,11 @@ async function showTab(t, el){
   if(t==='mreimb'){
     try{ await loadMyReimbursements(); }catch(err){ toast('Failed to load your claims: '+err.message,'warn'); }
   }
+  if(t==='utilities'){
+    try{ await loadUtilityData(); }catch(err){ toast('Failed to load utility data: '+err.message,'warn'); }
+  }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, reimb:renderReimbursements, mreimb:renderMyReimbursements, budget:(typeof renderBudget==='function'?renderBudget:null), mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, reimb:renderReimbursements, mreimb:renderMyReimbursements, budget:(typeof renderBudget==='function'?renderBudget:null), utilities:renderUtilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -756,6 +773,33 @@ function renderDashboard(){
   buildTrendChart();
   buildPieChart();
   updateNotifBadge();
+  renderUpcomingUtilityBills();
+}
+
+function utilityEsc(value){ return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderUpcomingUtilityBills(){
+  const body = document.getElementById('dash-utility-bills');
+  if(!body) return;
+  const now = new Date();
+  const bills = [...(DB.utilityBills || [])]
+    .filter(b => b.status !== 'Paid' && (!b.dueDate || new Date(b.dueDate) >= new Date(now.getFullYear(), now.getMonth(), now.getDate())))
+    .sort((a,b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
+    .slice(0, 6);
+  body.innerHTML = bills.map(b => `<tr>
+    <td><strong>${utilityEsc(b.category)}</strong><div class="kpi-sub">${utilityEsc(b.providerName)}</div></td>
+    <td>${utilityEsc(b.consumerNumber)}<div class="kpi-sub">${utilityEsc(b.consumerName) || '—'}</div></td>
+    <td><strong>₹${Number(b.billAmount || 0).toLocaleString('en-IN')}</strong></td>
+    <td>${b.dueDate ? mDate(b.dueDate) : '—'}</td>
+    <td><span class="badge b-pending">${utilityEsc(b.status)}</span></td>
+    <td><button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
+  </tr>`).join('') || '<tr><td colspan="6" class="empty">No upcoming utility bills.</td></tr>';
+}
+
+async function downloadUtilityBill(id){
+  const bill = (DB.utilityBills || []).find(b => b.id === id);
+  try{ await Api.downloadUtilityBill(id, bill ? `${bill.category}-${bill.consumerNumber}-${String(bill.billingMonth).slice(0,7)}.html` : undefined); }
+  catch(err){ toast(err.message || 'Download failed', 'warn'); }
 }
 
 function setText(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
@@ -1930,6 +1974,7 @@ function renderNotifications(){
   const pend=DB.members.filter(m=>!paidSet.has(String(fld(m,'id','Id')).trim()));
   const recent=[...DB.auditLog].reverse().slice(0,5);
   const items=[
+    ...(DB.utilityNotifications || []).map(n=>({color:'#3182ce',text:`⚡ ${n.title}: ${n.message}`,time:mDate(n.createdOn)})),
     ...pend.map(m=>({color:'#fc8181',text:`⚠️ ${fld(m,'name','Name')} (${fld(m,'flat','Flat')}) – maintenance pending`,time:'Due this period'})),
     ...complaintNotifItems(),
     ...recent.map(a=>({color:'#6c63ff',text:`📝 ${a.action} in ${a.module}: ${a.details}`,time:a.timestamp}))
@@ -2095,6 +2140,66 @@ function loadSettingsUI(){
   renderLogoPreview();
   renderCatList();
   renderIncomeCatList();
+}
+
+async function refreshUtilities(){
+  try{ await loadUtilityData(); renderUtilities(); toast('Utility data refreshed'); }
+  catch(err){ toast(err.message || 'Refresh failed', 'warn'); }
+}
+
+function renderUtilities(){
+  const body = document.getElementById('utility-connections-body');
+  const billsBody = document.getElementById('utility-bills-body');
+  if(!body || !billsBody) return;   // partial not loaded yet
+  body.innerHTML = (DB.utilityConnections || []).map(c => `<tr>
+    <td>${utilityEsc(c.providerName)}</td><td>${utilityEsc(c.consumerNumber)}</td><td>${utilityEsc(c.lastBill && c.lastBill.consumerName) || '—'}</td><td>${utilityEsc(c.serviceNumber) || '—'}</td>
+    <td><span class="badge ${c.status === 'Active' ? 'b-active' : 'b-inactive'}">${utilityEsc(c.status)}</span></td>
+    <td>${c.lastBill ? `₹${Number(c.lastBill.billAmount).toLocaleString('en-IN')}` : '—'}</td>
+    <td>${c.autoFetchEnabled ? 'On' : 'Off'}</td>
+    <td class="act-btns"><button class="ic-btn" title="Fetch now" onclick="fetchUtilityNow(${c.id})">↻</button><button class="ic-btn" title="Edit" onclick="openUtilityConnection(${c.id})">✎</button><button class="ic-btn" title="Delete" onclick="deleteUtilityConnection(${c.id})">🗑</button></td>
+  </tr>`).join('') || '<tr><td colspan="8" class="empty">No utility connections configured.</td></tr>';
+  const bills = DB.utilityBills || [];
+  const countBadge = document.getElementById('utility-bills-count');
+  if(countBadge) countBadge.textContent = bills.length + ' bill' + (bills.length === 1 ? '' : 's');
+  billsBody.innerHTML = bills.map(b => `<tr>
+    <td>${utilityEsc(b.category)}</td><td>${utilityEsc(b.consumerNumber)}</td><td>${utilityEsc(b.consumerName) || '—'}</td><td>${new Date(b.billingMonth).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</td>
+    <td>${utilityEsc(b.billNumber) || '—'}</td><td>₹${Number(b.billAmount).toLocaleString('en-IN')}</td><td>${b.dueDate ? mDate(b.dueDate) : '—'}</td>
+    <td>${b.unitsConsumed ?? '—'}</td><td>${mDate(b.fetchedOn)}</td><td><button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
+  </tr>`).join('') || '<tr><td colspan="10" class="empty">No bills fetched yet.</td></tr>';
+}
+
+function openUtilityConnection(id){
+  const connection = id ? DB.utilityConnections.find(c => c.id === id) : null;
+  document.getElementById('util-id').value = connection?.id || '';
+  document.getElementById('util-title').textContent = connection ? 'Edit Utility Connection' : 'Add Utility Connection';
+  document.getElementById('util-provider').innerHTML = (DB.utilityProviders || []).filter(p => p.status === 'Active').map(p => `<option value="${p.id}">${utilityEsc(p.providerName)} · ${utilityEsc(p.category)}</option>`).join('');
+  document.getElementById('util-provider').value = connection?.providerId || document.getElementById('util-provider').value;
+  document.getElementById('util-consumer').value = connection?.consumerNumber || '';
+  document.getElementById('util-service').value = connection?.serviceNumber || '';
+  document.getElementById('util-auto').checked = connection ? connection.autoFetchEnabled : true;
+  document.getElementById('util-active').checked = connection ? connection.status === 'Active' : true;
+  document.getElementById('modal-utility').classList.add('open');
+}
+
+async function saveUtilityConnection(){
+  const id = +document.getElementById('util-id').value;
+  const payload = { providerId:+document.getElementById('util-provider').value, consumerNumber:document.getElementById('util-consumer').value.trim(), serviceNumber:document.getElementById('util-service').value.trim() || null, autoFetchEnabled:document.getElementById('util-auto').checked, active:document.getElementById('util-active').checked };
+  if(!payload.consumerNumber) return toast('Enter the consumer number', 'warn');
+  try{
+    if(id) await Api.updateUtilityConnection(id, payload); else await Api.createUtilityConnection(payload);
+    await loadUtilityData(); closeModal('utility'); renderUtilities(); toast('Utility connection saved');
+  }catch(err){ toast(err.message || 'Save failed', 'warn'); }
+}
+
+async function fetchUtilityNow(id){
+  try{ const result = await Api.fetchUtilityBill(id); await loadUtilityData(); renderUtilities(); renderUpcomingUtilityBills(); toast(result.message); }
+  catch(err){ toast(err.message || 'Fetch failed', 'warn'); }
+}
+
+async function deleteUtilityConnection(id){
+  if(!confirm('Remove this utility connection? Existing bill history will be retained.')) return;
+  try{ await Api.deleteUtilityConnection(id); await loadUtilityData(); renderUtilities(); toast('Utility connection removed'); }
+  catch(err){ toast(err.message || 'Delete failed', 'warn'); }
 }
 function renderLogoPreview(){
   const el = document.getElementById('set-logo-preview');

@@ -1,0 +1,37 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>⚡ Utility Connections</h3>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="refreshUtilities()">↻ Refresh</button>
+      <button class="btn btn-primary" onclick="openUtilityConnection()">+ Add Connection</button>
+    </div>
+  </div>
+  <p style="font-size:11px;color:var(--sub);margin-bottom:10px;">Consumer and service numbers can only be configured by a society administrator. Bills are fetched automatically each morning for connections with Auto Fetch on.</p>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Provider</th><th>Consumer Number</th><th>Consumer Name</th><th>Service Number</th><th>Status</th><th>Last Bill</th><th>Auto Fetch</th><th>Actions</th></tr></thead>
+    <tbody id="utility-connections-body"></tbody>
+  </table></div>
+</div>
+
+<div class="card">
+  <div class="card-hdr"><h3>🧾 Utility Bills</h3><span class="badge b-inactive" id="utility-bills-count">0 bills</span></div>
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Utility</th><th>Consumer Number</th><th>Consumer Name</th><th>Billing Month</th><th>Bill Number</th><th>Amount</th><th>Due Date</th><th>Units</th><th>Fetched</th><th></th></tr></thead>
+    <tbody id="utility-bills-body"></tbody>
+  </table></div>
+</div>
+
+<div class="modal-overlay" id="modal-utility">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="util-title">Add Utility Connection</h3><button class="modal-close" onclick="closeModal('utility')">×</button></div>
+    <input type="hidden" id="util-id">
+    <div class="form-grid">
+      <div class="form-group full"><label>Provider</label><select id="util-provider"></select></div>
+      <div class="form-group"><label>Consumer Number *</label><input type="text" id="util-consumer" maxlength="80"></div>
+      <div class="form-group"><label>Service Number</label><input type="text" id="util-service" maxlength="80"></div>
+      <div class="form-group"><label><input type="checkbox" id="util-auto" style="width:auto;"> Auto Fetch</label></div>
+      <div class="form-group"><label><input type="checkbox" id="util-active" style="width:auto;"> Active</label></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-ghost" onclick="closeModal('utility')">Cancel</button><button class="btn btn-primary" onclick="saveUtilityConnection()">Save</button></div>
+  </div>
+</div>

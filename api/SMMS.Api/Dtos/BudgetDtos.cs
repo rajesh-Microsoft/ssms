@@ -11,7 +11,11 @@ public record BudgetItemDto(
     decimal? Variance,
     DateTime? DueDate,
     string Status,
-    int? ExpenseId);
+    int? ExpenseId,
+    decimal EffectiveAmount,
+    string Source,
+    DateTime? SourceFetchedOn,
+    int? UtilityBillId);
 
 public record BudgetDto(
     int Id,
@@ -51,7 +55,10 @@ public record CategorySuggestionDto(
     string Category,
     decimal SuggestedAmount,
     int MonthsOfHistory,
-    decimal LastAmount);
+    decimal LastAmount,
+    string Source,
+    DateTime? FetchedOn,
+    int? UtilityBillId);
 
 public record BudgetSuggestionDto(
     decimal SuggestedOpeningBalance,

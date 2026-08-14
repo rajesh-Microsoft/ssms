@@ -66,6 +66,17 @@ public static class DbSeeder
                 new MaintenanceComponent { Name = "Common Electricity", Method = CalculationMethod.FixedAmount, Amount = 0, IsActive = false, SortOrder = 90 });
         }
 
+        if (!db.UtilityProviders.Any(p => p.Code == "TGSPDCL"))
+        {
+            db.UtilityProviders.Add(new UtilityProvider
+            {
+                Code = "TGSPDCL",
+                ProviderName = "TGSPDCL",
+                Category = "Electricity",
+                SupportsAutoFetch = true
+            });
+        }
+
         db.SaveChanges();
     }
 }

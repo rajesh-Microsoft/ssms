@@ -21,24 +21,59 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
     /// instead of being evaluated client-side.</summary>
     private static int Ordinal(int year, int month) => year * 12 + month;
 
-    private static BudgetItemDto ToDto(BudgetItem i) => new(
-        i.Id, i.Category, i.Description, i.EstimatedAmount, i.ActualAmount,
-        i.ActualAmount.HasValue ? i.ActualAmount.Value - i.EstimatedAmount : null,
-        i.DueDate, i.Status, i.ExpenseId);
+    /// <summary>A society can hold several meters of the same kind (one per block), so every
+    /// matching connection counts towards the category, not just the most recently fetched one.</summary>
+    private static List<UtilityBill> MatchingBills(string category, IEnumerable<UtilityBill> bills) => bills
+        .Where(b => string.Equals(category, b.UtilityConnection!.Provider!.Category, StringComparison.OrdinalIgnoreCase)
+            || category.Contains(b.UtilityConnection.Provider.Category, StringComparison.OrdinalIgnoreCase)
+            || b.UtilityConnection.Provider.Category.Contains(category, StringComparison.OrdinalIgnoreCase))
+        .OrderByDescending(b => b.FetchedOn)
+        .ToList();
 
-    private static BudgetDto ToDto(Budget b)
+    private static BudgetItemDto ToDto(BudgetItem item, IEnumerable<UtilityBill> bills)
     {
+        var liveBills = item.ActualAmount.HasValue ? [] : MatchingBills(item.Category, bills);
+        var effectiveAmount = item.ActualAmount
+            ?? (liveBills.Count > 0 ? liveBills.Sum(b => b.BillAmount) : item.EstimatedAmount);
+        var source = item.ActualAmount.HasValue ? "Expense Ledger"
+            : liveBills.Count > 0 ? "Live Utility Bill" : "Estimate";
+        // Attributable to a single bill only when exactly one meter fed the figure.
+        var singleBill = liveBills.Count == 1 ? liveBills[0] : null;
+        return new BudgetItemDto(
+            item.Id, item.Category, item.Description, item.EstimatedAmount, item.ActualAmount,
+            effectiveAmount - item.EstimatedAmount,
+            liveBills.Where(b => b.DueDate.HasValue).Min(b => b.DueDate) ?? item.DueDate,
+            item.Status, item.ExpenseId,
+            effectiveAmount, source,
+            liveBills.Count > 0 ? liveBills.Max(b => b.FetchedOn) : null,
+            singleBill?.Id);
+    }
+
+    private static BudgetDto ToDto(Budget b, IReadOnlyList<UtilityBill>? utilityBills = null)
+    {
+        utilityBills ??= [];
         var items = b.Items.OrderBy(i => i.DueDate ?? DateTime.MaxValue).ThenBy(i => i.Category).ToList();
         // Once a bill has landed the actual figure is the better forecast, so it supersedes the estimate.
-        var expectedExpense = items.Sum(i => i.ActualAmount ?? i.EstimatedAmount);
+        var expectedExpense = items.Sum(i =>
+        {
+            if (i.ActualAmount.HasValue) return i.ActualAmount.Value;
+            var liveBills = MatchingBills(i.Category, utilityBills);
+            return liveBills.Count > 0 ? liveBills.Sum(b => b.BillAmount) : i.EstimatedAmount;
+        });
         var closing = b.OpeningBalance + b.ExpectedCollection - expectedExpense;
         // Deficit compares the month against itself: it is a warning that this month's income does not
         // cover this month's costs, even when a healthy opening balance hides that.
         var deficit = Math.Max(0m, expectedExpense - b.ExpectedCollection);
 
         return new BudgetDto(b.Id, b.Month, b.Year, b.OpeningBalance, b.ExpectedCollection,
-            expectedExpense, closing, deficit, b.Status, b.Notes, items.Select(ToDto).ToList());
+            expectedExpense, closing, deficit, b.Status, b.Notes, items.Select(i => ToDto(i, utilityBills)).ToList());
     }
+
+    private async Task<List<UtilityBill>> UtilityBillsFor(int year, int month) => await db.UtilityBills
+        .AsNoTracking()
+        .Include(b => b.UtilityConnection)!.ThenInclude(c => c!.Provider)
+        .Where(b => b.BillingMonth.Year == year && b.BillingMonth.Month == month)
+        .ToListAsync();
 
     [HttpGet]
     public async Task<ActionResult<BudgetDto>> Get([FromQuery] int year, [FromQuery] int month)
@@ -46,7 +81,7 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
         if (!User.CanView(PermissionModules.Budgets)) return Forbid();
         var budget = await db.Budgets.Include(b => b.Items)
             .FirstOrDefaultAsync(b => b.Year == year && b.Month == month);
-        return budget is null ? NotFound() : Ok(ToDto(budget));
+        return budget is null ? NotFound() : Ok(ToDto(budget, await UtilityBillsFor(year, month)));
     }
 
     [HttpGet("{id:int}")]
@@ -54,7 +89,7 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
     {
         if (!User.CanView(PermissionModules.Budgets)) return Forbid();
         var budget = await db.Budgets.Include(b => b.Items).FirstOrDefaultAsync(b => b.Id == id);
-        return budget is null ? NotFound() : Ok(ToDto(budget));
+        return budget is null ? NotFound() : Ok(ToDto(budget, await UtilityBillsFor(budget.Year, budget.Month)));
     }
 
     [HttpGet("months")]
@@ -142,7 +177,7 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
         db.BudgetItems.Add(item);
         await db.SaveChangesAsync();
         await audit.LogAsync("Budgets", "AddItem", $"Added expected {item.Category} of {item.EstimatedAmount} to budget {id}");
-        return Ok(ToDto(item));
+        return Ok(ToDto(item, []));
     }
 
     [HttpPut("items/{itemId:int}")]
@@ -218,7 +253,7 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
         var variance = request.ActualAmount - item.EstimatedAmount;
         await audit.LogAsync("Budgets", "ConvertToActual",
             $"Booked {item.Category} for {budget.Month}/{budget.Year}: estimated {item.EstimatedAmount}, actual {request.ActualAmount} (variance {variance:+0.00;-0.00;0})");
-        return Ok(ToDto(item));
+        return Ok(ToDto(item, []));
     }
 
     /// <summary>Suggests an opening balance, an expected collection and per-category amounts drawn from
@@ -279,10 +314,33 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
                     weightSum += weight;
                 }
                 var suggested = weightSum == 0 ? 0m : Math.Round(weightedTotal / weightSum, 0, MidpointRounding.AwayFromZero);
-                return new CategorySuggestionDto(g.Key, suggested, months.Count, months[^1].Total);
+                return new CategorySuggestionDto(g.Key, suggested, months.Count, months[^1].Total,
+                    "Expense History", null, null);
             })
             .OrderByDescending(c => c.SuggestedAmount)
             .ToList();
+
+        var utilityBills = await UtilityBillsFor(year, month);
+        foreach (var group in utilityBills
+                     .GroupBy(b => b.UtilityConnection!.Provider!.Category, StringComparer.OrdinalIgnoreCase))
+        {
+            var categoryName = group.Key;
+            var total = group.Sum(b => b.BillAmount);
+            var index = categories.FindIndex(c =>
+                c.Category.Contains(categoryName, StringComparison.OrdinalIgnoreCase) ||
+                categoryName.Contains(c.Category, StringComparison.OrdinalIgnoreCase));
+            var live = new CategorySuggestionDto(
+                index >= 0 ? categories[index].Category : categoryName,
+                total,
+                index >= 0 ? categories[index].MonthsOfHistory : 0,
+                total,
+                "Live Utility Bill",
+                group.Max(b => b.FetchedOn),
+                group.Count() == 1 ? group.First().Id : null);
+            if (index >= 0) categories[index] = live;
+            else categories.Add(live);
+        }
+        categories = categories.OrderByDescending(c => c.SuggestedAmount).ToList();
 
         return Ok(new BudgetSuggestionDto(
             Math.Round(openingBalance, 2),

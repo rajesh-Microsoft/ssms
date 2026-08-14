@@ -9,6 +9,10 @@ using SMMS.Api.Data.Control;
 using SMMS.Api.Data.Tenancy;
 using SMMS.Api.Services;
 using SMMS.Api.Services.Control;
+using SMMS.Api.Services.Utilities;
+
+if (args is ["install-playwright"])
+    Environment.Exit(Microsoft.Playwright.Program.Main(["install", "--with-deps", "chromium"]));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -108,6 +112,19 @@ builder.Services.AddScoped<SMMS.Api.Services.Billing.MaintenanceCalculationServi
 builder.Services.AddScoped<SMMS.Api.Services.Billing.OneTimeChargeService>();
 builder.Services.AddScoped<SMMS.Api.Services.Billing.AdvanceService>();
 builder.Services.AddScoped<SMMS.Api.Services.SocietyLiabilityService>();
+
+builder.Services.Configure<UtilityIntegrationOptions>(builder.Configuration.GetSection("Utilities"));
+builder.Services.AddSingleton<TGSPDCLHtmlParser>();
+builder.Services.AddHttpClient<TGSPDCLProvider>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<UtilityIntegrationOptions>>().Value;
+    client.Timeout = options.RequestTimeout;
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SMMS-UtilityBillFetcher/1.0");
+});
+builder.Services.AddScoped<IUtilityProvider>(sp => sp.GetRequiredService<TGSPDCLProvider>());
+builder.Services.AddScoped<IUtilityProviderResolver, UtilityProviderResolver>();
+builder.Services.AddScoped<UtilityBillService>();
+builder.Services.AddHostedService<UtilityBillBackgroundService>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

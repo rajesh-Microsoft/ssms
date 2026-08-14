@@ -14,6 +14,10 @@
   <div class="chart-card"><h3>📈 Collection vs Expenses (Monthly)</h3><canvas id="trendChart"></canvas></div>
   <div class="chart-card"><h3>🍩 Expense Categories</h3><canvas id="pieChart"></canvas></div>
 </div>
+<div class="card">
+  <div class="card-hdr"><h3>Upcoming Utility Bills</h3><button class="btn btn-ghost admin-only" onclick="showTab('utilities')">Manage</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Utility</th><th>Consumer Number</th><th>Amount</th><th>Due Date</th><th>Status</th><th></th></tr></thead><tbody id="dash-utility-bills"></tbody></table></div>
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
   <div class="card">
     <div class="card-hdr"><h3>Recent Collections</h3></div>

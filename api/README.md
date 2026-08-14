@@ -86,6 +86,41 @@ re-checked against the SMMS invoice, and an already-approved attempt is a no-op.
 This is a sandbox integration for one platform Razorpay account. Before production use, decide
 how each society completes merchant onboarding and receives settlement into its own bank account.
 
+## Utility bill integrations
+
+Utility connections are tenant-local and configured by society administrators from
+**Settings > Utility Connections**. TGSPDCL is the first provider; additional providers register
+an `IUtilityProvider` implementation without changing connection, bill, budget, or UI code.
+
+The TGSPDCL provider uses the configured direct bill URL first and parses server-rendered HTML
+with HtmlAgilityPack. If a provider later requires client-side rendering, Playwright Chromium is
+available as an automatic fallback. Provider URLs and browser selectors live under
+`Utilities:Providers` in `appsettings.json`; none are hardcoded in the provider implementation.
+
+Active, auto-fetch connections are checked daily at 08:00 Asia/Kolkata. Fetches retry with
+exponential backoff, update the connection's last error without crashing the sweep, upsert one
+bill per connection/month, and create one notification for each new bill. A bill for the selected
+budget month overrides that category's estimate in projections, but does not create an expense;
+the admin still books payment through the existing Budget Planner workflow.
+
+The EF migration is `20260814171119_AddUtilityBillIntegration`. A reviewable standalone script is
+also available at `deploy/sql/20260814171119_AddUtilityBillIntegration.sql`. Docker images install
+Playwright Chromium during build, so image builds need outbound access to NuGet and Playwright's
+browser package servers.
+
+Utility endpoints:
+
+- `GET /api/utilities/providers`
+- `GET/POST /api/utilities/connections`
+- `PUT/DELETE /api/utilities/connections/{id}`
+- `POST /api/utilities/connections/{id}/fetch`
+- `GET /api/utilities/bills`, `GET /api/utilities/bills/{id}`
+- `GET /api/utilities/bills/{id}/download`
+- `GET /api/utilities/notifications`
+
+All utility endpoints require a tenant JWT. Only `Admin` can create, edit, delete, or fetch a
+connection; authenticated members can read bills and notifications.
+
 ## Key endpoints
 
 - `POST /api/auth/login`, `POST /api/auth/signup`, `GET /api/auth/security-question`, `POST /api/auth/reset-password`

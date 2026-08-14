@@ -76,6 +76,20 @@ async function apiFetchObjectUrl(path){
   return URL.createObjectURL(blob);
 }
 
+async function apiDownload(path, fileName){
+  const headers = {};
+  const token = apiGetToken();
+  if(token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API_BASE + path, { headers });
+  if(!res.ok) throw new Error(`Download failed (${res.status})`);
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName || 'utility-bill.html';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 // Authenticated multipart POST (FormData). Do NOT set Content-Type — the
 // browser adds the multipart boundary automatically.
 async function apiPostForm(path, formData){
@@ -152,6 +166,17 @@ const Api = {
   getBudgetSuggestion: (year, month) => apiFetch(`/budgets/suggest?year=${year}&month=${month}`),
   getBudgetVariance: (year, month) => apiFetch(`/budgets/variance?year=${year}&month=${month}`),
   getBudgetHealth: (year, month) => apiFetch(`/budgets/health?year=${year}&month=${month}`),
+
+  // Utility integrations. Connection mutations are Admin-only server-side; bills are read-only for members.
+  getUtilityProviders: () => apiFetch('/utilities/providers'),
+  getUtilityConnections: () => apiFetch('/utilities/connections'),
+  createUtilityConnection: (payload) => apiFetch('/utilities/connections', { method: 'POST', body: JSON.stringify(payload) }),
+  updateUtilityConnection: (id, payload) => apiFetch(`/utilities/connections/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteUtilityConnection: (id) => apiFetch(`/utilities/connections/${id}`, { method: 'DELETE' }),
+  fetchUtilityBill: (id) => apiFetch(`/utilities/connections/${id}/fetch`, { method: 'POST' }),
+  getUtilityBills: (connectionId) => apiFetch('/utilities/bills' + (connectionId ? `?connectionId=${connectionId}` : '')),
+  getUtilityNotifications: () => apiFetch('/utilities/notifications'),
+  downloadUtilityBill: (id, fileName) => apiDownload(`/utilities/bills/${id}/download`, fileName),
 
   // Society liabilities (money the society owes contributors)
   getLiabilities: (status) => apiFetch('/society-liabilities' + (status ? `?status=${encodeURIComponent(status)}` : '')),

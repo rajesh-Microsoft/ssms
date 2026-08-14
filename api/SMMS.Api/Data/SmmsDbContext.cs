@@ -30,6 +30,10 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<Delivery> Deliveries => Set<Delivery>();
     public DbSet<DailyChecklist> DailyChecklists => Set<DailyChecklist>();
     public DbSet<DailyChecklistItem> DailyChecklistItems => Set<DailyChecklistItem>();
+    public DbSet<UtilityProvider> UtilityProviders => Set<UtilityProvider>();
+    public DbSet<UtilityConnection> UtilityConnections => Set<UtilityConnection>();
+    public DbSet<UtilityBill> UtilityBills => Set<UtilityBill>();
+    public DbSet<UtilityNotification> UtilityNotifications => Set<UtilityNotification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -235,6 +239,40 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .WithMany()
             .HasForeignKey(i => i.ExpenseId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UtilityProvider>()
+            .HasIndex(p => p.Code)
+            .IsUnique();
+
+        modelBuilder.Entity<UtilityConnection>()
+            .HasOne(c => c.Provider)
+            .WithMany(p => p.Connections)
+            .HasForeignKey(c => c.ProviderId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UtilityConnection>()
+            .HasIndex(c => new { c.ProviderId, c.ConsumerNumber })
+            .IsUnique();
+
+        modelBuilder.Entity<UtilityBill>()
+            .HasOne(b => b.UtilityConnection)
+            .WithMany(c => c.Bills)
+            .HasForeignKey(b => b.UtilityConnectionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UtilityBill>()
+            .HasIndex(b => new { b.UtilityConnectionId, b.BillingMonth })
+            .IsUnique();
+
+        modelBuilder.Entity<UtilityBill>().Property(b => b.BillAmount).HasPrecision(12, 2);
+        modelBuilder.Entity<UtilityBill>().Property(b => b.UnitsConsumed).HasPrecision(12, 2);
+        modelBuilder.Entity<UtilityBill>().Property(b => b.Arrears).HasPrecision(12, 2);
+
+        modelBuilder.Entity<UtilityNotification>()
+            .HasOne(n => n.UtilityBill)
+            .WithMany()
+            .HasForeignKey(n => n.UtilityBillId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // ── Caretaker operations ──
 

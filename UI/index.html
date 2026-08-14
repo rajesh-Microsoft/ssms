@@ -29,6 +29,7 @@
     <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
     <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
     <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
+    <div class="nav-item admin-only" onclick="showTab('utilities',this)"><span class="ni">⚡</span> Utility Connections</div>
     <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
     <div class="nav-item admin-only" onclick="showTab('reimb',this)"><span class="ni">💸</span> Reimbursements <span class="nbadge" id="reimbBadge" style="display:none;">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Collections</div>
@@ -111,6 +112,9 @@
 
     <!-- BUDGET PLANNER -->
     <div id="tab-budget" class="tab-content" data-partial="budget"></div>
+
+    <!-- UTILITY CONNECTIONS (lazy-loaded from partials/utilities.html) -->
+    <div id="tab-utilities" class="tab-content" data-partial="utilities"></div>
 
     <!-- SOCIETY LIABILITIES (lazy-loaded from partials/liabilities.html) -->
     <div id="tab-liabilities" class="tab-content" data-partial="liabilities"></div>

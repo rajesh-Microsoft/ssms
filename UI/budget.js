@@ -172,6 +172,7 @@ function renderBudgetItems(){
   }
   tbody.innerHTML = rows.map(i => {
     const isActual = i.status === 'Actual';
+    const isLive = i.source === 'Live Utility Bill';
     const variance = i.variance;
     const vTxt = variance === null || variance === undefined ? '—'
       : `<span style="color:${variance > 0 ? 'var(--danger)' : variance < 0 ? 'var(--success)' : 'inherit'};font-weight:700;">${variance > 0 ? '+' : ''}${budMoney(variance)}</span>`;
@@ -186,12 +187,12 @@ function renderBudgetItems(){
         : '');
     return `<tr>
       <td>${budEsc(i.category)}</td>
-      <td>${budEsc(i.description) || '—'}</td>
+      <td>${budEsc(i.description) || '—'}${isLive ? '<div class="kpi-sub">Live Utility Bill · fetched '+new Date(i.sourceFetchedOn).toLocaleDateString('en-IN')+'</div>' : ''}</td>
       <td>${due}</td>
       <td>${budMoney(i.estimatedAmount)}</td>
-      <td>${i.actualAmount === null || i.actualAmount === undefined ? '—' : budMoney(i.actualAmount)}</td>
+      <td>${isActual || isLive ? budMoney(i.effectiveAmount) : '—'}</td>
       <td>${vTxt}</td>
-      <td><span class="badge ${isActual ? 'b-paid' : 'b-pending'}">${i.status}</span></td>
+      <td><span class="badge ${isActual ? 'b-paid' : isLive ? 'b-active' : 'b-pending'}">${isLive ? 'Live Bill' : i.status}</span></td>
       <td>${actions}</td>
     </tr>`;
   }).join('');
@@ -362,7 +363,7 @@ function openBudgetConvert(id){
   budState.convertItemId = id;
   document.getElementById('budconv-summary').innerHTML =
     `<b>${budEsc(i.category)}</b>${i.description ? ' · ' + budEsc(i.description) : ''}<br>Estimated <b>${budMoney(i.estimatedAmount)}</b>`;
-  document.getElementById('budconv-amount').value = i.estimatedAmount;
+  document.getElementById('budconv-amount').value = i.effectiveAmount || i.estimatedAmount;
   document.getElementById('budconv-date').value = new Date().toISOString().substring(0, 10);
   document.getElementById('budconv-vendor').value = '';
   document.getElementById('budconv-mode').value = '';
@@ -429,16 +430,18 @@ async function openBudgetSuggest(){
   // bill, so those are listed but left unticked rather than silently planned for again.
   const planned = new Set(budState.budget.items.map(i => i.category));
   tbody.innerHTML = budState.suggestions.map((c, idx) => {
-    const oneOff = c.monthsOfHistory < 2;
+    const live = c.source === 'Live Utility Bill';
+    const oneOff = c.monthsOfHistory < 2 && !live;
     const tick = !planned.has(c.category) && !oneOff;
     const note = planned.has(c.category)
       ? ' <span class="badge b-inactive">already planned</span>'
+      : live ? ' <span class="badge b-active">live utility bill</span>'
       : oneOff ? ' <span class="badge b-partial">seen once — may be a one-off</span>' : '';
     return `<tr>
       <td><input type="checkbox" class="budsug-chk" data-idx="${idx}" ${tick ? 'checked' : ''} style="width:auto;"></td>
       <td>${budEsc(c.category)}${note}</td>
       <td>${budMoney(c.lastAmount)}</td>
-      <td style="font-size:11px;color:var(--sub);">${c.monthsOfHistory} month${c.monthsOfHistory === 1 ? '' : 's'}</td>
+      <td style="font-size:11px;color:var(--sub);">${live ? 'Fetched '+new Date(c.fetchedOn).toLocaleDateString('en-IN') : c.monthsOfHistory+' month'+(c.monthsOfHistory === 1 ? '' : 's')}</td>
       <td><input type="number" step="0.01" class="budsug-amt" data-idx="${idx}" value="${c.suggestedAmount}" style="width:110px;"></td>
     </tr>`;
   }).join('');
