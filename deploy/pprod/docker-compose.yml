@@ -63,6 +63,15 @@ services:
       Razorpay__KeySecret: ${RAZORPAY_KEY_SECRET:-}
       Razorpay__WebhookSecret: ${RAZORPAY_WEBHOOK_SECRET:-}
       Razorpay__AllowedSocieties: ${RAZORPAY_ALLOWED_SOCIETIES:-}
+
+      PhonePe__Enabled: ${PHONEPE_ENABLED:-false}
+      PhonePe__Environment: ${PHONEPE_ENVIRONMENT:-Sandbox}
+      PhonePe__ClientId: ${PHONEPE_CLIENT_ID:-}
+      PhonePe__ClientSecret: ${PHONEPE_CLIENT_SECRET:-}
+      PhonePe__ClientVersion: ${PHONEPE_CLIENT_VERSION:-1}
+      PhonePe__WebhookUsername: ${PHONEPE_WEBHOOK_USERNAME:-}
+      PhonePe__WebhookPassword: ${PHONEPE_WEBHOOK_PASSWORD:-}
+      PhonePe__AllowedSocieties: ${PHONEPE_ALLOWED_SOCIETIES:-}
     # Payment screenshots and caretaker photos live on disk, so they need a volume to
     # survive the container being recreated on every deploy.
     volumes:
