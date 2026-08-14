@@ -3499,6 +3499,8 @@ async function loadUpiSettingsForm(){
     document.getElementById('upi-acnum').value   = s.bankAccountNumber || '';
     document.getElementById('upi-ifsc').value    = s.bankIfsc || '';
     document.getElementById('upi-online-enabled').checked = !!s.onlinePaymentsEnabled;
+    const phonePeToggle = document.getElementById('upi-phonepe-enabled');
+    if(phonePeToggle) phonePeToggle.checked = !!s.phonePeEnabled;
     renderGatewayState();
   }catch(err){ /* settings may not be loaded yet */ }
 }
@@ -3512,6 +3514,17 @@ function renderGatewayState(){
   document.getElementById('gateway-help').textContent = on
     ? 'Residents can pay their maintenance instantly by card, netbanking, UPI or wallet, and the invoice is marked paid automatically. Press Save Payment Setup to apply.'
     : 'Residents can only pay by scanning your UPI QR and submitting a reference for you to approve. No card payments are offered. Press Save Payment Setup to apply.';
+
+  const ppToggle = document.getElementById('upi-phonepe-enabled');
+  if(!ppToggle) return;
+  const ppOn = ppToggle.checked;
+  const ppPill = document.getElementById('phonepe-state');
+  document.getElementById('phonepe-row').classList.toggle('on', ppOn);
+  ppPill.textContent = ppOn ? 'Enabled' : 'Disabled';
+  ppPill.className = `status-pill ${ppOn ? 'on' : 'off'}`;
+  document.getElementById('phonepe-help').textContent = ppOn
+    ? 'Residents can pay through the PhonePe page by UPI, card, netbanking or wallet, and the invoice is marked paid automatically. Press Save Payment Setup to apply.'
+    : 'The PhonePe option stays hidden from residents. Press Save Payment Setup to apply.';
 }
 
 async function saveUpiSettingsForm(){
@@ -3522,10 +3535,11 @@ async function saveUpiSettingsForm(){
     bankAccountName:   document.getElementById('upi-acname').value.trim(),
     bankAccountNumber: document.getElementById('upi-acnum').value.trim(),
     bankIfsc:          document.getElementById('upi-ifsc').value.trim(),
-    onlinePaymentsEnabled: document.getElementById('upi-online-enabled').checked
+    onlinePaymentsEnabled: document.getElementById('upi-online-enabled').checked,
+    phonePeEnabled: !!document.getElementById('upi-phonepe-enabled')?.checked
   };
-  if(!payload.onlinePaymentsEnabled && (!payload.upiId || !payload.upiPayeeName))
-    return toast('Add a UPI ID and Payee Name, or switch on online payments — otherwise residents have no way to pay.','warn');
+  if(!payload.onlinePaymentsEnabled && !payload.phonePeEnabled && (!payload.upiId || !payload.upiPayeeName))
+    return toast('Add a UPI ID and Payee Name, or switch on an online gateway — otherwise residents have no way to pay.','warn');
   try{ await Api.saveUpiSettings(payload); toast('Payment setup saved ✅'); }
   catch(err){ toast(err.message,'warn'); }
 }

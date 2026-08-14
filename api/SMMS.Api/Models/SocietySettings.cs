@@ -102,6 +102,10 @@ public class SocietySettings : IAuditable
     /// taking gateway payments just because the platform has credentials configured.</summary>
     public bool OnlinePaymentsEnabled { get; set; } = false;
 
+    /// <summary>Separate from <see cref="OnlinePaymentsEnabled"/> so a society can run one
+    /// gateway without the other.</summary>
+    public bool PhonePeEnabled { get; set; } = false;
+
     /// <summary>Society's UPI VPA, e.g. "society@upi". When set, members see a dynamic pay QR.</summary>
     [MaxLength(100)]
     public string? UpiId { get; set; }

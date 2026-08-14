@@ -111,7 +111,7 @@ public class AdminPaymentsController(
     {
         var s = await db.Settings.FirstOrDefaultAsync();
         if (s is null) return Ok(new UpiSettingsDto(null, null, null, null, null, null));
-        return Ok(new UpiSettingsDto(s.UpiId, s.UpiPayeeName, s.BankName, s.BankAccountName, s.BankAccountNumber, s.BankIfsc, s.OnlinePaymentsEnabled));
+        return Ok(new UpiSettingsDto(s.UpiId, s.UpiPayeeName, s.BankName, s.BankAccountName, s.BankAccountNumber, s.BankIfsc, s.OnlinePaymentsEnabled, s.PhonePeEnabled));
     }
 
     [HttpPut("upi-settings")]
@@ -127,9 +127,10 @@ public class AdminPaymentsController(
         s.BankAccountNumber = request.BankAccountNumber?.Trim();
         s.BankIfsc = request.BankIfsc?.Trim();
         s.OnlinePaymentsEnabled = request.OnlinePaymentsEnabled;
+        s.PhonePeEnabled = request.PhonePeEnabled;
         await db.SaveChangesAsync();
         await audit.LogAsync("Settings", "UpdateUpi",
-            $"Updated society UPI/bank collection settings (online payments {(s.OnlinePaymentsEnabled ? "enabled" : "disabled")})");
+            $"Updated society UPI/bank collection settings (Razorpay {(s.OnlinePaymentsEnabled ? "enabled" : "disabled")}, PhonePe {(s.PhonePeEnabled ? "enabled" : "disabled")})");
         return NoContent();
     }
 }

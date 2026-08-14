@@ -48,7 +48,7 @@ public class MemberPaymentsController(
     {
         var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync();
         var online = razorpay.IsConfigured && settings?.OnlinePaymentsEnabled == true;
-        var phonePeOnline = phonepe.IsConfigured && settings?.OnlinePaymentsEnabled == true;
+        var phonePeOnline = phonepe.IsConfigured && settings?.PhonePeEnabled == true;
         return Ok(new PaymentOptionsDto(
             online,
             !string.IsNullOrWhiteSpace(settings?.UpiId),
@@ -129,7 +129,7 @@ public class MemberPaymentsController(
         var (charge, member, settings, error) = await LoadPayableAsync(collectionId, requireUpi: false);
         if (error is not null) return error;
 
-        if (!settings!.OnlinePaymentsEnabled)
+        if (!settings!.PhonePeEnabled)
             return BadRequest(new { message = "This society has not enabled online payments." });
 
         var society = tenantContext.Current!.Key;
