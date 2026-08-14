@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SMMS.Api.Dtos;
 
-public record UserDto(int Id, string Username, string Role, string? Email, string? Mobile, string? Flat,
+public record UserDto(int Id, string Username, string? Name, string Role, string? Email, string? Mobile, string? Flat,
     string? Floor, string Status, Dictionary<string, string> Permissions);
 
 public record UserCreateRequest(

@@ -19,8 +19,18 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
     private static readonly HashSet<string> AllowedRoles =
         new(StringComparer.Ordinal) { "Admin", "Member", "Treasurer", "Secretary", "Committee Member", "Chairman", Roles.Caretaker };
 
-    private static UserDto ToDto(User u) => new(
-        u.Id, u.Username, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status, PermissionHelper.Parse(u.Permissions));
+    // The resident's name lives on Member, linked by flat: an account has no name of its own.
+    private static UserDto ToDto(User u, string? name = null) => new(
+        u.Id, u.Username, name, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status, PermissionHelper.Parse(u.Permissions));
+
+    private async Task<string?> ResolveMemberNameAsync(string? flat)
+    {
+        if (string.IsNullOrWhiteSpace(flat)) return null;
+        var wanted = flat.Trim().ToLower();
+        return await db.Members.Where(m => m.Flat.ToLower() == wanted)
+            .Select(m => m.Name)
+            .FirstOrDefaultAsync();
+    }
 
     /// <summary>An account being saved as Inactive isn't occupying its flat, so it is never blocked.</summary>
     private Task<bool> FlatTakenAsync(string? flat, string status, int? excludingUserId = null) =>
@@ -32,7 +42,15 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
     public async Task<ActionResult<IEnumerable<UserDto>>> GetAll()
     {
         var users = await db.Users.OrderBy(u => u.Username).ToListAsync();
-        return Ok(users.Select(ToDto));
+
+        // One lookup for the whole list rather than a query per user. Grouped rather than keyed
+        // directly: two member rows can share a flat, and that must not break the user list.
+        var namesByFlat = (await db.Members.Select(m => new { m.Flat, m.Name }).ToListAsync())
+            .GroupBy(m => m.Flat.Trim().ToLower())
+            .ToDictionary(g => g.Key, g => g.First().Name);
+
+        return Ok(users.Select(u => ToDto(u,
+            string.IsNullOrWhiteSpace(u.Flat) ? null : namesByFlat.GetValueOrDefault(u.Flat.Trim().ToLower()))));
     }
 
     [HttpPost]
@@ -64,7 +82,7 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
         db.Users.Add(user);
         await db.SaveChangesAsync();
         await audit.LogAsync("Users", "Add", $"Added user: {user.Username}");
-        return CreatedAtAction(nameof(GetAll), new { }, ToDto(user));
+        return CreatedAtAction(nameof(GetAll), new { }, ToDto(user, await ResolveMemberNameAsync(user.Flat)));
     }
 
     [HttpPut("{id:int}")]
@@ -97,7 +115,7 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
 
         await db.SaveChangesAsync();
         await audit.LogAsync("Users", "Update", $"Updated user: {user.Username}");
-        return Ok(ToDto(user));
+        return Ok(ToDto(user, await ResolveMemberNameAsync(user.Flat)));
     }
 
     [HttpPost("{id:int}/approve")]
