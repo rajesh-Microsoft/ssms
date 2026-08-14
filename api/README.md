@@ -167,9 +167,11 @@ budget month overrides that category's estimate in projections, but does not cre
 the admin still books payment through the existing Budget Planner workflow.
 
 The EF migration is `20260814171119_AddUtilityBillIntegration`. A reviewable standalone script is
-also available at `deploy/sql/20260814171119_AddUtilityBillIntegration.sql`. Docker images install
-Playwright Chromium during build, so image builds need outbound access to NuGet and Playwright's
-browser package servers.
+also available at `deploy/sql/20260814171119_AddUtilityBillIntegration.sql`. The Playwright
+fallback is disabled by default and Chromium is not installed in the image: it added ~2GB and
+filled the VM disk, and TGSPDCL server-renders its bill so the fallback never fires. To enable it
+for a provider that needs it, restore the `install-playwright` line in the Dockerfile and set
+`Utilities:PlaywrightFallbackEnabled` to true.
 
 Utility endpoints:
 

@@ -14,9 +14,11 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
-# The direct HTTP provider is primary. Chromium is present for providers whose bill page
-# renders dynamically and therefore requires the automatic Playwright fallback.
-RUN dotnet SMMS.Api.dll install-playwright
+# Chromium is deliberately NOT installed: it added ~2GB to this image and filled the VM disk,
+# and no configured provider needs it (TGSPDCL server-renders its bill). To enable the
+# Playwright fallback for a provider that does, add:
+#   RUN dotnet SMMS.Api.dll install-playwright
+# and set Utilities:PlaywrightFallbackEnabled to true.
 
 EXPOSE 8080
 
