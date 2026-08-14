@@ -23,6 +23,10 @@ param(
     [Parameter(ParameterSetName = 'Set')][string]$AllowedSocieties = 'demo',
     [Parameter(ParameterSetName = 'Set')][string]$WebhookUsername = 'smms',
     [Parameter(ParameterSetName = 'Set')][switch]$GenerateWebhookPassword,
+    # Secure prompts swallow clipboard pastes in some terminals, which silently stores a
+    # one-character credential. Point this at a file of KEY=VALUE lines instead; it is shredded
+    # after reading. Keys: CLIENT_ID, CLIENT_SECRET, optional CLIENT_VERSION, WEBHOOK_PASSWORD.
+    [Parameter(ParameterSetName = 'Set')][string]$CredentialFile,
     [Parameter(ParameterSetName = 'Clear')][switch]$Clear,
     [string]$Vm = '135.235.195.132',
     [string]$User = 'ssmsadmin',
@@ -65,9 +69,32 @@ if ($Environment -eq 'Production') {
     Write-Warning 'Production credentials move REAL money. Keep the test amount small and refund it afterwards.'
 }
 
-$clientId = Read-Plain 'PhonePe Client ID'
-$clientSecret = Read-Plain 'PhonePe Client Secret'
-$clientVersion = Read-Host -Prompt 'PhonePe Client Version (press Enter for 1)'
+$clientVersion = $null
+$fileWebhookPassword = $null
+
+if ($CredentialFile) {
+    if (-not (Test-Path $CredentialFile)) { throw "Credential file not found: $CredentialFile" }
+    $map = @{}
+    foreach ($line in Get-Content $CredentialFile) {
+        if ($line -match '^\s*([A-Za-z_]+)\s*=\s*(.+?)\s*$') { $map[$Matches[1].ToUpper()] = $Matches[2] }
+    }
+    $clientId = $map['CLIENT_ID']
+    $clientSecret = $map['CLIENT_SECRET']
+    $clientVersion = $map['CLIENT_VERSION']
+    $fileWebhookPassword = $map['WEBHOOK_PASSWORD']
+
+    # Overwrite before deleting so the values do not linger in free space.
+    $junk = 'x' * 512
+    Set-Content -Path $CredentialFile -Value $junk -NoNewline
+    Remove-Item $CredentialFile -Force
+    Write-Host "Read and shredded $CredentialFile" -ForegroundColor DarkGray
+}
+else {
+    $clientId = Read-Plain 'PhonePe Client ID'
+    $clientSecret = Read-Plain 'PhonePe Client Secret'
+    $clientVersion = Read-Host -Prompt 'PhonePe Client Version (press Enter for 1)'
+}
+
 if ([string]::IsNullOrWhiteSpace($clientVersion)) { $clientVersion = '1' }
 
 if ($GenerateWebhookPassword) {
@@ -81,12 +108,20 @@ if ($GenerateWebhookPassword) {
     Write-Host ''
 }
 else {
-    $webhookPassword = Read-Plain 'PhonePe Webhook Password (the one configured with your POC)'
+    $webhookPassword = if ($fileWebhookPassword) { $fileWebhookPassword } else { Read-Plain 'PhonePe Webhook Password (the one configured with your POC)' }
 }
 
-if ([string]::IsNullOrWhiteSpace($clientId)) { throw 'The client id is empty.' }
-if ([string]::IsNullOrWhiteSpace($clientSecret)) { throw 'The client secret is empty.' }
+# Fail before writing anything: a secure prompt that ate a paste yields a 1-character value,
+# which would otherwise be stored and only surface later as an opaque 400 from PhonePe.
+foreach ($check in @(@{ Name = 'client id'; Value = $clientId }, @{ Name = 'client secret'; Value = $clientSecret })) {
+    if ([string]::IsNullOrWhiteSpace($check.Value)) { throw "The $($check.Name) is empty." }
+    if ($check.Value.Length -lt 8) {
+        throw "The $($check.Name) is only $($check.Value.Length) character(s) - the paste did not register. Re-run with -CredentialFile <path>."
+    }
+}
 if ([string]::IsNullOrWhiteSpace($webhookPassword)) { throw 'The webhook password is empty.' }
+
+Write-Host ("Captured client id ({0} chars) and secret ({1} chars)." -f $clientId.Length, $clientSecret.Length) -ForegroundColor DarkGray
 
 # Values travel on stdin inside a quoted here-doc: nothing lands in argv or shell history.
 Send-Remote @"
@@ -151,7 +186,8 @@ for HOST in pg-sandbox pgsandbox; do
 done
 
 echo "--- webhook endpoint ---"
-echo "  unauthenticated POST -> `$(curl -s -o /dev/null -w '%{http_code}' --resolve dev-ssms.yuvaansoft.shop:443:127.0.0.1 -X POST https://dev-ssms.yuvaansoft.shop/api/webhooks/phonepe -H 'Content-Type: application/json' -d '{}')  (401 expected once credentials are set)"
+BODY='{"event":"checkout.order.completed","payload":{"merchantOrderId":"SMMS_probe_0_x","metaInfo":{"udf1":"$AllowedSocieties"}}}'
+echo "  unauthenticated POST -> `$(curl -s -o /dev/null -w '%{http_code}' --resolve dev-ssms.yuvaansoft.shop:443:127.0.0.1 -X POST https://dev-ssms.yuvaansoft.shop/api/webhooks/phonepe -H 'Content-Type: application/json' -d "`$BODY")  (401 expected: known society, no valid auth header)"
 "@
 
 $clientId = $clientSecret = $webhookPassword = $null
