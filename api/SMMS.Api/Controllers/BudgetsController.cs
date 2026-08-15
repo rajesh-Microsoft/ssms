@@ -382,6 +382,20 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
             rows.Sum(r => r.Budgeted), rows.Sum(r => r.Actual), rows.Sum(r => r.Difference), rows));
     }
 
+    /// <summary>Cash actually paid back to contributors in the given window. Settlements that booked
+    /// their own expense are excluded - that cost is already in <c>Expenses</c> - as are wallet
+    /// conversions, which move no money. Settlements of a deleted liability do not count.</summary>
+    private async Task<decimal> RepaidCashAsync(
+        System.Linq.Expressions.Expression<Func<SocietyLiabilitySettlement, bool>> window)
+    {
+        return await db.SocietyLiabilitySettlements
+            .Where(s => s.Method == LiabilitySettlementMethod.Repaid
+                     && s.ExpenseId == null
+                     && db.SocietyLiabilities.Any(l => l.Id == s.LiabilityId))
+            .Where(window)
+            .SumAsync(s => (decimal?)s.Amount) ?? 0m;
+    }
+
     /// <summary>The society's standing position: cash it holds, cash it is owed, cash it owes, and how
     /// long that cash would last at its recent burn rate.</summary>
     [HttpGet("health")]
@@ -414,7 +428,11 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
             var spentBefore = await db.Expenses
                 .Where(e => e.Year * 12 + e.Month < cutoff)
                 .SumAsync(e => (decimal?)e.Amount) ?? 0m;
-            opening = paidBefore + partialBefore + incomeBefore - spentBefore;
+            var memberFundedBefore = await db.Expenses
+                .Where(e => e.Year * 12 + e.Month < cutoff && e.FundedByLiabilityId != null)
+                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+            var repaidBefore = await RepaidCashAsync(s => s.Date.Year * 12 + s.Date.Month < cutoff);
+            opening = paidBefore + partialBefore + incomeBefore - (spentBefore - memberFundedBefore) - repaidBefore;
         }
 
         var paidThis = await db.Collections
@@ -430,7 +448,16 @@ public class BudgetsController(SmmsDbContext db, AuditService audit) : Controlle
             .Where(e => e.Year == year && e.Month == month)
             .SumAsync(e => (decimal?)e.Amount) ?? 0m;
 
-        var bank = opening + paidThis + partialThis + incomeThis - spentThis;
+        // A contributor-funded cost is booked in the month it is incurred, but no society money moved
+        // then - the cash leaves when the contributor is repaid, often in a later month. Counting both
+        // would charge the society twice, so the booked cost is added back and the repayment is what
+        // actually reduces the bank. This mirrors the dashboard's cash-in-hand tile.
+        var memberFundedThis = await db.Expenses
+            .Where(e => e.Year == year && e.Month == month && e.FundedByLiabilityId != null)
+            .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+        var repaidThis = await RepaidCashAsync(s => s.Date.Year == year && s.Date.Month == month);
+
+        var bank = opening + paidThis + partialThis + incomeThis - (spentThis - memberFundedThis) - repaidThis;
 
         // Everything still owed up to and including this month. Invoices dated later are not yet due.
         var receivables = await db.Collections

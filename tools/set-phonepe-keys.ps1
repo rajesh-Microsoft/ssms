@@ -1,21 +1,28 @@
 <#
 .SYNOPSIS
-Sets the PhonePe sandbox credentials on the dev stack without the values being typed on a
-command line, echoed, or written to shell history.
+Sets the PhonePe sandbox credentials on the dev or pre-prod stack without the values being
+typed on a command line, echoed, or written to shell history.
 
 .DESCRIPTION
-Credentials are read with Read-Host -AsSecureString, sent over ssh on stdin (never as
-arguments, which are visible in `ps`), and written to ~/smms-dev/SMMS/.env with mode 600.
+Credentials are read with Read-Host -AsSecureString (or from a shredded file), sent to the box
+on stdin - never as arguments, which are visible in `ps` - and written to that stack's .env
+with mode 600.
 
-The society allowlist is narrowed at the same time. Dev carries clones of real societies, so
-an allowlist of "*" would expose real tenants to a gateway that is still being tested.
+Transport differs per target. Dev goes over ssh. Pre-prod has no reachable ssh from this
+workstation, so it goes through `az vm run-command`, which writes the script it ran to
+/var/lib/waagent/run-command/download on the VM; the script therefore shreds those copies
+before it exits. That residue is why Production credentials are refused on pre-prod.
+
+The society allowlist is narrowed at the same time. Both boxes carry clones of real societies,
+so an allowlist of "*" would expose real tenants to a gateway that is still being tested.
 
 After writing, it proves the credentials actually work by calling the PhonePe token endpoint
 from the VM and printing only the HTTP status and token type - never the token itself.
 
 .EXAMPLE
   ./tools/set-phonepe-keys.ps1 -AllowedSocieties demo -GenerateWebhookPassword
-  ./tools/set-phonepe-keys.ps1 -Clear
+  ./tools/set-phonepe-keys.ps1 -Target PProd -AllowedSocieties aadya -CredentialFile $env:TEMP\pp.txt
+  ./tools/set-phonepe-keys.ps1 -Target PProd -Clear
 #>
 [CmdletBinding(DefaultParameterSetName = 'Set')]
 param(
@@ -28,45 +35,112 @@ param(
     # after reading. Keys: CLIENT_ID, CLIENT_SECRET, optional CLIENT_VERSION, WEBHOOK_PASSWORD.
     [Parameter(ParameterSetName = 'Set')][string]$CredentialFile,
     [Parameter(ParameterSetName = 'Clear')][switch]$Clear,
+    [ValidateSet('Dev', 'PProd')][string]$Target = 'Dev',
     [string]$Vm = '135.235.195.132',
     [string]$User = 'ssmsadmin',
     [string]$KeyPath = "$env:USERPROFILE\ssmsadmin.pem"
 )
 $ErrorActionPreference = 'Stop'
 
+# Pre-prod lives on the MSDN subscription and is reachable only through the Azure agent.
+$pprodSub = '372ae97b-77d2-4a3a-91c4-9fec0b893a7d'
+$pprodRg = 'smms-pprod-rg'
+$pprodVm = 'smms-pprod-vm'
+
+$targets = @{
+    Dev   = @{
+        Transport   = 'ssh'
+        Root        = '~/smms-dev/SMMS'
+        Api         = 'smms-dev-api'
+        Project     = 'smms-dev'
+        WebhookHost = 'dev-ssms.yuvaansoft.shop'
+        Own         = 'true'
+    }
+    PProd = @{
+        Transport   = 'runcommand'
+        Root        = '/opt/smms/app'
+        Api         = 'smms-pprod-api'
+        Project     = 'smms-pprod'
+        WebhookHost = 'pprod-ssms.ssms.yuvaansoft.shop'
+        # run-command runs as root; hand .env back or the stack stops being drivable as ssmsadmin.
+        Own         = 'chown ssmsadmin:ssmsadmin /opt/smms/app/.env*'
+    }
+}
+$t = $targets[$Target]
+
+# run-command writes the script it ran - credentials and all - to disk under waagent. It has
+# to be wiped by a SEPARATE invocation: a background job inside the same script is killed when
+# the handler reaps it, and backgrounding also stops the handler seeing the completion marker.
+function Clear-Residue {
+    if ($t.Transport -ne 'runcommand') { return }
+    Send-Remote @'
+find /var/lib/waagent/run-command/download -name script.sh -mmin +1 -exec grep -l PHONEPE_CLIENT_SECRET {} \; 2>/dev/null |
+  while read -r f; do shred -z -n 1 "$f" && echo "wiped $f"; done
+echo "scripts still holding a secret: $(find /var/lib/waagent/run-command/download -name script.sh -mmin +1 -exec grep -l PHONEPE_CLIENT_SECRET {} \; 2>/dev/null | wc -l)"
+'@
+}
+
 function Read-Plain([string]$Prompt) {
     $secure = Read-Host -Prompt $Prompt -AsSecureString
     [System.Net.NetworkCredential]::new('', $secure).Password
 }
+
+# run-command reports "Enable succeeded" even when the script inside it failed, so a marker
+# echoed on the last line is the only trustworthy completion signal on either transport.
 function Send-Remote([string]$Script) {
-    ($Script -replace "`r", "") | ssh -i $KeyPath -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$User@$Vm" 'bash -s'
-    if ($LASTEXITCODE -ne 0) { throw "remote step failed (is the JIT window open?)" }
+    $body = ($Script -replace "`r", "") + "`necho __PP_OK__`n"
+    if ($t.Transport -eq 'ssh') {
+        $out = ($body | ssh -i $KeyPath -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$User@$Vm" 'bash -s' 2>&1 | Out-String)
+    }
+    else {
+        $tmp = New-TemporaryFile
+        [System.IO.File]::WriteAllText($tmp.FullName, $body)
+        $raw = (az vm run-command invoke --subscription $pprodSub -g $pprodRg -n $pprodVm `
+                --command-id RunShellScript --scripts "@$($tmp.FullName)" -o json 2>&1 | Out-String)
+        # That temp file held the credentials in the clear; overwrite before unlinking.
+        [System.IO.File]::WriteAllText($tmp.FullName, ('x' * $body.Length))
+        Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
+        $out = $raw
+        try { $out = (($raw | ConvertFrom-Json).value | ForEach-Object { $_.message }) -join "`n" } catch { }
+        if ($out -match '(?s)\[stdout\](.*?)(\[stderr\]|$)') { $out = $Matches[1] }
+    }
+    Write-Host $out
+    if ($out -notmatch '__PP_OK__') { throw "remote step on $Target did not run to completion (is the JIT window open?)" }
 }
 
 if ($Clear) {
-    Write-Host 'Removing PhonePe credentials from dev and disabling the gateway.' -ForegroundColor Cyan
+    Write-Host "Removing PhonePe credentials from $Target and disabling the gateway." -ForegroundColor Cyan
     Send-Remote @"
 set -e
-cd ~/smms-dev/SMMS
+cd $($t.Root)
+grep -q '^name: $($t.Project)' docker-compose.yml || { echo 'ABORT: wrong compose file in this directory'; exit 1; }
 cp .env .env.bak-`$(date -u +%Y%m%dT%H%M%SZ)
 for k in PHONEPE_ENABLED PHONEPE_CLIENT_ID PHONEPE_CLIENT_SECRET PHONEPE_WEBHOOK_USERNAME PHONEPE_WEBHOOK_PASSWORD PHONEPE_ALLOWED_SOCIETIES; do
   sed -i "s/^`${k}=.*/`${k}=/" .env
 done
 sed -i 's/^PHONEPE_ENABLED=.*/PHONEPE_ENABLED=false/' .env
 chmod 600 .env
+$($t.Own)
 docker compose up -d --force-recreate smms-api >/dev/null 2>&1
 sleep 4
-CID=`$(docker exec smms-dev-api printenv PhonePe__ClientId 2>/dev/null)
-echo "PHONEPE_ENABLED now:  `$(docker exec smms-dev-api printenv PhonePe__Enabled 2>/dev/null)"
+CID=`$(docker exec $($t.Api) printenv PhonePe__ClientId 2>/dev/null)
+echo "PHONEPE_ENABLED now:  `$(docker exec $($t.Api) printenv PhonePe__Enabled 2>/dev/null)"
 echo "client id length now: `${#CID}  (0 means cleared)"
 "@
+    Clear-Residue
     Write-Host 'Cleared. Ask your PhonePe POC to disable the webhook too.' -ForegroundColor Green
     return
 }
 
-Write-Host "Setting PhonePe $Environment credentials on DEV, allowlist '$AllowedSocieties'." -ForegroundColor Cyan
+Write-Host "Setting PhonePe $Environment credentials on $Target, allowlist '$AllowedSocieties'." -ForegroundColor Cyan
 if ($Environment -eq 'Production') {
+    if ($Target -ne 'Dev') {
+        throw "Refusing to put Production credentials on $Target. Only the real production stack may hold live keys."
+    }
     Write-Warning 'Production credentials move REAL money. Keep the test amount small and refund it afterwards.'
+}
+if ($Target -eq 'PProd') {
+    Write-Warning 'Pre-prod carries a CLONE of live society data. A sandbox payment here will mark a real-looking invoice paid.'
 }
 
 $clientVersion = $null
@@ -137,7 +211,8 @@ Write-Host ("Captured client id ({0} chars) and secret ({1} chars)." -f $clientI
 # Values travel on stdin inside a quoted here-doc: nothing lands in argv or shell history.
 Send-Remote @"
 set -e
-cd ~/smms-dev/SMMS
+cd $($t.Root)
+grep -q '^name: $($t.Project)' docker-compose.yml || { echo 'ABORT: wrong compose file in this directory'; exit 1; }
 cp .env .env.bak-`$(date -u +%Y%m%dT%H%M%SZ)
 python3 - <<'PY'
 import re
@@ -167,22 +242,23 @@ for k, v in vals.items():
 open('.env', 'w').write("\n".join(out) + "\n")
 PY
 chmod 600 .env
+$($t.Own)
 docker compose up -d --force-recreate smms-api >/dev/null 2>&1
 sleep 6
 
 echo "--- as the container sees it (no secrets printed) ---"
-echo "  enabled:     `$(docker exec smms-dev-api printenv PhonePe__Enabled)"
-echo "  environment: `$(docker exec smms-dev-api printenv PhonePe__Environment)"
-echo "  allowlist:   `$(docker exec smms-dev-api printenv PhonePe__AllowedSocieties)"
-CID=`$(docker exec smms-dev-api printenv PhonePe__ClientId)
+echo "  enabled:     `$(docker exec $($t.Api) printenv PhonePe__Enabled)"
+echo "  environment: `$(docker exec $($t.Api) printenv PhonePe__Environment)"
+echo "  allowlist:   `$(docker exec $($t.Api) printenv PhonePe__AllowedSocieties)"
+CID=`$(docker exec $($t.Api) printenv PhonePe__ClientId)
 echo "  client id:   `${CID:0:4}... (`${#CID} chars)"
-SEC=`$(docker exec smms-dev-api printenv PhonePe__ClientSecret)
+SEC=`$(docker exec $($t.Api) printenv PhonePe__ClientSecret)
 echo "  secret:      `${#SEC} chars"
-WHP=`$(docker exec smms-dev-api printenv PhonePe__WebhookPassword)
+WHP=`$(docker exec $($t.Api) printenv PhonePe__WebhookPassword)
 echo "  webhook pwd: `${#WHP} chars"
 
 echo "--- do the credentials actually work? ---"
-CVER=`$(docker exec smms-dev-api printenv PhonePe__ClientVersion)
+CVER=`$(docker exec $($t.Api) printenv PhonePe__ClientVersion)
 for HOST in pg-sandbox pgsandbox; do
   CODE=`$(curl -s -o /tmp/pp.json -w '%{http_code}' \
     -X POST "https://api-preprod.phonepe.com/apis/`${HOST}/v1/oauth/token" \
@@ -198,15 +274,17 @@ done
 
 echo "--- webhook endpoint ---"
 BODY='{"event":"checkout.order.completed","payload":{"merchantOrderId":"SMMS_probe_0_x","metaInfo":{"udf1":"$AllowedSocieties"}}}'
-echo "  unauthenticated POST -> `$(curl -s -o /dev/null -w '%{http_code}' --resolve dev-ssms.yuvaansoft.shop:443:127.0.0.1 -X POST https://dev-ssms.yuvaansoft.shop/api/webhooks/phonepe -H 'Content-Type: application/json' -d "`$BODY")  (401 expected: known society, no valid auth header)"
+echo "  unauthenticated POST -> `$(curl -s -o /dev/null -w '%{http_code}' --resolve $($t.WebhookHost):443:127.0.0.1 -X POST https://$($t.WebhookHost)/api/webhooks/phonepe -H 'Content-Type: application/json' -d "`$BODY")  (401 expected: known society, no valid auth header)"
 "@
+
+Clear-Residue
 
 $clientId = $clientSecret = $webhookPassword = $null
 [System.GC]::Collect()
 
 Write-Host ''
 Write-Host 'Next: enable online payments for the society, then send the webhook URL to your POC.' -ForegroundColor Green
-Write-Host '  URL:      https://dev-ssms.yuvaansoft.shop/api/webhooks/phonepe'
+Write-Host "  URL:      https://$($t.WebhookHost)/api/webhooks/phonepe"
 Write-Host '  Auth:     SHA'
 Write-Host "  Username: $WebhookUsername"
 Write-Host '  Events:   checkout.order.completed, checkout.order.failed'
