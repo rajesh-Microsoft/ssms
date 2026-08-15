@@ -268,6 +268,13 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
         modelBuilder.Entity<UtilityBill>().Property(b => b.UnitsConsumed).HasPrecision(12, 2);
         modelBuilder.Entity<UtilityBill>().Property(b => b.Arrears).HasPrecision(12, 2);
 
+        // Restrict, so a paid bill can never be orphaned by deleting the expense it booked.
+        modelBuilder.Entity<UtilityBill>()
+            .HasOne(b => b.Expense)
+            .WithMany()
+            .HasForeignKey(b => b.ExpenseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         modelBuilder.Entity<UtilityNotification>()
             .HasOne(n => n.UtilityBill)
             .WithMany()

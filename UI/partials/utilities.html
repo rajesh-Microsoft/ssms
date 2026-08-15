@@ -16,9 +16,26 @@
 <div class="card">
   <div class="card-hdr"><h3>🧾 Utility Bills</h3><span class="badge b-inactive" id="utility-bills-count">0 bills</span></div>
   <div class="tbl-wrap"><table>
-    <thead><tr><th>Utility</th><th>Consumer Number</th><th>Consumer Name</th><th>Billing Month</th><th>Bill Number</th><th>Amount</th><th>Due Date</th><th>Units</th><th>Fetched</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Utility</th><th>Consumer Number</th><th>Consumer Name</th><th>Billing Month</th><th>Bill Number</th><th>Amount</th><th>Due Date</th><th>Units</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody id="utility-bills-body"></tbody>
   </table></div>
+</div>
+
+<div class="modal-overlay" id="modal-utilpay">
+  <div class="modal">
+    <div class="modal-hdr"><h3>Mark Bill Paid</h3><button class="modal-close" onclick="closeModal('utilpay')">×</button></div>
+    <input type="hidden" id="utilpay-id">
+    <p style="font-size:12px;color:var(--sub);margin-bottom:10px;" id="utilpay-summary"></p>
+    <div class="form-grid">
+      <div class="form-group"><label>Paid On *</label><input type="date" id="utilpay-date"></div>
+      <div class="form-group"><label>Amount Paid *</label><input type="number" id="utilpay-amount" step="0.01" min="0.01"></div>
+      <div class="form-group full"><label>UTR / Reference *</label><input type="text" id="utilpay-ref" maxlength="80" placeholder="From PhonePe / your bank"></div>
+      <div class="form-group"><label>Expense Category *</label><select id="utilpay-cat"></select></div>
+      <div class="form-group"><label>Payment Mode</label><select id="utilpay-mode"><option>UPI</option><option>Net Banking</option><option>Card</option><option>Cash</option><option>Cheque</option></select></div>
+    </div>
+    <p style="font-size:11px;color:var(--sub);">This books an expense for the amount above, dated when the money left the bank. Enter it here instead of adding the expense separately.</p>
+    <div class="modal-ftr"><button class="btn btn-ghost" onclick="closeModal('utilpay')">Cancel</button><button class="btn btn-primary" onclick="saveUtilityPayment()">Mark Paid</button></div>
+  </div>
 </div>
 
 <div class="modal-overlay" id="modal-utility">

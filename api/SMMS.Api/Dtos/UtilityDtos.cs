@@ -43,7 +43,17 @@ public record UtilityBillDto(
     string? ConsumerName,
     string Status,
     DateTime FetchedOn,
-    string? PaymentUrl);
+    string? PaymentUrl,
+    DateTime? PaidOn,
+    string? PaymentReference,
+    int? ExpenseId);
+
+public record UtilityBillPaymentRequest(
+    DateTime PaidOn,
+    [Required, StringLength(80, MinimumLength = 4)] string PaymentReference,
+    [Range(0.01, 10000000)] decimal Amount,
+    [Required, StringLength(60)] string Category,
+    [StringLength(60)] string? PaymentMode);
 
 public record UtilityFetchDto(bool BillAvailable, bool Created, string Message, UtilityBillDto? Bill);
 

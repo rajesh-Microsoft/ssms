@@ -70,6 +70,18 @@ public class UtilityBill
     [MaxLength(30)]
     public string Status { get; set; } = "Outstanding";
 
+    public DateTime? PaidOn { get; set; }
+
+    /// <summary>The bank UTR from the biller's own checkout - our gateway never sees this payment.</summary>
+    [StringLength(80)]
+    public string? PaymentReference { get; set; }
+
+    /// <summary>The expense booked when the bill was marked paid. Its presence is what stops the
+    /// same bill being booked twice.</summary>
+    public int? ExpenseId { get; set; }
+
+    public Expense? Expense { get; set; }
+
     public string RawHtml { get; set; } = string.Empty;
     public DateTime FetchedOn { get; set; } = DateTime.UtcNow;
     public UtilityConnection? UtilityConnection { get; set; }

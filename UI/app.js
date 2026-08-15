@@ -2170,8 +2170,48 @@ function renderUtilities(){
   billsBody.innerHTML = bills.map(b => `<tr>
     <td>${utilityEsc(b.category)}</td><td>${utilityEsc(b.consumerNumber)}</td><td>${utilityEsc(b.consumerName) || '—'}</td><td>${new Date(b.billingMonth).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</td>
     <td>${utilityEsc(b.billNumber) || '—'}</td><td>₹${Number(b.billAmount).toLocaleString('en-IN')}</td><td>${b.dueDate ? mDate(b.dueDate) : '—'}</td>
-    <td>${b.unitsConsumed ?? '—'}</td><td>${mDate(b.fetchedOn)}</td><td class="act-btns">${b.status === 'Paid' ? '' : payLink(b.paymentUrl, 'Pay now')}<button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
+    <td>${b.unitsConsumed ?? '—'}</td><td>${b.status === 'Paid'
+      ? `<span class="badge b-active" title="UTR ${utilityEsc(b.paymentReference)}">Paid ${b.paidOn ? mDate(b.paidOn) : ''}</span>`
+      : `<span class="badge b-inactive">${utilityEsc(b.status)}</span>`}</td>
+    <td class="act-btns">${b.status === 'Paid' ? '' : payLink(b.paymentUrl, 'Pay now') + `<button class="ic-btn" title="Mark paid and book the expense" onclick="openUtilityPayment(${b.id})">✓</button>`}<button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
   </tr>`).join('') || '<tr><td colspan="10" class="empty">No bills fetched yet.</td></tr>';
+}
+
+// Recording the UTR books the expense in the same step, so the bill and the books cannot drift.
+function openUtilityPayment(id){
+  const bill = (DB.utilityBills || []).find(b => b.id === id);
+  if(!bill) return;
+  document.getElementById('utilpay-id').value = bill.id;
+  document.getElementById('utilpay-summary').textContent =
+    `${bill.providerName} · ${bill.consumerNumber} · ${new Date(bill.billingMonth).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}`;
+  document.getElementById('utilpay-amount').value = bill.billAmount;
+  document.getElementById('utilpay-date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('utilpay-ref').value = '';
+  const cats = DB.settings.categories || [];
+  // Default to the society's own category that looks like this utility, not a category we invent.
+  const guess = cats.find(c => c.toLowerCase().includes(String(bill.category || '').toLowerCase().slice(0,5))) || cats[0] || '';
+  document.getElementById('utilpay-cat').innerHTML = cats.map(c => `<option${c === guess ? ' selected' : ''}>${utilityEsc(c)}</option>`).join('');
+  openModal('utilpay');
+}
+
+async function saveUtilityPayment(){
+  const id = +document.getElementById('utilpay-id').value;
+  const reference = document.getElementById('utilpay-ref').value.trim();
+  if(reference.length < 4) return toast('Enter the UTR / reference from the payment app', 'warn');
+  const payload = {
+    paidOn: document.getElementById('utilpay-date').value,
+    paymentReference: reference,
+    amount: +document.getElementById('utilpay-amount').value,
+    category: document.getElementById('utilpay-cat').value,
+    paymentMode: document.getElementById('utilpay-mode').value
+  };
+  try{
+    await Api.markUtilityBillPaid(id, payload);
+    closeModal('utilpay');
+    await Promise.all([loadUtilityData(), loadExpenses()]);
+    renderUtilities();
+    toast('Bill marked paid and booked as an expense');
+  }catch(err){ toast(err.message || 'Could not mark the bill paid', 'warn'); }
 }
 
 function openUtilityConnection(id){

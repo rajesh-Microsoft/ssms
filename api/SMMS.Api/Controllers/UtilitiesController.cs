@@ -46,7 +46,10 @@ public class UtilitiesController(
         bill.ConsumerName,
         bill.Status,
         bill.FetchedOn,
-        PayUrl(bill.UtilityConnection.Provider.Code, bill.UtilityConnection.ConsumerNumber));
+        PayUrl(bill.UtilityConnection.Provider.Code, bill.UtilityConnection.ConsumerNumber),
+        bill.PaidOn,
+        bill.PaymentReference,
+        bill.ExpenseId);
 
     [HttpGet("providers")]
     public async Task<ActionResult<IReadOnlyList<UtilityProviderDto>>> Providers(CancellationToken cancellationToken) =>
@@ -167,6 +170,45 @@ public class UtilitiesController(
         var bill = await db.UtilityBills.AsNoTracking().Include(b => b.UtilityConnection)!.ThenInclude(c => c!.Provider)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
         return bill is null ? NotFound() : Ok(ToDto(bill));
+    }
+
+    /// <summary>Records a bill settled on the biller's own site and books the matching expense. The
+    /// expense is dated by when the money left the bank, not by the billing month, so the cash
+    /// position moves in the month it actually moved.</summary>
+    [HttpPost("bills/{id:int}/mark-paid")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<UtilityBillDto>> MarkPaid(int id, UtilityBillPaymentRequest request, CancellationToken cancellationToken)
+    {
+        var bill = await db.UtilityBills.Include(b => b.UtilityConnection)!.ThenInclude(c => c!.Provider)
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+        if (bill is null) return NotFound();
+        if (bill.ExpenseId.HasValue)
+            return Conflict(new { message = "This bill is already marked paid and booked as an expense." });
+
+        var paidOn = request.PaidOn.Date;
+        var expense = new Expense
+        {
+            ExpenseDate = paidOn,
+            Month = paidOn.Month,
+            Year = paidOn.Year,
+            Category = request.Category.Trim(),
+            Description = $"{bill.UtilityConnection!.Provider!.ProviderName} bill {bill.BillingMonth:MMM yyyy}",
+            Vendor = bill.UtilityConnection.Provider.ProviderName,
+            Amount = request.Amount,
+            PaymentMode = Clean(request.PaymentMode) ?? "UPI",
+            Remarks = $"Consumer {bill.UtilityConnection.ConsumerNumber} · UTR {request.PaymentReference.Trim()}"
+        };
+        db.Expenses.Add(expense);
+
+        bill.Status = "Paid";
+        bill.PaidOn = paidOn;
+        bill.PaymentReference = request.PaymentReference.Trim();
+        bill.Expense = expense;   // EF stamps ExpenseId on commit
+
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.LogAsync("Expenses", "MarkUtilityBillPaid",
+            $"Bill {bill.Id} ({bill.UtilityConnection.ConsumerNumber}) marked paid, {request.Amount:0.00} booked as expense {expense.Id}");
+        return Ok(ToDto(bill));
     }
 
     [HttpGet("bills/{id:int}/download")]
