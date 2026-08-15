@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using SMMS.Api.Data;
 using SMMS.Api.Dtos;
 using SMMS.Api.Models;
@@ -13,9 +14,23 @@ namespace SMMS.Api.Controllers;
 [ApiController]
 [Route("api/utilities")]
 [Authorize]
-public class UtilitiesController(SmmsDbContext db, UtilityBillService billService, AuditService audit) : ControllerBase
+public class UtilitiesController(
+    SmmsDbContext db,
+    UtilityBillService billService,
+    AuditService audit,
+    IOptions<UtilityIntegrationOptions> utilityOptions) : ControllerBase
 {
-    private static UtilityBillDto ToDto(UtilityBill bill) => new(
+    /// <summary>The biller's own payment page with the consumer number pre-filled. Null when the
+    /// provider has no payment page configured, which hides the Pay action rather than guessing a URL.</summary>
+    private string? PayUrl(string providerCode, string consumerNumber)
+    {
+        if (!utilityOptions.Value.Providers.TryGetValue(providerCode, out var provider)) return null;
+        return string.IsNullOrWhiteSpace(provider.PaymentUrlTemplate)
+            ? null
+            : provider.PaymentUrlTemplate.Replace("{ConsumerNumber}", Uri.EscapeDataString(consumerNumber));
+    }
+
+    private UtilityBillDto ToDto(UtilityBill bill) => new(
         bill.Id,
         bill.UtilityConnectionId,
         bill.UtilityConnection!.Provider!.ProviderName,
@@ -30,7 +45,8 @@ public class UtilitiesController(SmmsDbContext db, UtilityBillService billServic
         bill.Arrears,
         bill.ConsumerName,
         bill.Status,
-        bill.FetchedOn);
+        bill.FetchedOn,
+        PayUrl(bill.UtilityConnection.Provider.Code, bill.UtilityConnection.ConsumerNumber));
 
     [HttpGet("providers")]
     public async Task<ActionResult<IReadOnlyList<UtilityProviderDto>>> Providers(CancellationToken cancellationToken) =>
@@ -50,7 +66,8 @@ public class UtilitiesController(SmmsDbContext db, UtilityBillService billServic
             c.ConsumerNumber, c.ServiceNumber, c.AutoFetchEnabled, c.Status, c.CreatedOn,
             c.LastFetchedOn, c.LastFetchError,
             c.Bills.OrderByDescending(b => b.BillingMonth).ThenByDescending(b => b.FetchedOn)
-                .Select(ToDto).FirstOrDefault())).ToList());
+                .Select(ToDto).FirstOrDefault(),
+            PayUrl(c.Provider.Code, c.ConsumerNumber))).ToList());
     }
 
     [HttpPost("connections")]
@@ -168,10 +185,11 @@ public class UtilitiesController(SmmsDbContext db, UtilityBillService billServic
             .Select(n => new UtilityNotificationDto(n.Id, n.UtilityBillId, n.Title, n.Message, n.CreatedOn))
             .ToListAsync(cancellationToken));
 
-    private static UtilityConnectionDto ToConnectionDto(UtilityConnection c) => new(
+    private UtilityConnectionDto ToConnectionDto(UtilityConnection c) => new(
         c.Id, c.ProviderId, c.Provider!.Code, c.Provider.ProviderName, c.Provider.Category,
         c.ConsumerNumber, c.ServiceNumber, c.AutoFetchEnabled, c.Status, c.CreatedOn,
-        c.LastFetchedOn, c.LastFetchError, null);
+        c.LastFetchedOn, c.LastFetchError, null,
+        PayUrl(c.Provider.Code, c.ConsumerNumber));
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

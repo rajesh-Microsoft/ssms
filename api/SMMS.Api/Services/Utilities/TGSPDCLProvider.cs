@@ -16,6 +16,9 @@ public class UtilityIntegrationOptions
 public class UtilityProviderOptions
 {
     public string BillUrlTemplate { get; set; } = string.Empty;
+    /// <summary>Where an admin is sent to settle the bill. The biller's own checkout, not ours - paying
+    /// a utility runs over BBPS, which our collection gateway cannot do.</summary>
+    public string? PaymentUrlTemplate { get; set; }
     public string? FormUrl { get; set; }
     public string ConsumerInputSelector { get; set; } = "#ukscno";
     public string SubmitSelector { get; set; } = "#submitbtnclicked";

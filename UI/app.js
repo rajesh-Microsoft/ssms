@@ -2152,12 +2152,17 @@ function renderUtilities(){
   const body = document.getElementById('utility-connections-body');
   const billsBody = document.getElementById('utility-bills-body');
   if(!body || !billsBody) return;   // partial not loaded yet
+  // Opens the biller's own checkout with the consumer number filled in; on a phone its UPI option
+  // hands off to PhonePe. We cannot charge a utility ourselves - that is BBPS, not our gateway.
+  const payLink = (url, label) => url
+    ? `<a class="ic-btn" href="${utilityEsc(url)}" target="_blank" rel="noopener noreferrer" title="Pay this bill on the provider's site">${label}</a>`
+    : '';
   body.innerHTML = (DB.utilityConnections || []).map(c => `<tr>
     <td>${utilityEsc(c.providerName)}</td><td>${utilityEsc(c.consumerNumber)}</td><td>${utilityEsc(c.lastBill && c.lastBill.consumerName) || '—'}</td><td>${utilityEsc(c.serviceNumber) || '—'}</td>
     <td><span class="badge ${c.status === 'Active' ? 'b-active' : 'b-inactive'}">${utilityEsc(c.status)}</span></td>
     <td>${c.lastBill ? `₹${Number(c.lastBill.billAmount).toLocaleString('en-IN')}` : '—'}</td>
     <td>${c.autoFetchEnabled ? 'On' : 'Off'}</td>
-    <td class="act-btns"><button class="ic-btn" title="Fetch now" onclick="fetchUtilityNow(${c.id})">↻</button><button class="ic-btn" title="Edit" onclick="openUtilityConnection(${c.id})">✎</button><button class="ic-btn" title="Delete" onclick="deleteUtilityConnection(${c.id})">🗑</button></td>
+    <td class="act-btns">${payLink(c.paymentUrl, '💳')}<button class="ic-btn" title="Fetch now" onclick="fetchUtilityNow(${c.id})">↻</button><button class="ic-btn" title="Edit" onclick="openUtilityConnection(${c.id})">✎</button><button class="ic-btn" title="Delete" onclick="deleteUtilityConnection(${c.id})">🗑</button></td>
   </tr>`).join('') || '<tr><td colspan="8" class="empty">No utility connections configured.</td></tr>';
   const bills = DB.utilityBills || [];
   const countBadge = document.getElementById('utility-bills-count');
@@ -2165,7 +2170,7 @@ function renderUtilities(){
   billsBody.innerHTML = bills.map(b => `<tr>
     <td>${utilityEsc(b.category)}</td><td>${utilityEsc(b.consumerNumber)}</td><td>${utilityEsc(b.consumerName) || '—'}</td><td>${new Date(b.billingMonth).toLocaleDateString('en-IN',{month:'short',year:'numeric'})}</td>
     <td>${utilityEsc(b.billNumber) || '—'}</td><td>₹${Number(b.billAmount).toLocaleString('en-IN')}</td><td>${b.dueDate ? mDate(b.dueDate) : '—'}</td>
-    <td>${b.unitsConsumed ?? '—'}</td><td>${mDate(b.fetchedOn)}</td><td><button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
+    <td>${b.unitsConsumed ?? '—'}</td><td>${mDate(b.fetchedOn)}</td><td class="act-btns">${b.status === 'Paid' ? '' : payLink(b.paymentUrl, 'Pay now')}<button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
   </tr>`).join('') || '<tr><td colspan="10" class="empty">No bills fetched yet.</td></tr>';
 }
 

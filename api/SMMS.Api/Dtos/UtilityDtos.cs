@@ -17,7 +17,8 @@ public record UtilityConnectionDto(
     DateTime CreatedOn,
     DateTime? LastFetchedOn,
     string? LastFetchError,
-    UtilityBillDto? LastBill);
+    UtilityBillDto? LastBill,
+    string? PaymentUrl);
 
 public record UtilityConnectionRequest(
     [Range(1, int.MaxValue)] int ProviderId,
@@ -41,7 +42,8 @@ public record UtilityBillDto(
     decimal Arrears,
     string? ConsumerName,
     string Status,
-    DateTime FetchedOn);
+    DateTime FetchedOn,
+    string? PaymentUrl);
 
 public record UtilityFetchDto(bool BillAvailable, bool Created, string Message, UtilityBillDto? Bill);
 
