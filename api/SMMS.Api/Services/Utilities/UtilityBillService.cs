@@ -48,7 +48,9 @@ public class UtilityBillService(
             bill.UnitsConsumed = result.UnitsConsumed;
             bill.Arrears = result.Arrears;
             bill.ConsumerName = result.ConsumerName;
-            bill.Status = result.Status;
+            // A settled bill keeps its Paid status. Billers still show arrears for days after payment,
+            // so refetching must not silently un-pay a bill whose expense is already booked.
+            if (bill.ExpenseId is null) bill.Status = result.Status;
             bill.RawHtml = result.RawHtml;
             bill.FetchedOn = DateTime.UtcNow;
             connection.ServiceNumber ??= result.ServiceNumber;
