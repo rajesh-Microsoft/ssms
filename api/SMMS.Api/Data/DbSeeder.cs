@@ -77,6 +77,17 @@ public static class DbSeeder
             });
         }
 
+        if (!db.UtilityProviders.Any(p => p.Code == "HMWSSB"))
+        {
+            db.UtilityProviders.Add(new UtilityProvider
+            {
+                Code = "HMWSSB",
+                ProviderName = "HMWSSB",
+                Category = "Water",
+                SupportsAutoFetch = true
+            });
+        }
+
         db.SaveChanges();
     }
 }

@@ -129,6 +129,14 @@ builder.Services.AddHttpClient<TGSPDCLProvider>((sp, client) =>
     client.DefaultRequestHeaders.UserAgent.ParseAdd("SMMS-UtilityBillFetcher/1.0");
 });
 builder.Services.AddScoped<IUtilityProvider>(sp => sp.GetRequiredService<TGSPDCLProvider>());
+builder.Services.AddSingleton<HmwssbHtmlParser>();
+builder.Services.AddHttpClient<HmwssbProvider>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<UtilityIntegrationOptions>>().Value;
+    client.Timeout = options.RequestTimeout;
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SMMS-UtilityBillFetcher/1.0");
+});
+builder.Services.AddScoped<IUtilityProvider>(sp => sp.GetRequiredService<HmwssbProvider>());
 builder.Services.AddScoped<IUtilityProviderResolver, UtilityProviderResolver>();
 builder.Services.AddScoped<UtilityBillService>();
 builder.Services.AddHostedService<UtilityBillBackgroundService>();
