@@ -239,7 +239,8 @@ public class UtilitiesController(
         return Ok(ToDto(bill));
     }
 
-    [HttpGet("bills/{id:int}/download")]    public async Task<IActionResult> Download(int id, CancellationToken cancellationToken)
+    [HttpGet("bills/{id:int}/download")]
+    public async Task<IActionResult> Download(int id, CancellationToken cancellationToken)
     {
         var bill = await db.UtilityBills.AsNoTracking().Include(b => b.UtilityConnection)!.ThenInclude(c => c!.Provider)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
