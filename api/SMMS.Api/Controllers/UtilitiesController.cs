@@ -211,8 +211,35 @@ public class UtilitiesController(
         return Ok(ToDto(bill));
     }
 
-    [HttpGet("bills/{id:int}/download")]
-    public async Task<IActionResult> Download(int id, CancellationToken cancellationToken)
+    /// <summary>Reverses a mark-paid. The booked expense is removed - the audit interceptor turns that
+    /// into a soft delete, so the reversal stays on the record - and the bill returns to Outstanding.</summary>
+    [HttpPost("bills/{id:int}/unmark-paid")]
+    [Authorize(Roles = Roles.Admin)]
+    public async Task<ActionResult<UtilityBillDto>> UnmarkPaid(int id, CancellationToken cancellationToken)
+    {
+        var bill = await db.UtilityBills.Include(b => b.UtilityConnection)!.ThenInclude(c => c!.Provider)
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+        if (bill is null) return NotFound();
+        if (bill.ExpenseId is null)
+            return Conflict(new { message = "This bill is not marked paid." });
+
+        var expenseId = bill.ExpenseId.Value;
+        var expense = await db.Expenses.FirstOrDefaultAsync(e => e.Id == expenseId, cancellationToken);
+
+        // Clear the link before removing, or the restricted foreign key blocks the delete.
+        bill.ExpenseId = null;
+        bill.PaidOn = null;
+        bill.PaymentReference = null;
+        bill.Status = "Outstanding";
+        if (expense is not null) db.Expenses.Remove(expense);
+
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.LogAsync("Expenses", "UnmarkUtilityBillPaid",
+            $"Bill {bill.Id} ({bill.UtilityConnection!.ConsumerNumber}) reopened, expense {expenseId} removed");
+        return Ok(ToDto(bill));
+    }
+
+    [HttpGet("bills/{id:int}/download")]    public async Task<IActionResult> Download(int id, CancellationToken cancellationToken)
     {
         var bill = await db.UtilityBills.AsNoTracking().Include(b => b.UtilityConnection)!.ThenInclude(c => c!.Provider)
             .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);

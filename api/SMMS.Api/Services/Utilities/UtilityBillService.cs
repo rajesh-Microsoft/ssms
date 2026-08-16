@@ -41,17 +41,22 @@ public class UtilityBillService(
                 db.UtilityBills.Add(bill);
             }
 
-            bill!.BillNumber = result.BillNumber;
-            bill.BillDate = result.BillDate;
-            bill.DueDate = result.DueDate;
-            bill.BillAmount = result.BillAmount;
-            bill.UnitsConsumed = result.UnitsConsumed;
-            bill.Arrears = result.Arrears;
-            bill.ConsumerName = result.ConsumerName;
-            // A settled bill keeps its Paid status. Billers still show arrears for days after payment,
-            // so refetching must not silently un-pay a bill whose expense is already booked.
-            if (bill.ExpenseId is null) bill.Status = result.Status;
-            bill.RawHtml = result.RawHtml;
+            // A settled bill is the record of what was actually paid, so nothing on it moves again.
+            // Billers keep showing arrears for days after payment and would otherwise rewrite the
+            // amount and un-pay it. New dues land on the next billing month's row.
+            var settled = bill!.ExpenseId is not null;
+            if (!settled)
+            {
+                bill.BillNumber = result.BillNumber;
+                bill.BillDate = result.BillDate;
+                bill.DueDate = result.DueDate;
+                bill.BillAmount = result.BillAmount;
+                bill.UnitsConsumed = result.UnitsConsumed;
+                bill.Arrears = result.Arrears;
+                bill.ConsumerName = result.ConsumerName;
+                bill.Status = result.Status;
+                bill.RawHtml = result.RawHtml;
+            }
             bill.FetchedOn = DateTime.UtcNow;
             connection.ServiceNumber ??= result.ServiceNumber;
 
@@ -67,7 +72,9 @@ public class UtilityBillService(
                 await db.SaveChangesAsync(cancellationToken);
             }
 
-            return new(true, created, bill, created ? "New utility bill fetched." : "Utility bill refreshed.");
+            return new(true, created, bill, created
+                ? "New utility bill fetched."
+                : settled ? "Bill already settled - left unchanged." : "Utility bill refreshed.");
         }
         catch (Exception ex)
         {

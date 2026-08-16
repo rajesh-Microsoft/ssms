@@ -2173,8 +2173,20 @@ function renderUtilities(){
     <td>${b.unitsConsumed ?? '—'}</td><td>${b.status === 'Paid'
       ? `<span class="badge b-active" title="UTR ${utilityEsc(b.paymentReference)}">Paid ${b.paidOn ? mDate(b.paidOn) : ''}</span>`
       : `<span class="badge b-inactive">${utilityEsc(b.status)}</span>`}</td>
-    <td class="act-btns">${b.status === 'Paid' ? '' : payLink(b.paymentUrl, 'Pay now') + `<button class="ic-btn" title="Mark paid and book the expense" onclick="openUtilityPayment(${b.id})">✓</button>`}<button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
+    <td class="act-btns">${b.status === 'Paid'
+      ? `<button class="ic-btn" title="Undo - reopen the bill and remove the booked expense" onclick="unmarkUtilityBillPaid(${b.id})">↶</button>`
+      : payLink(b.paymentUrl, 'Pay now') + `<button class="ic-btn" title="Mark paid and book the expense" onclick="openUtilityPayment(${b.id})">✓</button>`}<button class="ic-btn" title="Download bill" onclick="downloadUtilityBill(${b.id})">⬇</button></td>
   </tr>`).join('') || '<tr><td colspan="10" class="empty">No bills fetched yet.</td></tr>';
+}
+
+async function unmarkUtilityBillPaid(id){
+  if(!confirm('Reopen this bill? The expense booked for it will be removed.')) return;
+  try{
+    await Api.unmarkUtilityBillPaid(id);
+    await Promise.all([loadUtilityData(), loadExpenses()]);
+    renderUtilities();
+    toast('Bill reopened and its expense removed');
+  }catch(err){ toast(err.message || 'Could not reopen the bill', 'warn'); }
 }
 
 // Recording the UTR books the expense in the same step, so the bill and the books cannot drift.

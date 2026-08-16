@@ -176,6 +176,7 @@ const Api = {
   fetchUtilityBill: (id) => apiFetch(`/utilities/connections/${id}/fetch`, { method: 'POST' }),
   getUtilityBills: (connectionId) => apiFetch('/utilities/bills' + (connectionId ? `?connectionId=${connectionId}` : '')),
   markUtilityBillPaid: (id, payload) => apiFetch(`/utilities/bills/${id}/mark-paid`, { method: 'POST', body: JSON.stringify(payload) }),
+  unmarkUtilityBillPaid: (id) => apiFetch(`/utilities/bills/${id}/unmark-paid`, { method: 'POST' }),
   getUtilityNotifications: () => apiFetch('/utilities/notifications'),
   downloadUtilityBill: (id, fileName) => apiDownload(`/utilities/bills/${id}/download`, fileName),
 
