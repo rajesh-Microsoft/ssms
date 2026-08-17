@@ -91,17 +91,18 @@ const context = await browser.newContext({
   recordVideo: { dir: outDir, size: { width: 1600, height: 900 } }
 });
 const page = await context.newPage();
+const skipped = [];
 
 try {
   console.log(`Recording ${BASE} -> ${outDir}`);
   await page.goto(new URL('login.html', BASE).href, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2500);                       // hold on the public landing page
 
-  await page.getByRole('button', { name: 'Admin Login' }).first().click();
+  await page.getByRole('link', { name: 'Admin Login' }).first().click();
   await page.waitForSelector('#login-username', { state: 'visible' });
   await page.fill('#login-username', USER);
   await page.fill('#login-password', PASS);
-  await page.getByRole('button', { name: 'Login', exact: true }).click();
+  await page.locator('button:visible', { hasText: /^Login$/ }).first().click();
 
   await page.waitForSelector('.nav-item.admin-only', { timeout: 20000 });
   await page.waitForTimeout(2000);
@@ -109,16 +110,23 @@ try {
 
   for (const scene of scenes) {
     console.log(`  ${scene.label}${scene.nth ? ` [${scene.nth}]` : ''} - ${scene.say}`);
-    await page.locator('.nav-item.admin-only', { hasText: scene.label }).nth(scene.nth).click();
-    await page.waitForTimeout(1500);
-    if (scene.label === 'Settings') await maskSocietyProfile(page);
-    await page.evaluate(y => window.scrollTo({ top: y, behavior: 'smooth' }), scene.scrollTo ?? 0);
-    await page.waitForTimeout(HOLD);
+    // One missing tab must not lose the whole recording, so keep going and report it at the end.
+    try {
+      await page.locator('.nav-item.admin-only', { hasText: scene.label }).nth(scene.nth).click({ timeout: 10000 });
+      await page.waitForTimeout(1500);
+      if (scene.label === 'Settings') await maskSocietyProfile(page);
+      await page.evaluate(y => window.scrollTo({ top: y, behavior: 'smooth' }), scene.scrollTo ?? 0);
+      await page.waitForTimeout(HOLD);
+    } catch (err) {
+      skipped.push(scene.label);
+      console.warn(`    ! skipped ${scene.label}: ${err.message.split('\n')[0]}`);
+    }
   }
 }
 finally {
   await context.close();   // the video is only flushed to disk when the context closes
   await browser.close();
   console.log(`\nDone. Video written to ${outDir}`);
+  if (skipped.length) console.warn(`Scenes skipped: ${skipped.join(', ')}`);
   console.log('Review it before sharing - confirm every blurred panel actually rendered blurred.');
 }
