@@ -18,6 +18,11 @@ data/*.pdf
 data/sql-backups/
 backups/
 
+# Walkthrough recordings film a live society. Even blurred, keep them out of git.
+tools/walkthrough/
+node_modules/
+package-lock.json
+
 # .NET
 api/**/bin/
 api/**/obj/
