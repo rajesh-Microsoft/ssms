@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Cap every container's log file so runaway logs can never fill the VM disk.
 x-logging: &default-logging
   driver: json-file

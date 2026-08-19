@@ -1,0 +1,9 @@
+# Local-dev only. setup-local.ps1 copies this file to the git-ignored
+# docker-compose.override.yml used automatically by Docker Compose.
+services:
+  smms-ui:
+    ports: !override
+      - "8080:80"
+    volumes: !override
+      - ./UI:/usr/share/nginx/html:ro
+      - ./nginx/nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
