@@ -147,6 +147,13 @@ const Api = {
   createExpense: (payload) => apiFetch('/expenses', { method: 'POST', body: JSON.stringify(payload) }),
   updateExpense: (id, payload) => apiFetch(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   deleteExpense: (id) => apiFetch(`/expenses/${id}`, { method: 'DELETE' }),
+  // Bills / receipts / payment screenshots backing an expense. Multipart must go through
+  // apiPostForm (apiFetch forces application/json), and the download is [Authorize]d, so it
+  // needs the blob helper rather than a bare href, which would send no token and 401.
+  getExpenseAttachments: (id) => apiFetch(`/expenses/${id}/attachments`),
+  uploadExpenseAttachment: (id, file) => { const fd = new FormData(); fd.append('file', file); return apiPostForm(`/expenses/${id}/attachments`, fd); },
+  viewExpenseAttachment: (id, attId) => apiFetchObjectUrl(`/expenses/${id}/attachments/${attId}`),
+  deleteExpenseAttachment: (id, attId) => apiFetch(`/expenses/${id}/attachments/${attId}`, { method: 'DELETE' }),
 
   // Other income (non-member society receipts: ads, shop/tower rent, interest, etc.)
   getIncome: () => apiFetch('/income'),

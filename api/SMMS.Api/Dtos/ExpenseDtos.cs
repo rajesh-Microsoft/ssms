@@ -3,7 +3,17 @@ using System.ComponentModel.DataAnnotations;
 namespace SMMS.Api.Dtos;
 
 public record ExpenseDto(int Id, DateTime ExpenseDate, string Category, string Description, string? Vendor,
-    decimal Amount, string? PaymentMode, int Month, int Year, string? Remarks, int? FundedByLiabilityId);
+    decimal Amount, string? PaymentMode, int Month, int Year, string? Remarks, int? FundedByLiabilityId,
+    int AttachmentCount);
+
+/// <summary>An uploaded bill or payment screenshot. The stored path is deliberately not exposed —
+/// files are fetched through the download endpoint, which checks who is asking.</summary>
+public record ExpenseAttachmentDto(
+    int Id,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    DateTime UploadedOn);
 
 public record ExpenseUpsertRequest(
     [Required] DateTime ExpenseDate,

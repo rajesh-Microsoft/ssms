@@ -9,6 +9,7 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<Member> Members => Set<Member>();
     public DbSet<Collection> Collections => Set<Collection>();
     public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<ExpenseAttachment> ExpenseAttachments => Set<ExpenseAttachment>();
     public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
     public DbSet<SocietySettings> Settings => Set<SocietySettings>();
     public DbSet<Complaint> Complaints => Set<Complaint>();
@@ -216,6 +217,16 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
 
         modelBuilder.Entity<ReimbursementAttachment>()
             .HasIndex(a => a.RequestId);
+
+        // Same reasoning as reimbursement evidence: a receipt has no meaning without its expense.
+        modelBuilder.Entity<ExpenseAttachment>()
+            .HasOne(a => a.Expense)
+            .WithMany(e => e.Attachments)
+            .HasForeignKey(a => a.ExpenseId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<ExpenseAttachment>()
+            .HasIndex(a => a.ExpenseId);
 
         // Speeds up the income list/summary scans by period.
         modelBuilder.Entity<SocietyIncome>()

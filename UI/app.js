@@ -1051,6 +1051,10 @@ function renderExpRow(e, i){
   const yr   = getYear(e) || fld(e,'year','Year') || '';
   const rem  = fld(e,'remarks','Remarks') || '-';
   const id   = e.id || e.Id || i;
+  const attCount = +fld(e,'attachmentCount','AttachmentCount') || 0;
+  const attachBtn = attCount
+    ? `<button class="ic-btn" title="View the bill / receipt" onclick="showExpenseAttachments('${id}')">📎 ${attCount}</button>`
+    : '';
   // Contributor-funded costs belong to their liability, so they are read-only here.
   const liabId = fld(e,'fundedByLiabilityId','FundedByLiabilityId');
   const owned = !!liabId;
@@ -1060,7 +1064,7 @@ function renderExpRow(e, i){
   return `<tr>
     <td>${i+1}</td><td>${dt}</td><td>${catCell}</td><td>${desc}</td><td>${ven}</td>
     <td>₹${amt.toLocaleString('en-IN')}</td><td>${mode}</td><td>${moN}</td><td>${yr}</td><td>${rem}</td>
-    <td>${canEdit('Expenses') ? (owned
+    <td>${attachBtn}${canEdit('Expenses') ? (owned
       ? `<button class="ic-btn" title="Funded by a contributor \u2014 manage from Liabilities" onclick="showTab('liabilities')">\ud83c\udfe6</button>`
       : `<div class="act-btns">
       <button class="ic-btn" onclick="editExpense('${id}')">✏️</button>
@@ -1087,11 +1091,79 @@ async function saveExpense(){
     remarks: document.getElementById('exp-remarks').value
   };
   try{
+    let expenseId = editId.exp;
     if(editId.exp){ await Api.updateExpense(editId.exp, payload); }
-    else { await Api.createExpense(payload); }
+    else { expenseId = (await Api.createExpense(payload)).id; }
+
+    // Uploaded after the expense exists, because each file is attached to its id.
+    const failed = await uploadExpenseFiles(expenseId);
+
     await loadExpenses();
-    closeModal('exp'); renderExpenses(); renderDashboard(); toast('Expense saved!');
+    closeModal('exp'); renderExpenses(); renderDashboard();
+    if(failed.length) toast('Expense saved, but some files did not attach — ' + failed.join('; '), 'warn');
+    else toast('Expense saved!');
   }catch(err){ toast(err.message || 'Save failed','warn'); }
+}
+
+// ── Expense evidence: bills, receipts and payment screenshots ──
+async function uploadExpenseFiles(expenseId){
+  const picker = document.getElementById('exp-files');
+  const files = picker && picker.files ? Array.from(picker.files) : [];
+  const failed = [];
+  for(const f of files){
+    try{ await Api.uploadExpenseAttachment(expenseId, f); }
+    catch(e){ failed.push(`${f.name}: ${e.message}`); }
+  }
+  if(picker) picker.value = '';
+  return failed;
+}
+
+async function renderExpenseAttachList(expenseId){
+  const box = document.getElementById('exp-attach-list');
+  if(!box) return;
+  if(!expenseId){ box.innerHTML = ''; return; }
+  try{
+    const list = await Api.getExpenseAttachments(expenseId);
+    box.innerHTML = list.length
+      ? list.map(a => `<div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <span>📎 ${a.fileName} (${Math.round(a.sizeBytes/1024)} KB)</span>
+          <button type="button" class="ic-btn" title="View" onclick="viewExpenseAttachment('${expenseId}',${a.id})">👁️</button>
+          ${canEdit('Expenses') ? `<button type="button" class="ic-btn" title="Remove" onclick="removeExpenseAttachment('${expenseId}',${a.id})">🗑️</button>` : ''}
+        </div>`).join('')
+      : '<span>No bill or receipt attached yet.</span>';
+  }catch(e){ box.innerHTML = '<span>Could not load attached files.</span>'; }
+}
+
+// Attachments are [Authorize]d, so they are fetched as a blob and opened from an object URL.
+async function viewExpenseAttachment(expenseId, attId){
+  try{
+    const url = await Api.viewExpenseAttachment(expenseId, attId);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }catch(e){ toast(e.message || 'Could not open the file.','warn'); }
+}
+
+async function removeExpenseAttachment(expenseId, attId){
+  if(!confirm('Remove this file from the expense?')) return;
+  try{
+    await Api.deleteExpenseAttachment(expenseId, attId);
+    await renderExpenseAttachList(expenseId);
+    await loadExpenses(); renderExpenses();
+    toast('File removed.','warn');
+  }catch(e){ toast(e.message || 'Could not remove the file.','warn'); }
+}
+
+async function showExpenseAttachments(expenseId){
+  try{
+    const list = await Api.getExpenseAttachments(expenseId);
+    if(!list.length) return toast('No bill or receipt was attached to this expense.','warn');
+    const pick = list.map((a,i) => `${i+1}. ${a.fileName} (${Math.round(a.sizeBytes/1024)} KB)`).join('\n');
+    const n = list.length === 1 ? '1' : prompt(`Which file?\n\n${pick}\n\nEnter a number:`, '1');
+    if(n === null) return;
+    const chosen = list[parseInt(n,10)-1];
+    if(!chosen) return toast('No such file.','warn');
+    await viewExpenseAttachment(expenseId, chosen.id);
+  }catch(e){ toast(e.message || 'Could not list the files.','warn'); }
 }
 
 function editExpense(id){
@@ -1108,6 +1180,9 @@ function editExpense(id){
   document.getElementById('exp-month').value   = getMonth(e);
   document.getElementById('exp-year').value    = getYear(e);
   document.getElementById('exp-remarks').value = fld(e,'remarks','Remarks');
+  const picker = document.getElementById('exp-files');
+  if(picker) picker.value = '';
+  renderExpenseAttachList(id);
   document.getElementById('modal-exp').classList.add('open');
 }
 
@@ -2536,7 +2611,7 @@ function openModal(type){
   if(type==='user' && !isAdmin()) return toast('Read-only access — Admin only.','warn');
   editId[type]=null;
   if(type==='col'){ document.getElementById('col-modal-title').textContent='Add Collection'; populateMemberDropdown(); document.getElementById('col-date').value=new Date().toISOString().split('T')[0]; document.getElementById('col-month').value=new Date().getMonth()+1; document.getElementById('col-year').value=new Date().getFullYear(); document.getElementById('col-amount').value=''; document.getElementById('col-remarks').value=''; }
-  if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; }
+  if(type==='exp'){ document.getElementById('exp-modal-title').textContent='Add Expense'; populateCatDropdown(); document.getElementById('exp-date').value=new Date().toISOString().split('T')[0]; document.getElementById('exp-month').value=new Date().getMonth()+1; document.getElementById('exp-year').value=new Date().getFullYear(); document.getElementById('exp-amount').value=''; document.getElementById('exp-desc').value=''; document.getElementById('exp-vendor').value=''; document.getElementById('exp-remarks').value=''; const expFiles=document.getElementById('exp-files'); if(expFiles) expFiles.value=''; renderExpenseAttachList(null); }
   if(type==='inc'){ document.getElementById('inc-modal-title').textContent='Add Income'; populateIncomeCatDropdown(); document.getElementById('inc-date').value=new Date().toISOString().split('T')[0]; document.getElementById('inc-month').value=new Date().getMonth()+1; document.getElementById('inc-year').value=new Date().getFullYear(); document.getElementById('inc-amount').value=''; document.getElementById('inc-desc').value=''; document.getElementById('inc-source').value=''; document.getElementById('inc-reference').value=''; document.getElementById('inc-remarks').value=''; }
   if(type==='mem'){ document.getElementById('mem-modal-title').textContent='Add Member'; populateFloorDropdown('mem-floor'); populateTowerDatalist(); document.getElementById('mem-name').value=''; document.getElementById('mem-flat').value=''; document.getElementById('mem-area').value=''; populateFlatTypeDropdown(''); document.getElementById('mem-tower').value=''; document.getElementById('mem-mobile').value=''; document.getElementById('mem-email').value=''; }
   if(type==='cmp'){

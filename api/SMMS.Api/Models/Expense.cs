@@ -41,6 +41,9 @@ public class Expense : IAuditable, ISoftDelete
     [ForeignKey(nameof(FundedByLiabilityId))]
     public SocietyLiability? FundedByLiability { get; set; }
 
+    /// <summary>Bills, invoices and payment screenshots backing this cost.</summary>
+    public List<ExpenseAttachment> Attachments { get; set; } = [];
+
     // ── Audit (IAuditable) + soft delete (ISoftDelete) ──
     public DateTime CreatedOn { get; set; }
     public string? CreatedBy { get; set; }
