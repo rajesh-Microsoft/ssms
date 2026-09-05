@@ -15,8 +15,11 @@ data/*.pdf
 *.bak
 *.tar.gz
 *.zip
+*.age
+*.age.sha256
 data/sql-backups/
 backups/
+dev-data/
 
 # Walkthrough recordings film a live society. Even blurred, keep them out of git.
 tools/walkthrough/

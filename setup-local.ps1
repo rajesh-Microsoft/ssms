@@ -109,6 +109,7 @@ if (-not (Test-Path (Join-Path $repoRoot '.git'))) {
 Ensure-WingetPackage -Command git -PackageId Git.Git -DisplayName Git
 $vsCodeCommand = Ensure-VsCode
 Ensure-WingetPackage -Command docker -PackageId Docker.DockerDesktop -DisplayName 'Docker Desktop'
+Ensure-WingetPackage -Command age -PackageId FiloSottile.age -DisplayName age
 
 Write-Step "Preparing branch $BranchName"
 $invalidBranch = & git check-ref-format --branch $BranchName 2>&1

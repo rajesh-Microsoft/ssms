@@ -2,10 +2,11 @@
 
 ## Windows local development
 
-The setup script installs Git, Visual Studio Code, and Docker Desktop with
-`winget`, creates or switches to a developer branch, creates the ignored local
-configuration files, starts the SQL Server/API/nginx containers, verifies API
-health, installs the recommended VS Code extensions, and opens the repository.
+The setup script installs Git, Visual Studio Code, Docker Desktop, and the `age`
+encryption CLI with `winget`, creates or switches to a developer branch, creates
+the ignored local configuration files, starts the SQL Server/API/nginx containers,
+verifies API health, installs the recommended VS Code extensions, and opens the
+repository.
 
 ### First-time setup
 
@@ -22,8 +23,8 @@ If so, complete that step and run the same command again; the script is
 idempotent and preserves existing `.env` and `docker-compose.override.yml`
 files.
 
-Use `-SkipInstall` when the three desktop tools are already managed by your IT
-team. Use `-SkipBuild` to start previously built images without rebuilding.
+Use `-SkipInstall` when the required tools are already managed by your IT team.
+Use `-SkipBuild` to start previously built images without rebuilding.
 
 ### Local URLs
 
@@ -45,3 +46,6 @@ docker compose logs -f smms-api
 docker compose down
 docker compose down -v # Deletes all local databases and uploads.
 ```
+
+To copy authorized society data between developer machines, use the encrypted,
+validated workflow in [docs/developer-data-transfer.md](docs/developer-data-transfer.md).
