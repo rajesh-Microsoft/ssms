@@ -1,0 +1,47 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Inventory Summary</h3>
+    <div class="search-row">
+      <button class="btn btn-ghost" onclick="loadInventory()">⟳ Refresh</button>
+      <button class="btn btn-primary" data-perm="Inventory" onclick="openInventoryItem()">＋ Add Item</button>
+    </div>
+  </div>
+  <div id="inv-summary" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+</div>
+
+<div class="card" id="inv-lowstock-card" style="display:none;">
+  <div class="card-hdr"><h3>⚠ Needs Restocking</h3></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Item</th><th>Category</th><th>Current</th><th>Minimum</th><th>Status</th></tr></thead>
+    <tbody id="inv-lowstock-tbody"></tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hdr">
+    <h3>Items</h3>
+    <div class="search-row">
+      <input type="text" id="invSearch" placeholder="🔍 Search..." oninput="renderInventoryItems()" style="width:160px;">
+      <select id="invCatF" onchange="renderInventoryItems()" style="width:auto;"><option value="">All Categories</option></select>
+      <select id="invStatusF" onchange="renderInventoryItems()" style="width:auto;">
+        <option value="">All Status</option>
+        <option value="Good">🟢 Good</option>
+        <option value="LowStock">🟠 Low Stock</option>
+        <option value="OutOfStock">🔴 Out of Stock</option>
+      </select>
+      <label class="check" style="font-size:12px;"><input type="checkbox" id="invShowInactive" onchange="loadInventory()"> Show inactive</label>
+    </div>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Item</th><th>Category</th><th>Unit</th><th>Current Stock</th><th>Min</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="inv-tbody"></tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-hdr"><h3>Recent Movements</h3></div>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Date</th><th>Item</th><th>Qty</th><th>Type</th><th>Reason</th></tr></thead>
+    <tbody id="inv-recent-tbody"></tbody></table>
+  </div>
+</div>

@@ -31,6 +31,7 @@
     <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
     <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
     <div class="nav-item admin-only" onclick="showTab('utilities',this)"><span class="ni">⚡</span> Utility Connections</div>
+    <div class="nav-item admin-only" onclick="showTab('inventory',this)"><span class="ni">📦</span> Inventory <span class="nbadge" id="invBadge" style="display:none;">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
     <div class="nav-item admin-only" onclick="showTab('reimb',this)"><span class="ni">💸</span> Reimbursements <span class="nbadge" id="reimbBadge" style="display:none;">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Collections</div>
@@ -59,6 +60,8 @@
     <div class="nav-item member-only" data-perm-view="Income" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
     <div class="nav-item member-only" data-perm-view="Budgets" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
     <div class="nav-item member-only" data-perm-view="Liabilities" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
+    <div class="nav-item member-only" data-perm-view="Inventory" onclick="showTab('minventory',this)"><span class="ni">📦</span> Inventory</div>
+    <div class="nav-item member-only" data-perm="Inventory" onclick="showTab('inventory',this)"><span class="ni">📦</span> Manage Inventory</div>
     <div class="nav-sec member-only">Support</div>
     <div class="nav-item member-only" onclick="showTab('mcomplaints',this)"><span class="ni">🛠️</span> Complaints</div>
     <div class="nav-item member-only" onclick="showTab('mgate',this)"><span class="ni">🚪</span> My Gate <span class="nbadge" id="mGateBadge" style="display:none;">0</span></div>
@@ -174,6 +177,9 @@
 
     <!-- MY GATE (lazy-loaded from partials/mgate.html) -->
     <div id="tab-mgate" class="tab-content" data-partial="mgate"></div>
+
+    <div id="tab-inventory" class="tab-content" data-partial="inventory"></div>
+    <div id="tab-minventory" class="tab-content" data-partial="minventory"></div>
 
     <!-- NOTICES (lazy-loaded from partials/mnotices.html) -->
     <div id="tab-mnotices" class="tab-content" data-partial="mnotices"></div>
@@ -502,6 +508,73 @@
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('user')">Cancel</button>
       <button class="btn btn-primary" onclick="saveUser()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory: item master -->
+<div class="modal-overlay" id="modal-invitem">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="invitem-modal-title">Add Item</h3><button class="modal-close" onclick="closeModal('invitem')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Item Name *</label><input type="text" id="invitem-name" maxlength="100" placeholder="e.g. LED Bulb"></div>
+      <div class="form-group"><label>Category *</label>
+        <input type="text" id="invitem-cat" list="invitem-cat-list" maxlength="60" placeholder="e.g. Electrical">
+        <datalist id="invitem-cat-list">
+          <option>Electrical</option><option>Cleaning</option><option>Plumbing</option>
+          <option>Furniture</option><option>Security</option><option>Garden</option><option>General</option>
+        </datalist>
+      </div>
+      <div class="form-group"><label>Unit *</label><select id="invitem-unit">
+        <option>Nos</option><option>Pieces</option><option>Box</option><option>Pack</option>
+        <option>Bottle</option><option>Kg</option><option>Litre</option><option>Meter</option>
+      </select></div>
+      <div class="form-group"><label>Minimum Stock Level</label><input type="number" id="invitem-min" min="0" step="0.01" value="0"></div>
+      <div class="form-group"><label>Status</label><select id="invitem-active"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+    </div>
+    <p style="font-size:12px;color:var(--sub);margin:4px 0 0;">Stock is not set here. Use Stock In or Adjust so every change is recorded in the history.</p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('invitem')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveInventoryItem()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory: stock in / stock out / adjust (one form, mode set by openInventoryMove) -->
+<div class="modal-overlay" id="modal-invmove">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="invmove-modal-title">Stock In</h3><button class="modal-close" onclick="closeModal('invmove')">✕</button></div>
+    <div id="invmove-context" style="margin-bottom:10px;font-size:13px;color:var(--sub);"></div>
+    <div class="form-grid">
+      <div class="form-group"><label id="invmove-qty-label">Quantity *</label><input type="number" id="invmove-qty" min="0" step="0.01"></div>
+      <div class="form-group"><label>Date</label><input type="date" id="invmove-date"></div>
+      <div class="form-group full"><label id="invmove-reason-label">Reason</label><input type="text" id="invmove-reason" maxlength="300"></div>
+
+      <div class="form-group full" id="invmove-expense-toggle">
+        <label class="check"><input type="checkbox" id="invmove-createexp" onchange="toggleInventoryExpenseFields()"> Also record this purchase as a society expense</label>
+      </div>
+      <div class="form-group" id="invmove-amount-row" style="display:none;"><label>Purchase Amount (₹) *</label><input type="number" id="invmove-amount" min="0" step="0.01"></div>
+      <div class="form-group" id="invmove-vendor-row" style="display:none;"><label>Vendor</label><input type="text" id="invmove-vendor" maxlength="150"></div>
+      <div class="form-group" id="invmove-mode-row" style="display:none;"><label>Payment Mode</label><select id="invmove-mode"><option>Cash</option><option>UPI</option><option>Cheque</option><option>NEFT</option></select></div>
+      <div class="form-group" id="invmove-expcat-row" style="display:none;"><label>Expense Category</label><input type="text" id="invmove-expcat" maxlength="60"></div>
+      <div class="form-group full" id="invmove-expense-warn" style="display:none;">
+        <p style="font-size:12px;color:#c05621;margin:0;">⚠ Only tick this if you are not already entering this purchase on the Expenses tab, or the month will be counted twice.</p>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('invmove')">Cancel</button>
+      <button class="btn btn-primary" id="invmove-save" onclick="saveInventoryMove()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Inventory: item detail + stock history -->
+<div class="modal-overlay" id="modal-invdetail">
+  <div class="modal modal-wide">
+    <div class="modal-hdr"><h3 id="invdetail-title">Item</h3><button class="modal-close" onclick="closeModal('invdetail')">✕</button></div>
+    <div id="invdetail-body"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('invdetail')">Close</button>
     </div>
   </div>
 </div>

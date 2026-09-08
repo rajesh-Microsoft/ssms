@@ -28,7 +28,12 @@ public static class PermissionModules
     public const string Income = "Income";
     public const string Budgets = "Budgets";
 
-    public static readonly string[] All = [Collections, Expenses, Members, Complaints, Settings, Liabilities, Income, Budgets];
+    /// <summary>Stock register. Parse() defaults every module to "View", so adding this grants
+    /// existing users read-only visibility of society stock — which is the intent (transparency).
+    /// Recording stock still requires "Edit".</summary>
+    public const string Inventory = "Inventory";
+
+    public static readonly string[] All = [Collections, Expenses, Members, Complaints, Settings, Liabilities, Income, Budgets, Inventory];
 
     public static readonly string[] ValidLevels = ["None", "View", "Edit"];
 }

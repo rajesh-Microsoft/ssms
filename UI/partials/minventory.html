@@ -1,0 +1,16 @@
+<div class="card">
+  <div class="card-hdr">
+    <h3>Society Inventory</h3>
+    <div class="search-row">
+      <input type="text" id="minvSearch" placeholder="🔍 Search..." oninput="renderMemberInventory()" style="width:160px;">
+      <button class="btn btn-ghost" onclick="loadMemberInventory()">⟳ Refresh</button>
+    </div>
+  </div>
+  <p style="color:var(--sub);font-size:13px;margin:0 0 10px;">
+    Stock the society currently holds. Shown for transparency — only the committee can record purchases and usage.
+  </p>
+  <div class="tbl-wrap">
+    <table><thead><tr><th>Item</th><th>Category</th><th>In Stock</th><th>Status</th></tr></thead>
+    <tbody id="minv-tbody"></tbody></table>
+  </div>
+</div>

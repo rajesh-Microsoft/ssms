@@ -46,7 +46,7 @@ let DB = {
     primaryColor:'#6c63ff', secondaryColor:'#1a1f36', applicationTitle:''
   }
 };
-let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null, inc:null};
+let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null, inc:null, invitem:null, invmove:null};
 let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1, liab:1, inc:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
@@ -63,7 +63,7 @@ function isAdmin(){ return !!currentUser && currentUser.role === 'Admin'; }
 
 // Grantable module permission system — mirrors api/SMMS.Api/Services/PermissionService.cs.
 // Users/AuditLog are deliberately NOT grantable (stay Admin-only).
-const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities','Income','Budgets'];
+const PERMISSION_MODULES = ['Collections','Expenses','Members','Complaints','Settings','Liabilities','Income','Budgets','Inventory'];
 function canView(module){ return isAdmin() || (currentUser && currentUser.permissions && ['View','Edit'].includes(currentUser.permissions[module])); }
 function canEdit(module){ return isAdmin() || (currentUser && currentUser.permissions && currentUser.permissions[module]==='Edit'); }
 
@@ -533,7 +533,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',utilities:'Utility Connections',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',utilities:'Utility Connections',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',inventory:'Inventory',minventory:'Society Inventory',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   closeSidebar();
 
@@ -574,6 +574,12 @@ async function showTab(t, el){
   }
   if(t==='utilities'){
     try{ await loadUtilityData(); }catch(err){ toast('Failed to load utility data: '+err.message,'warn'); }
+  }
+  if(t==='inventory'){
+    try{ await loadInventory(); }catch(err){ toast('Failed to load inventory: '+err.message,'warn'); }
+  }
+  if(t==='minventory'){
+    try{ await loadMemberInventory(); }catch(err){ toast('Failed to load society inventory: '+err.message,'warn'); }
   }
 
   const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, reimb:renderReimbursements, mreimb:renderMyReimbursements, budget:(typeof renderBudget==='function'?renderBudget:null), utilities:renderUtilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
@@ -3948,5 +3954,341 @@ async function changeMyPassword(){
     toast('Password changed successfully');
   }catch(err){ toast(err.message || 'Could not change password','warn'); }
 }
+
+// ═══════════════════════════════════════════════
+// INVENTORY — the society stock register
+// ═══════════════════════════════════════════════
+let inventoryItems = [];
+let inventoryDash = null;
+
+const INV_STATUS = {
+  Good:       { icon:'🟢', label:'Good' },
+  LowStock:   { icon:'🟠', label:'Low Stock' },
+  OutOfStock: { icon:'🔴', label:'Out of Stock' }
+};
+function invStatusBadge(status){
+  const s = INV_STATUS[status] || { icon:'', label:status || '' };
+  return `${s.icon} ${s.label}`;
+}
+// Stock is a quantity, not money: show 18 rather than 18.00, but keep 2.5 litres intact.
+function invQty(n){ return (Number(n)||0).toLocaleString('en-IN', { maximumFractionDigits:2 }); }
+
+async function loadInventory(){
+  const includeInactive = document.getElementById('invShowInactive')?.checked || false;
+  const [items, dash] = await Promise.all([
+    Api.getInventoryItems(includeInactive),
+    Api.getInventoryDashboard()
+  ]);
+  inventoryItems = items || [];
+  inventoryDash = dash || null;
+  populateInventoryCatFilter();
+  renderInventorySummary();
+  renderInventoryItems();
+  renderInventoryRecent();
+  updateInventoryBadge();
+}
+
+function updateInventoryBadge(){
+  const badge = document.getElementById('invBadge');
+  if(!badge || !inventoryDash) return;
+  const needs = (inventoryDash.lowStockItems || 0) + (inventoryDash.outOfStockItems || 0);
+  badge.textContent = needs;
+  badge.style.display = needs > 0 ? '' : 'none';
+}
+
+function populateInventoryCatFilter(){
+  const sel = document.getElementById('invCatF');
+  if(!sel) return;
+  const current = sel.value;
+  const cats = [...new Set(inventoryItems.map(i => i.category).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">All Categories</option>' +
+    cats.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  sel.value = current;
+}
+
+function renderInventorySummary(){
+  const host = document.getElementById('inv-summary');
+  if(!host || !inventoryDash) return;
+  const d = inventoryDash;
+  const tile = (label, value, color) =>
+    `<div class="card" style="flex:1;min-width:120px;padding:10px 14px;margin:0;">
+       <div style="font-size:12px;color:var(--sub);">${label}</div>
+       <div style="font-size:22px;font-weight:700;${color?`color:${color};`:''}">${value}</div>
+     </div>`;
+  host.innerHTML =
+    tile('Total Items', d.totalItems) +
+    tile('Low Stock', d.lowStockItems, d.lowStockItems ? '#c05621' : '') +
+    tile('Out of Stock', d.outOfStockItems, d.outOfStockItems ? '#c53030' : '') +
+    tile('Stock Movements', d.totalMovements);
+
+  const card = document.getElementById('inv-lowstock-card');
+  const tbody = document.getElementById('inv-lowstock-tbody');
+  const low = d.lowStock || [];
+  if(card) card.style.display = low.length ? '' : 'none';
+  if(tbody){
+    tbody.innerHTML = low.map(i => `<tr>
+      <td><a href="#" onclick="viewInventoryItem(${i.id});return false;">${escHtml(i.name)}</a></td>
+      <td>${escHtml(i.category)}</td>
+      <td>${invQty(i.currentStock)} ${escHtml(i.unit)}</td>
+      <td>${invQty(i.minimumStockLevel)}</td>
+      <td>${invStatusBadge(i.status)}</td>
+    </tr>`).join('');
+  }
+}
+
+function renderInventoryItems(){
+  const tbody = document.getElementById('inv-tbody');
+  if(!tbody) return;
+  const q = (document.getElementById('invSearch')?.value || '').toLowerCase().trim();
+  const cat = document.getElementById('invCatF')?.value || '';
+  const status = document.getElementById('invStatusF')?.value || '';
+
+  const rows = inventoryItems.filter(i =>
+    (!q || i.name.toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q)) &&
+    (!cat || i.category === cat) &&
+    (!status || i.status === status));
+
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--sub);">No items yet. Use “＋ Add Item” to start the stock register.</td></tr>';
+    return;
+  }
+
+  const editable = canEdit('Inventory');
+  tbody.innerHTML = rows.map(i => `<tr${i.isActive ? '' : ' style="opacity:.55;"'}>
+    <td><a href="#" onclick="viewInventoryItem(${i.id});return false;">${escHtml(i.name)}</a>${i.isActive ? '' : ' <span style="font-size:11px;color:var(--sub);">(inactive)</span>'}</td>
+    <td>${escHtml(i.category)}</td>
+    <td>${escHtml(i.unit)}</td>
+    <td><b>${invQty(i.currentStock)}</b></td>
+    <td>${invQty(i.minimumStockLevel)}</td>
+    <td>${invStatusBadge(i.status)}</td>
+    <td>${editable ? `<div class="act-btns">
+      <button class="ic-btn" title="Stock In" onclick="openInventoryMove('in',${i.id})">⬇️</button>
+      <button class="ic-btn" title="Stock Out" onclick="openInventoryMove('out',${i.id})">⬆️</button>
+      ${isAdmin() ? `<button class="ic-btn" title="Adjust" onclick="openInventoryMove('adjust',${i.id})">⚖️</button>` : ''}
+      <button class="ic-btn" title="Edit" onclick="openInventoryItem(${i.id})">✏️</button>
+    </div>` : ''}</td>
+  </tr>`).join('');
+}
+
+function renderInventoryRecent(){
+  const tbody = document.getElementById('inv-recent-tbody');
+  if(!tbody || !inventoryDash) return;
+  const rows = inventoryDash.recentMovements || [];
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--sub);">No stock movements recorded yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(m => `<tr>
+    <td>${mDate(m.movementDate)}</td>
+    <td><a href="#" onclick="viewInventoryItem(${m.itemId});return false;">${escHtml(m.itemName)}</a></td>
+    <td style="color:${m.quantity < 0 ? '#c53030' : '#276749'};font-weight:600;">${m.quantity > 0 ? '+' : ''}${invQty(m.quantity)}</td>
+    <td>${escHtml(m.movementType)}</td>
+    <td>${escHtml(m.reason || '')}</td>
+  </tr>`).join('');
+}
+
+// ── Item master ──
+function openInventoryItem(id){
+  if(!canEdit('Inventory')) return toast('You do not have edit access to Inventory.','warn');
+  editId['invitem'] = id || null;
+  const item = id ? inventoryItems.find(i => i.id === id) : null;
+  document.getElementById('invitem-modal-title').textContent = item ? 'Edit Item' : 'Add Item';
+  document.getElementById('invitem-name').value = item ? item.name : '';
+  document.getElementById('invitem-cat').value = item ? item.category : '';
+  document.getElementById('invitem-unit').value = item ? item.unit : 'Nos';
+  document.getElementById('invitem-min').value = item ? item.minimumStockLevel : 0;
+  document.getElementById('invitem-active').value = item ? String(item.isActive) : 'true';
+  document.getElementById('modal-invitem').classList.add('open');
+}
+
+async function saveInventoryItem(){
+  if(!canEdit('Inventory')) return toast('You do not have edit access to Inventory.','warn');
+  const payload = {
+    name: document.getElementById('invitem-name').value.trim(),
+    category: document.getElementById('invitem-cat').value.trim(),
+    unit: document.getElementById('invitem-unit').value,
+    minimumStockLevel: Number(document.getElementById('invitem-min').value) || 0,
+    isActive: document.getElementById('invitem-active').value === 'true'
+  };
+  if(!payload.name) return toast('Item name is required','warn');
+  if(!payload.category) return toast('Category is required','warn');
+  if(payload.minimumStockLevel < 0) return toast('Minimum stock cannot be negative','warn');
+
+  try{
+    if(editId['invitem']) await Api.updateInventoryItem(editId['invitem'], payload);
+    else await Api.createInventoryItem(payload);
+    closeModal('invitem');
+    await loadInventory();
+    toast(editId['invitem'] ? 'Item updated' : 'Item added');
+  }catch(err){ toast(err.message || 'Could not save item','warn'); }
+}
+
+// ── Stock movements ──
+const INV_MOVE_MODES = {
+  in:     { title:'⬇️ Stock In',  qtyLabel:'Quantity Received *', reasonLabel:'Notes',   reasonRequired:false },
+  out:    { title:'⬆️ Stock Out', qtyLabel:'Quantity Used *',     reasonLabel:'Reason *', reasonRequired:true },
+  adjust: { title:'⚖️ Adjust Stock', qtyLabel:'Adjustment (+/-) *', reasonLabel:'Reason *', reasonRequired:true }
+};
+
+function openInventoryMove(mode, itemId){
+  if(!canEdit('Inventory')) return toast('You do not have edit access to Inventory.','warn');
+  if(mode === 'adjust' && !isAdmin()) return toast('Stock adjustments are Admin only.','warn');
+
+  const item = inventoryItems.find(i => i.id === itemId);
+  if(!item) return toast('Item not found','warn');
+
+  editId['invmove'] = itemId;
+  window._invMoveMode = mode;
+  const cfg = INV_MOVE_MODES[mode];
+
+  document.getElementById('invmove-modal-title').textContent = cfg.title;
+  document.getElementById('invmove-qty-label').textContent = cfg.qtyLabel;
+  document.getElementById('invmove-reason-label').textContent = cfg.reasonLabel;
+  document.getElementById('invmove-context').innerHTML =
+    `<b>${escHtml(item.name)}</b> &middot; ${escHtml(item.category)} &middot; in stock: <b>${invQty(item.currentStock)} ${escHtml(item.unit)}</b>`;
+
+  document.getElementById('invmove-qty').value = '';
+  // Adjustments are signed (-2 for breakage); the other two are always positive.
+  document.getElementById('invmove-qty').min = mode === 'adjust' ? '' : '0';
+  document.getElementById('invmove-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('invmove-reason').value = '';
+  document.getElementById('invmove-createexp').checked = false;
+  document.getElementById('invmove-amount').value = '';
+  document.getElementById('invmove-vendor').value = '';
+  document.getElementById('invmove-expcat').value = item.category;
+
+  // Expense booking belongs to purchases only — usage must never create a second expense.
+  document.getElementById('invmove-expense-toggle').style.display = mode === 'in' ? '' : 'none';
+  toggleInventoryExpenseFields();
+
+  document.getElementById('modal-invmove').classList.add('open');
+}
+
+function toggleInventoryExpenseFields(){
+  const on = window._invMoveMode === 'in' && document.getElementById('invmove-createexp').checked;
+  ['invmove-amount-row','invmove-vendor-row','invmove-mode-row','invmove-expcat-row','invmove-expense-warn']
+    .forEach(id => { const el = document.getElementById(id); if(el) el.style.display = on ? '' : 'none'; });
+}
+
+async function saveInventoryMove(){
+  const mode = window._invMoveMode;
+  const itemId = editId['invmove'];
+  if(!mode || !itemId) return;
+  if(!canEdit('Inventory')) return toast('You do not have edit access to Inventory.','warn');
+
+  const qty = Number(document.getElementById('invmove-qty').value);
+  const reason = document.getElementById('invmove-reason').value.trim();
+  const date = document.getElementById('invmove-date').value || null;
+  const cfg = INV_MOVE_MODES[mode];
+
+  if(!qty) return toast('Enter a quantity','warn');
+  if(mode !== 'adjust' && qty <= 0) return toast('Quantity must be greater than zero','warn');
+  if(cfg.reasonRequired && !reason) return toast('A reason is required so the change is traceable','warn');
+
+  const btn = document.getElementById('invmove-save');
+  btn.disabled = true;
+  try{
+    if(mode === 'in'){
+      const createExpense = document.getElementById('invmove-createexp').checked;
+      const amount = Number(document.getElementById('invmove-amount').value) || 0;
+      if(createExpense && amount <= 0){
+        return toast('Purchase amount must be greater than zero to book an expense','warn');
+      }
+      await Api.inventoryStockIn({
+        itemId, quantity: qty, purchaseDate: date, reason: reason || null,
+        // Amount only travels with an expense; the field is hidden otherwise, so nothing the
+        // user typed is silently discarded.
+        purchaseAmount: createExpense ? amount : null,
+        createExpense,
+        vendor: document.getElementById('invmove-vendor').value.trim() || null,
+        paymentMode: createExpense ? document.getElementById('invmove-mode').value : null,
+        expenseCategory: document.getElementById('invmove-expcat').value.trim() || null
+      });
+      toast(createExpense ? 'Stock added and expense recorded' : 'Stock added');
+    }else if(mode === 'out'){
+      await Api.inventoryStockOut({ itemId, quantity: qty, movementDate: date, reason });
+      toast('Usage recorded');
+    }else{
+      await Api.inventoryAdjust({ itemId, quantity: qty, movementDate: date, reason });
+      toast('Stock adjusted');
+    }
+    closeModal('invmove');
+    await loadInventory();
+  }catch(err){
+    toast(err.message || 'Could not record the stock movement','warn');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+// ── Item detail + history ──
+async function viewInventoryItem(id){
+  const host = document.getElementById('invdetail-body');
+  if(!host) return;
+  document.getElementById('modal-invdetail').classList.add('open');
+  host.innerHTML = '<p style="color:var(--sub);">Loading…</p>';
+  try{
+    const d = await Api.getInventoryItem(id);
+    const i = d.item;
+    document.getElementById('invdetail-title').textContent = i.name;
+
+    const rows = (d.history || []).map(m => `<tr>
+      <td>${mDate(m.movementDate)}</td>
+      <td>${escHtml(m.movementType)}</td>
+      <td style="color:${m.quantity < 0 ? '#c53030' : '#276749'};font-weight:600;">${m.quantity > 0 ? '+' : ''}${invQty(m.quantity)}</td>
+      <td>${escHtml(m.reason || '')}</td>
+      <td>${m.expenseId ? `#${m.expenseId}` : ''}</td>
+      <td>${escHtml(m.createdBy || '')}</td>
+    </tr>`).join('');
+
+    host.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Category</div><b>${escHtml(i.category)}</b></div>
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Unit</div><b>${escHtml(i.unit)}</b></div>
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Current Stock</div><b>${invQty(i.currentStock)}</b></div>
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Minimum</div><b>${invQty(i.minimumStockLevel)}</b></div>
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Status</div><b>${invStatusBadge(i.status)}</b></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Total Purchased</div><b>${invQty(d.totalPurchased)}</b></div>
+        <div style="flex:1;min-width:110px;"><div style="font-size:12px;color:var(--sub);">Total Used</div><b>${invQty(d.totalUsed)}</b></div>
+      </div>
+      <h4 style="font-size:13px;margin:0 0 8px;color:var(--sub);">Stock History</h4>
+      <div class="tbl-wrap">
+        <table><thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Reason</th><th>Expense</th><th>By</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:var(--sub);">No movements yet.</td></tr>'}</tbody></table>
+      </div>`;
+  }catch(err){
+    host.innerHTML = `<p style="color:#c53030;">Could not load this item: ${escHtml(err.message)}</p>`;
+  }
+}
+
+// ── Member read-only view ──
+let memberInventory = [];
+
+async function loadMemberInventory(){
+  memberInventory = await Api.getMyInventory() || [];
+  renderMemberInventory();
+}
+
+function renderMemberInventory(){
+  const tbody = document.getElementById('minv-tbody');
+  if(!tbody) return;
+  const q = (document.getElementById('minvSearch')?.value || '').toLowerCase().trim();
+  const rows = memberInventory.filter(i =>
+    !q || i.name.toLowerCase().includes(q) || (i.category||'').toLowerCase().includes(q));
+
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--sub);">No inventory recorded yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(i => `<tr>
+    <td>${escHtml(i.name)}</td>
+    <td>${escHtml(i.category)}</td>
+    <td><b>${invQty(i.currentStock)}</b> ${escHtml(i.unit)}</td>
+    <td>${invStatusBadge(i.status)}</td>
+  </tr>`).join('');
+}
+
 
 

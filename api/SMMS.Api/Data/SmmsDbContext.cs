@@ -35,6 +35,8 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<UtilityConnection> UtilityConnections => Set<UtilityConnection>();
     public DbSet<UtilityBill> UtilityBills => Set<UtilityBill>();
     public DbSet<UtilityNotification> UtilityNotifications => Set<UtilityNotification>();
+    public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
+    public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -291,6 +293,39 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .WithMany()
             .HasForeignKey(n => n.UtilityBillId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // ── Inventory ──
+
+        // Enum stored as string for readability, like LiabilitySource/Status above.
+        modelBuilder.Entity<InventoryMovement>()
+            .Property(m => m.MovementType).HasConversion<string>().HasMaxLength(20);
+
+        // Restrict, not Cascade: retiring an item must never erase the stock register that
+        // explains what the society bought and used.
+        modelBuilder.Entity<InventoryMovement>()
+            .HasOne(m => m.Item)
+            .WithMany(i => i.Movements)
+            .HasForeignKey(m => m.InventoryItemId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict, same reasoning as UtilityBill.Expense: a booked purchase can never be
+        // orphaned by deleting the expense it created.
+        modelBuilder.Entity<InventoryMovement>()
+            .HasOne(m => m.Expense)
+            .WithMany()
+            .HasForeignKey(m => m.ExpenseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Drives the per-item history screen (newest first).
+        modelBuilder.Entity<InventoryMovement>()
+            .HasIndex(m => new { m.InventoryItemId, m.MovementDate });
+
+        // Two items with the same name would make the stock register ambiguous. Filtered so a
+        // retired item's name can be reused.
+        modelBuilder.Entity<InventoryItem>()
+            .HasIndex(i => i.Name)
+            .IsUnique()
+            .HasFilter("[IsActive] = 1");
 
         // ── Caretaker operations ──
 

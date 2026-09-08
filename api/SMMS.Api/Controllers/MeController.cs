@@ -148,6 +148,24 @@ public class MeController(SmmsDbContext db, AuditService audit, MaintenanceCalcu
             visitors));
     }
 
+    /// <summary>Read-only view of the society stock register, for transparency. Vendors, purchase
+    /// amounts and the expense link are deliberately not projected — residents see what the
+    /// society holds, not what it paid or who it paid.</summary>
+    [HttpGet("inventory")]
+    public async Task<ActionResult<IEnumerable<MemberInventoryDto>>> GetInventory()
+    {
+        if (!User.CanView(PermissionModules.Inventory)) return Forbid();
+
+        var items = await db.InventoryItems.AsNoTracking()
+            .Where(i => i.IsActive)
+            .OrderBy(i => i.Category).ThenBy(i => i.Name)
+            .ToListAsync();
+
+        return Ok(items.Select(i => new MemberInventoryDto(
+            i.Name, i.Category, i.Unit, i.CurrentStock,
+            InventoryController.StatusOf(i.CurrentStock, i.MinimumStockLevel))));
+    }
+
     [HttpPut]
     public async Task<IActionResult> Update(MeUpdateRequest request)
     {

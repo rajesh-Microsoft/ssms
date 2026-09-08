@@ -174,6 +174,18 @@ const Api = {
   getBudgetVariance: (year, month) => apiFetch(`/budgets/variance?year=${year}&month=${month}`),
   getBudgetHealth: (year, month) => apiFetch(`/budgets/health?year=${year}&month=${month}`),
 
+  // Inventory (stock register: what was bought, what is left, what was consumed)
+  getInventoryItems: (includeInactive = false) => apiFetch(`/inventory/items?includeInactive=${includeInactive}`),
+  getInventoryItem: (id) => apiFetch(`/inventory/items/${id}`),
+  getInventoryHistory: (id) => apiFetch(`/inventory/items/${id}/history`),
+  getInventoryCategories: () => apiFetch('/inventory/categories'),
+  getInventoryDashboard: () => apiFetch('/inventory/dashboard'),
+  createInventoryItem: (payload) => apiFetch('/inventory/items', { method: 'POST', body: JSON.stringify(payload) }),
+  updateInventoryItem: (id, payload) => apiFetch(`/inventory/items/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  inventoryStockIn: (payload) => apiFetch('/inventory/stock-in', { method: 'POST', body: JSON.stringify(payload) }),
+  inventoryStockOut: (payload) => apiFetch('/inventory/stock-out', { method: 'POST', body: JSON.stringify(payload) }),
+  inventoryAdjust: (payload) => apiFetch('/inventory/adjust', { method: 'POST', body: JSON.stringify(payload) }),
+
   // Utility integrations. Connection mutations are Admin-only server-side; bills are read-only for members.
   getUtilityProviders: () => apiFetch('/utilities/providers'),
   getUtilityConnections: () => apiFetch('/utilities/connections'),
@@ -242,6 +254,7 @@ const Api = {
   // Me (resident self-service — works for any authenticated user)
   getMe: () => apiFetch('/me'),
   getMyGate: () => apiFetch('/me/gate'),
+  getMyInventory: () => apiFetch('/me/inventory'),
   getMyAdvance: () => apiFetch('/me/advance'),
   updateMe: (payload) => apiFetch('/me', { method: 'PUT', body: JSON.stringify(payload) }),
   changeMyPassword: (currentPassword, newPassword) =>
