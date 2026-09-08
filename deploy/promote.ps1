@@ -27,6 +27,11 @@ param(
     [Parameter(Mandatory)][ValidateSet('dev', 'pprod', 'uat')][string]$Environment,
     [string]$Commit = 'main',
     [switch]$MarkVerified,
+    # Forces every box to be driven through the Azure agent instead of SSH. Some workstations
+    # have outbound port 22 blocked by endpoint security (github.com:22 works, Azure VMs do not),
+    # which is a property of the machine you are sitting at, not of one environment - so this
+    # applies to all targets, including the previous one whose sign-off is read.
+    [ValidateSet('ssh', 'runcommand')][string]$Transport,
     [switch]$Force
 )
 
@@ -41,10 +46,24 @@ $pprodRg = 'smms-pprod-rg'
 $pprodVm = 'smms-pprod-vm'
 $pprodSa = 'smmspprod183143'
 
+# dev and UAT share one VM on the MCAPS subscription.
+$devSub = '35fafe5f-7621-4ee4-8bae-c2accf4fec38'
+$devRg = 'ssms-prod-rg'
+$devVm = 'ssms-webserver'
+$devSa = 'smmsbackup866121'
+$devSaRg = 'SMMS-BACKUP-RG'
+
 $targets = @{
     dev   = @{
         Transport = 'ssh'
-        Root      = '~/smms-dev/SMMS'
+        Sub       = $devSub
+        Rg        = $devRg
+        Vm        = $devVm
+        Sa        = $devSa
+        SaRg      = $devSaRg
+        # Absolute, never "~": run-command executes as root with HOME unset, so a tilde would
+        # resolve to /root and the deploy would miss ssmsadmin's tree entirely.
+        Root      = '/home/ssmsadmin/smms-dev/SMMS'
         Image     = 'smms-dev-smms-api'
         Api       = 'smms-dev-api'
         Ui        = 'smms-dev-ui'
@@ -55,11 +74,18 @@ $targets = @{
         # ships, so both are put back on every deploy rather than living only on the box.
         Restore   = 'cp deploy/dev-vm/docker-compose.yml docker-compose.yml && cp deploy/dev-vm/nginx.dev-vm.conf nginx/nginx.dev-vm.conf'
         Guard     = "if ! grep -q '^name: smms-dev' docker-compose.yml; then echo 'ABORT: dev compose file missing, refusing to run compose'; exit 1; fi"
-        Own       = 'true'
+        # Extraction under run-command lands as root; hand the tree back or the next SSH deploy
+        # cannot write to it. A no-op when the files are already ssmsadmin's.
+        Own       = 'chown -R ssmsadmin:ssmsadmin /home/ssmsadmin/smms-dev 2>/dev/null || true'
         Previous  = $null
     }
     pprod = @{
         Transport = 'runcommand'
+        Sub       = $pprodSub
+        Rg        = $pprodRg
+        Vm        = $pprodVm
+        Sa        = $pprodSa
+        SaRg      = $pprodRg
         Root      = '/opt/smms/app'
         Image     = 'smms-pprod-smms-api'
         Api       = 'smms-pprod-api'
@@ -76,7 +102,12 @@ $targets = @{
     }
     uat   = @{
         Transport = 'ssh'
-        Root      = '~/smms/SMMS'
+        Sub       = $devSub
+        Rg        = $devRg
+        Vm        = $devVm
+        Sa        = $devSa
+        SaRg      = $devSaRg
+        Root      = '/home/ssmsadmin/smms/SMMS'
         Image     = 'smms-smms-api'
         Api       = 'smms-api'
         Ui        = 'smms-ui'
@@ -85,10 +116,14 @@ $targets = @{
         CurlOpts  = ''
         Restore   = 'true'
         Guard     = "if grep -q '^name:' docker-compose.yml; then echo 'ABORT: a non-UAT compose file landed on UAT'; exit 1; fi`nif ! grep -q 'container_name: smms-api' docker-compose.yml; then echo 'ABORT: unrecognised compose file'; exit 1; fi"
-        Own       = 'true'
+        Own       = 'chown -R ssmsadmin:ssmsadmin /home/ssmsadmin/smms 2>/dev/null || true'
         Previous  = 'pprod'
     }
 }
+
+# A blocked-SSH workstation cannot reach ANY box that way, including the previous environment
+# whose sign-off gate is read below.
+if ($Transport) { foreach ($k in @($targets.Keys)) { $targets[$k].Transport = $Transport } }
 $t = $targets[$Environment]
 
 function Get-RunCommandStdout([string]$Raw) {
@@ -110,7 +145,7 @@ function Invoke-Remote([hashtable]$Target, [string]$Script, [switch]$AllowFail) 
     else {
         $tmp = New-TemporaryFile
         [System.IO.File]::WriteAllText($tmp.FullName, $body)
-        $raw = (az vm run-command invoke --subscription $pprodSub -g $pprodRg -n $pprodVm `
+        $raw = (az vm run-command invoke --subscription $($Target.Sub) -g $($Target.Rg) -n $($Target.Vm) `
                 --command-id RunShellScript --scripts "@$($tmp.FullName)" -o json 2>&1 | Out-String)
         Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
         $out = Get-RunCommandStdout $raw
@@ -199,14 +234,14 @@ if ($t.Transport -eq 'ssh') {
     $fetch = 'test -f /tmp/promote.tgz'
 }
 else {
-    # No scp to the pre-prod box, so the archive travels through a private container and a
+    # No scp to this box, so the archive travels through a private container and a
     # short-lived read-only SAS that only ever exists inside the script handed to the agent.
-    $saKey = az storage account keys list -n $pprodSa -g $pprodRg --subscription $pprodSub --query '[0].value' -o tsv
-    az storage container create -n stage --account-name $pprodSa --account-key $saKey --only-show-errors -o none
-    az storage blob upload --account-name $pprodSa --account-key $saKey -c stage -n $blob -f $tgz --overwrite --only-show-errors -o none
+    $saKey = az storage account keys list -n $($t.Sa) -g $($t.SaRg) --subscription $($t.Sub) --query '[0].value' -o tsv
+    az storage container create -n stage --account-name $($t.Sa) --account-key $saKey --only-show-errors -o none
+    az storage blob upload --account-name $($t.Sa) --account-key $saKey -c stage -n $blob -f $tgz --overwrite --only-show-errors -o none
     $expiry = (Get-Date).ToUniversalTime().AddMinutes(30).ToString('yyyy-MM-ddTHH:mmZ')
-    $sas = (az storage blob generate-sas --account-name $pprodSa --account-key $saKey -c stage -n $blob --permissions r --expiry $expiry --https-only -o tsv).Trim()
-    $fetch = "curl -fsSL 'https://$pprodSa.blob.core.windows.net/stage/$blob`?$sas' -o /tmp/promote.tgz"
+    $sas = (az storage blob generate-sas --account-name $($t.Sa) --account-key $saKey -c stage -n $blob --permissions r --expiry $expiry --https-only -o tsv).Trim()
+    $fetch = "curl -fsSL 'https://$($t.Sa).blob.core.windows.net/stage/$blob`?$sas' -o /tmp/promote.tgz"
 }
 Remove-Item $tgz
 
@@ -286,7 +321,7 @@ echo __PROMOTE_OK__
 "@
 
 if ($saKey) {
-    az storage blob delete --account-name $pprodSa --account-key $saKey -c stage -n $blob --only-show-errors -o none
+    az storage blob delete --account-name $($t.Sa) --account-key $saKey -c stage -n $blob --only-show-errors -o none
     Write-Host "staged archive deleted from blob storage"
 }
 
