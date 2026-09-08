@@ -16,7 +16,12 @@ public class JwtSettings
 
 public class TokenService(JwtSettings settings)
 {
-    public string CreateToken(User user, string tenantKey, string? impersonatedBy = null, int? expiryMinutesOverride = null)
+    /// <param name="permissions">The caller's resolved permissions. Passed in rather than read from
+    /// the user row: access now comes from occupancy and groups, and the client reads these claims
+    /// to decide which screens to offer. Getting them from the wrong place would leave the browser
+    /// showing a tenant tabs that the API then refuses.</param>
+    public string CreateToken(User user, string tenantKey, Dictionary<string, string> permissions,
+        string? impersonatedBy = null, int? expiryMinutesOverride = null)
     {
         var claims = new List<Claim>
         {
@@ -32,7 +37,7 @@ public class TokenService(JwtSettings settings)
         if (!string.IsNullOrEmpty(impersonatedBy))
             claims.Add(new Claim("imp", impersonatedBy));
 
-        foreach (var (module, level) in PermissionHelper.Parse(user.Permissions))
+        foreach (var (module, level) in permissions)
             claims.Add(new Claim($"perm:{module}", level));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Key));

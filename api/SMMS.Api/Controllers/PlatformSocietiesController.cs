@@ -278,7 +278,10 @@ public class PlatformSocietiesController(
 
         var superAdmin = User.Identity?.Name ?? "superadmin";
         // Short-lived, impersonation-tagged token so society audit trails can attribute the session.
-        var token = tokenService.CreateToken(admin, key, impersonatedBy: superAdmin, expiryMinutesOverride: 30);
+        // The admin role bypasses module permissions, so the resolved set is only for the client.
+        var access = await scope.ServiceProvider.GetRequiredService<EffectivePermissionService>().ResolveAsync(admin.Id);
+        var token = tokenService.CreateToken(admin, key, access?.Permissions ?? PermissionHelper.Parse(null),
+            impersonatedBy: superAdmin, expiryMinutesOverride: 30);
 
         await audit.LogAsync("Impersonate", "Society", key,
             $"Logged in as society admin '{admin.Username}'.", impersonatedTenant: key);

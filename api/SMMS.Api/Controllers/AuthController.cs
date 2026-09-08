@@ -12,7 +12,8 @@ namespace SMMS.Api.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(SmmsDbContext db, TokenService tokenService, AuditService audit, ITenantContext tenantContext) : ControllerBase
+public class AuthController(SmmsDbContext db, TokenService tokenService, AuditService audit, ITenantContext tenantContext,
+    EffectivePermissionService permissions) : ControllerBase
 {
     private static readonly PasswordHasher<User> Hasher = new();
 
@@ -34,9 +35,12 @@ public class AuthController(SmmsDbContext db, TokenService tokenService, AuditSe
         if (verify == PasswordVerificationResult.Failed)
             return Unauthorized(new { message = "Invalid username or password." });
 
-        var token = tokenService.CreateToken(user, tenantContext.Current!.Key);
+        var access = await permissions.ResolveAsync(user.Id);
+        if (access is null) return Unauthorized(new { message = "This account is inactive. Contact your admin." });
+
+        var token = tokenService.CreateToken(user, tenantContext.Current!.Key, access.Permissions);
         return Ok(new LoginResponse(token, user.Id, user.Username, user.Role,
-            PermissionHelper.Parse(user.Permissions), user.MustChangePassword));
+            access.Permissions, user.MustChangePassword));
     }
 
     /// <summary>The society's flats, for the sign-up dropdown. Anonymous like sign-up itself, and
