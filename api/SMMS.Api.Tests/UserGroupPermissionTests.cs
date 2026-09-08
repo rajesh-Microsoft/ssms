@@ -283,4 +283,32 @@ public class UserGroupPermissionTests : IDisposable
         Assert.Equal(PermissionModules.All.Length, combined.Count);
         Assert.Contains(PermissionModules.Inventory, combined.Keys);
     }
+
+    // ── Controller queries must survive translation to SQL ────────────────────────────────
+
+    /// <summary>The group detail screen reads members with a name-or-username sort. Doing that in
+    /// the query threw at runtime because the fallback cannot be translated, which the resolver
+    /// tests could not catch — the list must be materialised before it is sorted.</summary>
+    [Fact]
+    public async Task GroupMembers_AreReadableAndSortedByDisplayName()
+    {
+        using var db = NewSociety();
+        var group = AddGroup(db, "Treasurer", new() { [PermissionModules.Expenses] = "Edit" });
+        var withName = AddUser(db, "zzz-username");
+        withName.Name = "Aaron";
+        var noName = AddUser(db, "bbb-username");
+        db.SaveChanges();
+        Join(db, group, withName);
+        Join(db, group, noName);
+
+        var members = await db.UserGroupMembers.AsNoTracking()
+            .Where(m => m.UserGroupId == group.Id)
+            .Select(m => new { m.UserId, m.User!.Username, m.User.Name })
+            .ToListAsync();
+        var ordered = members.OrderBy(m => m.Name ?? m.Username, StringComparer.OrdinalIgnoreCase).ToList();
+
+        Assert.Equal(2, ordered.Count);
+        Assert.Equal("Aaron", ordered[0].Name);
+        Assert.Equal("bbb-username", ordered[1].Username);
+    }
 }

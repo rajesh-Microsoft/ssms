@@ -45,10 +45,12 @@ public class UserGroupsController(SmmsDbContext db, AuditService audit) : Contro
             .Where(m => m.UserGroupId == id)
             .Select(m => new UserGroupMemberDto(
                 m.UserId, m.User!.Username, m.User.Name, m.User.Flat, m.User.Role))
-            .OrderBy(m => m.Name ?? m.Username)
             .ToListAsync();
 
-        return Ok(new UserGroupDetailDto(ToDto(group, members.Count), members));
+        // Sorted after materialising: the fallback to username is not translatable to SQL.
+        var ordered = members.OrderBy(m => m.Name ?? m.Username, StringComparer.OrdinalIgnoreCase).ToList();
+
+        return Ok(new UserGroupDetailDto(ToDto(group, ordered.Count), ordered));
     }
 
     [HttpPost]
