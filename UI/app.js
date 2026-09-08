@@ -287,9 +287,22 @@ function applyRolePermissions(){
   document.querySelectorAll('[data-perm-view]').forEach(el=>{
     el.style.display = canView(el.getAttribute('data-perm-view')) ? '' : 'none';
   });
+  hideEmptyNavSections();
   ['set-sname','set-addr','set-email','set-phone','set-wings','new-cat'].forEach(id=>{
     const el = document.getElementById(id);
     if(el) el.disabled = !canEdit('Settings');
+  });
+}
+
+// A tenant has none of the society modules, so "Society (read-only)" would otherwise sit in the
+// sidebar as a heading with nothing under it.
+function hideEmptyNavSections(){
+  document.querySelectorAll('.nav-sec').forEach(sec=>{
+    let anyVisible = false;
+    for(let el = sec.nextElementSibling; el && !el.classList.contains('nav-sec'); el = el.nextElementSibling){
+      if(el.classList.contains('nav-item') && el.offsetParent !== null){ anyVisible = true; break; }
+    }
+    sec.style.display = anyVisible ? '' : 'none';
   });
 }
 
