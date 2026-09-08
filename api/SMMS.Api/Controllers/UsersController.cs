@@ -20,8 +20,36 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
         new(StringComparer.Ordinal) { "Admin", "Member", "Treasurer", "Secretary", "Committee Member", "Chairman", Roles.Caretaker };
 
     // The resident's name lives on Member, linked by flat: an account has no name of its own.
-    private static UserDto ToDto(User u, string? name = null) => new(
-        u.Id, u.Username, name, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status, PermissionHelper.Parse(u.Permissions));
+    private static UserDto ToDto(User u, string? name = null,
+        IEnumerable<(int Id, string Name)>? groups = null) => new(
+        u.Id, u.Username, name, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status,
+        PermissionHelper.Parse(u.Permissions),
+        groups?.Select(g => g.Id) ?? [],
+        groups?.Select(g => g.Name) ?? [],
+        !string.IsNullOrWhiteSpace(u.Permissions),
+        u.OccupancyType);
+
+    private async Task<List<(int Id, string Name)>> GroupsOfAsync(int userId) =>
+        (await db.UserGroupMembers.AsNoTracking()
+            .Where(m => m.UserId == userId)
+            .Select(m => new { m.UserGroupId, m.UserGroup!.Name })
+            .OrderBy(g => g.Name)
+            .ToListAsync())
+        .Select(g => (g.UserGroupId, g.Name)).ToList();
+
+    /// <summary>Replaces a user's group membership. Null means "leave it alone", which keeps every
+    /// existing caller that knows nothing about groups working unchanged.</summary>
+    private async Task ApplyGroupsAsync(int userId, List<int>? groupIds)
+    {
+        if (groupIds is null) return;
+        var wanted = groupIds.Distinct().ToList();
+        var real = await db.UserGroups.Where(g => wanted.Contains(g.Id)).Select(g => g.Id).ToListAsync();
+        var existing = await db.UserGroupMembers.Where(m => m.UserId == userId).ToListAsync();
+
+        db.UserGroupMembers.RemoveRange(existing.Where(m => !real.Contains(m.UserGroupId)));
+        foreach (var gid in real.Except(existing.Select(m => m.UserGroupId)))
+            db.UserGroupMembers.Add(new UserGroupMember { UserGroupId = gid, UserId = userId, AddedOn = DateTime.UtcNow, AddedBy = User.Identity?.Name });
+    }
 
     private async Task<string?> ResolveMemberNameAsync(string? flat)
     {
@@ -49,8 +77,16 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
             .GroupBy(m => m.Flat.Trim().ToLower())
             .ToDictionary(g => g.Key, g => g.First().Name);
 
+        // Same reasoning as the names lookup: one query for every membership, not one per user.
+        var groupsByUser = (await db.UserGroupMembers.AsNoTracking()
+                .Select(m => new { m.UserId, m.UserGroupId, m.UserGroup!.Name })
+                .ToListAsync())
+            .GroupBy(m => m.UserId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(x => x.Name).Select(x => (x.UserGroupId, x.Name)).ToList());
+
         return Ok(users.Select(u => ToDto(u,
-            string.IsNullOrWhiteSpace(u.Flat) ? null : namesByFlat.GetValueOrDefault(u.Flat.Trim().ToLower()))));
+            string.IsNullOrWhiteSpace(u.Flat) ? null : namesByFlat.GetValueOrDefault(u.Flat.Trim().ToLower()),
+            groupsByUser.GetValueOrDefault(u.Id))));
     }
 
     [HttpPost]
@@ -81,8 +117,10 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
 
         db.Users.Add(user);
         await db.SaveChangesAsync();
+        await ApplyGroupsAsync(user.Id, request.GroupIds);
+        await db.SaveChangesAsync();
         await audit.LogAsync("Users", "Add", $"Added user: {user.Username}");
-        return CreatedAtAction(nameof(GetAll), new { }, ToDto(user, await ResolveMemberNameAsync(user.Flat)));
+        return CreatedAtAction(nameof(GetAll), new { }, ToDto(user, await ResolveMemberNameAsync(user.Flat), await GroupsOfAsync(user.Id)));
     }
 
     [HttpPut("{id:int}")]
@@ -110,12 +148,16 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
         user.Mobile = request.Mobile;
         user.Flat = request.Flat;
         user.Floor = request.Floor;
-        if (request.Permissions is not null)
+        // Clearing wins over setting: the screen offers "move onto groups", and sending both would
+        // otherwise silently keep the override alive.
+        if (request.ClearIndividualPermissions) user.Permissions = null;
+        else if (request.Permissions is not null)
             user.Permissions = PermissionHelper.Serialize(request.Permissions);
 
+        await ApplyGroupsAsync(id, request.GroupIds);
         await db.SaveChangesAsync();
         await audit.LogAsync("Users", "Update", $"Updated user: {user.Username}");
-        return Ok(ToDto(user, await ResolveMemberNameAsync(user.Flat)));
+        return Ok(ToDto(user, await ResolveMemberNameAsync(user.Flat), await GroupsOfAsync(user.Id)));
     }
 
     [HttpPost("{id:int}/approve")]

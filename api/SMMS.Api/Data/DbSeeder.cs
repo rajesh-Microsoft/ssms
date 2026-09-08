@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using SMMS.Api.Models;
+using SMMS.Api.Services;
 
 namespace SMMS.Api.Data;
 
@@ -88,6 +89,61 @@ public static class DbSeeder
             });
         }
 
+        SeedSystemGroups(db);
+
         db.SaveChanges();
+    }
+
+    /// <summary>
+    /// Adds any built-in position that is missing. Runs on every start, including for societies
+    /// that already have data, which is how existing databases pick these up. An existing group is
+    /// never rewritten: a society that has retuned its Treasurer must keep those changes.
+    /// </summary>
+    private static void SeedSystemGroups(SmmsDbContext db)
+    {
+        // "View" is the platform default for anything unlisted, so each definition only needs to
+        // name the modules that differ from plain read access.
+        var defaults = new (string Name, string Description, Dictionary<string, string> Permissions)[]
+        {
+            ("Treasurer", "Handles money: expenses, liabilities, reimbursements and the budget.", new()
+            {
+                [PermissionModules.Expenses] = "Edit",
+                [PermissionModules.Liabilities] = "Edit",
+                [PermissionModules.Budgets] = "Edit",
+                [PermissionModules.Income] = "Edit",
+                [PermissionModules.Collections] = "Edit",
+                [PermissionModules.Settings] = "None"
+            }),
+            ("Secretary", "Runs day-to-day administration: members, complaints and inventory.", new()
+            {
+                [PermissionModules.Members] = "Edit",
+                [PermissionModules.Complaints] = "Edit",
+                [PermissionModules.Inventory] = "Edit",
+                [PermissionModules.Settings] = "None"
+            }),
+            ("Chairman", "Oversight across the society, with approval of contributions.", new()
+            {
+                [PermissionModules.Complaints] = "Edit",
+                [PermissionModules.Liabilities] = "Edit",
+                [PermissionModules.Settings] = "None"
+            }),
+            ("Committee Member", "Read access across the society's records.", new()
+            {
+                [PermissionModules.Settings] = "None"
+            })
+        };
+
+        foreach (var (name, description, permissions) in defaults)
+        {
+            if (db.UserGroups.Any(g => g.Name == name)) continue;
+            db.UserGroups.Add(new UserGroup
+            {
+                Name = name,
+                Description = description,
+                IsSystem = true,
+                IsActive = true,
+                Permissions = PermissionHelper.Serialize(permissions)
+            });
+        }
     }
 }

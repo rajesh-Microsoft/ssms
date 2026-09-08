@@ -260,6 +260,15 @@ const Api = {
   getGateVisitors: (search) => apiFetch('/caretaker/visitors' + (search ? `?search=${encodeURIComponent(search)}` : '')),
   getGateDeliveries: (search) => apiFetch('/caretaker/deliveries' + (search ? `?search=${encodeURIComponent(search)}` : '')),
 
+  // User groups (positions whose permissions members inherit)
+  getUserGroups: () => apiFetch('/user-groups'),
+  getUserGroup: (id) => apiFetch(`/user-groups/${id}`),
+  createUserGroup: (payload) => apiFetch('/user-groups', { method: 'POST', body: JSON.stringify(payload) }),
+  updateUserGroup: (id, payload) => apiFetch(`/user-groups/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteUserGroup: (id) => apiFetch(`/user-groups/${id}`, { method: 'DELETE' }),
+  setUserGroupMembers: (id, userIds) => apiFetch(`/user-groups/${id}/members`, { method: 'PUT', body: JSON.stringify({ userIds }) }),
+  getEffectiveAccess: (userId) => apiFetch(`/user-groups/effective/${userId}`),
+
   // Me (resident self-service — works for any authenticated user)
   getMe: () => apiFetch('/me'),
   getMyGate: () => apiFetch('/me/gate'),

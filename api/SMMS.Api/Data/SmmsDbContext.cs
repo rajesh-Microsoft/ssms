@@ -37,6 +37,8 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<UtilityNotification> UtilityNotifications => Set<UtilityNotification>();
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<UserGroup> UserGroups => Set<UserGroup>();
+    public DbSet<UserGroupMember> UserGroupMembers => Set<UserGroupMember>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -326,6 +328,33 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .HasIndex(i => i.Name)
             .IsUnique()
             .HasFilter("[IsActive] = 1");
+
+        // ── User groups ──
+
+        modelBuilder.Entity<UserGroup>()
+            .HasIndex(g => g.Name)
+            .IsUnique();
+
+        modelBuilder.Entity<UserGroupMember>()
+            .HasKey(m => new { m.UserGroupId, m.UserId });
+
+        // Cascade: membership is meaningless once either side is gone, and losing a membership row
+        // only ever removes permissions, so it can never widen access.
+        modelBuilder.Entity<UserGroupMember>()
+            .HasOne(m => m.UserGroup)
+            .WithMany(g => g.Members)
+            .HasForeignKey(m => m.UserGroupId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserGroupMember>()
+            .HasOne(m => m.User)
+            .WithMany()
+            .HasForeignKey(m => m.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Every request resolves the caller's permissions from their memberships.
+        modelBuilder.Entity<UserGroupMember>()
+            .HasIndex(m => m.UserId);
 
         // ── Caretaker operations ──
 

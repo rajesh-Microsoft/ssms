@@ -71,6 +71,41 @@ public static class PermissionHelper
         return JsonSerializer.Serialize(clean);
     }
 
+    private static int Rank(string level) => level switch { "Edit" => 2, "View" => 1, _ => 0 };
+
+    /// <summary>
+    /// Combines the permissions of every group a user belongs to. Where two groups disagree the
+    /// more permissive level wins — a Treasurer who also sits on the Festival Committee keeps the
+    /// Treasurer's Edit rather than losing it to the committee's View.
+    /// Modules no group mentions stay at the "View" default, so joining a group never removes the
+    /// read access a member already had.
+    /// </summary>
+    public static Dictionary<string, string> Combine(IEnumerable<string?> groupPermissionsJson)
+    {
+        var result = PermissionModules.All.ToDictionary(m => m, _ => "View");
+        var seenAny = false;
+
+        foreach (var json in groupPermissionsJson)
+        {
+            seenAny = true;
+            foreach (var (module, level) in Parse(json))
+                if (Rank(level) > Rank(result[module])) result[module] = level;
+        }
+
+        if (!seenAny) return result;
+
+        // A group that grants nothing must be able to say so, but "View everywhere" is the
+        // baseline for a member in no group at all, so only lower a module when every group
+        // that mentions it says None.
+        foreach (var module in PermissionModules.All)
+        {
+            var levels = groupPermissionsJson.Select(j => Parse(j)[module]).ToList();
+            if (levels.Count > 0 && levels.All(l => l == "None")) result[module] = "None";
+        }
+
+        return result;
+    }
+
     // Caretakers are excluded outright rather than by storing "None" everywhere, because Parse()
     // falls back to "View" for any module missing from the JSON: a caretaker account saved without
     // explicit permissions would otherwise be able to read collections, expenses and members.

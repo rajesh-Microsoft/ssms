@@ -1,7 +1,32 @@
 <div class="card">
-  <div class="card-hdr"><h3>🔐 Admin Panel</h3><button class="btn btn-primary admin-only" onclick="openModal('user')">＋ Add User</button></div>
-  <div class="tbl-wrap">
-    <table><thead><tr><th>#</th><th>Username</th><th>Name</th><th>Flat</th><th>Role</th><th>Email</th><th>Permissions</th><th>Status</th><th>Actions</th></tr></thead>
-    <tbody id="user-tbody"></tbody></table>
+  <div class="card-hdr">
+    <h3>🔐 Admin Panel</h3>
+    <div class="search-row">
+      <button class="btn btn-primary admin-only" id="admin-add-btn" onclick="openModal('user')">＋ Add User</button>
+      <button class="btn btn-primary admin-only" id="admin-add-group-btn" style="display:none;" onclick="openGroup()">＋ Create Group</button>
+    </div>
+  </div>
+
+  <div class="pills" id="admin-subtabs">
+    <button class="pill active" onclick="showAdminSection('users',this)">Users</button>
+    <button class="pill" onclick="showAdminSection('groups',this)">Groups</button>
+  </div>
+
+  <div id="admin-sec-users">
+    <div class="tbl-wrap">
+      <table><thead><tr><th>#</th><th>Username</th><th>Name</th><th>Flat</th><th>Role</th><th>Type</th><th>Group(s)</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="user-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <div id="admin-sec-groups" style="display:none;">
+    <p style="color:var(--sub);font-size:13px;margin:0 0 10px;">
+      A group is a position in the society. Set its permissions once and everyone in it inherits them —
+      changing the group changes every member at once.
+    </p>
+    <div class="tbl-wrap">
+      <table><thead><tr><th>Group</th><th>Description</th><th>Members</th><th>Access</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="group-tbody"></tbody></table>
+    </div>
   </div>
 </div>

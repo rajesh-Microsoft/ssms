@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -73,6 +74,7 @@ builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<PlatformTokenService>();
 builder.Services.AddScoped<AuditService>();
+builder.Services.AddScoped<EffectivePermissionService>();
 
 // Platform control-plane services (super-admin surface).
 builder.Services.AddScoped<SMMS.Api.Services.Control.PlatformAuditService>();
@@ -315,6 +317,51 @@ app.Use(async (context, next) =>
         }
     }
 
+    await next(context);
+});
+
+// Permissions and role come from the database on every request, not from the token. A JWT lives
+// for two hours, so trusting its claims would leave someone removed from the Treasurer group still
+// editing expenses, and a deactivated account still working, until it expired.
+app.Use(async (context, next) =>
+{
+    var isControlPlane = context.Items.ContainsKey("IsControlPlane");
+    if (isControlPlane || context.User.Identity?.IsAuthenticated != true)
+    {
+        await next(context);
+        return;
+    }
+
+    var idClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    if (!int.TryParse(idClaim, out var userId))
+    {
+        await next(context);
+        return;
+    }
+
+    var resolver = context.RequestServices.GetRequiredService<EffectivePermissionService>();
+    var access = await resolver.ResolveAsync(userId, context.RequestAborted);
+
+    if (access is null)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new { message = "This account is no longer active. Please sign in again." });
+        return;
+    }
+
+    // Rebuild rather than append: a stale perm claim left in place would still satisfy
+    // FindAll(...).Any(), so a revoked permission would survive in the token.
+    var identity = new ClaimsIdentity(
+        context.User.Claims.Where(c => !c.Type.StartsWith("perm:") && c.Type != ClaimTypes.Role),
+        context.User.Identity!.AuthenticationType,
+        ClaimTypes.Name,
+        ClaimTypes.Role);
+
+    identity.AddClaim(new Claim(ClaimTypes.Role, access.Role));
+    foreach (var (module, level) in access.Permissions)
+        identity.AddClaim(new Claim($"perm:{module}", level));
+
+    context.User = new ClaimsPrincipal(identity);
     await next(context);
 });
 

@@ -46,7 +46,7 @@ let DB = {
     primaryColor:'#6c63ff', secondaryColor:'#1a1f36', applicationTitle:''
   }
 };
-let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null, inc:null, invitem:null, invmove:null};
+let editId   = {col:null, exp:null, mem:null, cmp:null, user:null, liab:null, inc:null, invitem:null, invmove:null, group:null};
 let pages    = {col:1, exp:1, mem:1, audit:1, cmp:1, liab:1, inc:1};
 let trendChart, pieChart, annualChart;
 let currentUser = null;
@@ -559,6 +559,8 @@ async function showTab(t, el){
   }
   if(t==='admin'){
     try{ await loadUsers(); }catch(err){ toast('Failed to load users: '+err.message,'warn'); }
+    // The user modal lists groups as checkboxes, so they must be loaded before it can open.
+    try{ await loadGroups(); }catch(err){ toast('Failed to load groups: '+err.message,'warn'); }
   }
   if(t==='gatelog'){
     try{ await loadGateLog(); }catch(err){ toast('Failed to load gate log: '+err.message,'warn'); }
@@ -2464,14 +2466,20 @@ function renderUsers(){
     const st = u.status || 'Active';
     const badgeClass = st==='Active' ? 'active' : st==='Pending' ? 'pending' : 'inactive';
     const approveBtn = st==='Pending' ? `<button class="ic-btn" onclick="approveUser(${u.id})" title="Approve account">✅</button>` : '';
-    const permSummary = u.role==='Admin' ? 'Full access' : PERMISSION_MODULES.map(m=>`${m}:${(u.permissions&&u.permissions[m])||'View'}`).join(', ');
-    return `<tr><td>${i+1}</td><td>${escGate(u.username)}</td><td>${escGate(u.name || '-')}</td><td>${escGate(u.flat || '-')}</td><td>${escGate(u.role)}</td><td>${escGate(u.email||'-')}</td><td title="${permSummary}" style="font-size:11px;color:var(--sub);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${permSummary}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
+    let groupCell;
+    if(u.role==='Admin') groupCell = '<span style="color:var(--sub);">— full access</span>';
+    else if(u.usesIndividualOverride) groupCell = '<span title="This account still uses its own permissions, so its groups are ignored." style="color:#c05621;">⚠ individual</span>';
+    else if((u.groupNames||[]).length) groupCell = escGate(u.groupNames.join(', '));
+    else groupCell = '<span style="color:var(--sub);">—</span>';
+    return `<tr><td>${i+1}</td><td>${escGate(u.username)}</td><td>${escGate(u.name || '-')}</td><td>${escGate(u.flat || '-')}</td><td>${escGate(u.role)}</td><td>${escGate(u.occupancyType || '-')}</td><td style="font-size:12px;">${groupCell}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
   }).join('');
 }
-function renderUserPermMatrix(perms){
-  document.getElementById('u-perm-tbody').innerHTML = PERMISSION_MODULES.map(m=>{
+function renderUserPermMatrix(perms, tbodyId = 'u-perm-tbody', prefix = 'perm'){
+  const host = document.getElementById(tbodyId);
+  if(!host) return;
+  host.innerHTML = PERMISSION_MODULES.map(m=>{
     const level = (perms && perms[m]) || 'View';
-    const radio = (val,label) => `<td style="text-align:center;"><input type="radio" name="perm-${m}" value="${val}" ${level===val?'checked':''}></td>`;
+    const radio = (val) => `<td style="text-align:center;"><input type="radio" name="${prefix}-${m}" value="${val}" ${level===val?'checked':''}></td>`;
     return `<tr><td>${m}</td>${radio('None')}${radio('View')}${radio('Edit')}</tr>`;
   }).join('');
 }
@@ -2481,11 +2489,12 @@ function toggleUserPermRows(){
   // Admins already have everything; caretakers are denied every module server-side,
   // so in both cases the matrix would only mislead whoever is filling the form in.
   section.style.display = (role === 'Admin' || role === 'Caretaker') ? 'none' : '';
+  refreshEffectivePreview();
 }
-function getUserPermPayload(){
+function getUserPermPayload(prefix = 'perm'){
   const perms = {};
   PERMISSION_MODULES.forEach(m=>{
-    const checked = document.querySelector(`input[name="perm-${m}"]:checked`);
+    const checked = document.querySelector(`input[name="${prefix}-${m}"]:checked`);
     perms[m] = checked ? checked.value : 'View';
   });
   return perms;
@@ -2513,6 +2522,11 @@ function editUser(id){
   document.getElementById('u-flat').value = u.flat || '';
   document.getElementById('u-floor').value = u.floor || '';
   renderUserPermMatrix(u.permissions || {});
+  renderUserGroupChecks(u.groupIds || []);
+  document.getElementById('u-override-banner').style.display = u.usesIndividualOverride ? '' : 'none';
+  document.getElementById('u-advanced').open = !!u.usesIndividualOverride;
+  _clearOverride = false;
+  refreshEffectivePreview();
   toggleUserPermRows();
   document.getElementById('modal-user').classList.add('open');
 }
@@ -2534,7 +2548,10 @@ async function saveUser(){
       flat: document.getElementById('u-flat').value,
       floor: document.getElementById('u-floor').value,
       status: document.getElementById('u-status').value,
-      permissions
+      groupIds: selectedGroupIds(),
+      clearIndividualPermissions: _clearOverride,
+      // Sending the matrix would re-create the override we are trying to drop.
+      permissions: _clearOverride ? undefined : permissions
     };
     try{
       await Api.updateUser(editId.user, payload);
@@ -2554,7 +2571,9 @@ async function saveUser(){
     flat: document.getElementById('u-flat').value,
     floor: document.getElementById('u-floor').value,
     status: document.getElementById('u-status').value,
-    permissions
+    groupIds: selectedGroupIds(),
+    // New accounts start on groups; the matrix is only sent if the admin opened Advanced.
+    permissions: document.getElementById('u-advanced')?.open ? permissions : undefined
   };
   try{
     await Api.createUser(payload);
@@ -2644,6 +2663,11 @@ function openModal(type){
     document.getElementById('u-flat').value='';
     document.getElementById('u-floor').value='';
     renderUserPermMatrix({});
+    renderUserGroupChecks([]);
+    _clearOverride = false;
+    document.getElementById('u-override-banner').style.display = 'none';
+    document.getElementById('u-advanced').open = false;
+    refreshEffectivePreview();
     toggleUserPermRows();
   }
   document.getElementById('modal-'+type).classList.add('open');
@@ -3939,6 +3963,200 @@ async function saveMyProfile(){
     updateSidebarUserInfo();
     toast('Profile updated successfully');
   }catch(err){ toast(err.message || 'Could not save profile','warn'); }
+}
+
+// ═══════════════════════════════════════════════
+// USER GROUPS — positions whose permissions members inherit
+// ═══════════════════════════════════════════════
+let DB_GROUPS = [];
+let _clearOverride = false;
+let _groupMemberIds = [];
+
+function showAdminSection(section, el){
+  document.getElementById('admin-sec-users').style.display  = section==='users'  ? '' : 'none';
+  document.getElementById('admin-sec-groups').style.display = section==='groups' ? '' : 'none';
+  document.getElementById('admin-add-btn').style.display        = section==='users'  ? '' : 'none';
+  document.getElementById('admin-add-group-btn').style.display  = section==='groups' ? '' : 'none';
+  document.querySelectorAll('#admin-subtabs .pill').forEach(p => p.classList.remove('active'));
+  if(el) el.classList.add('active');
+  if(section==='groups') loadGroups().catch(err => toast('Failed to load groups: '+err.message,'warn'));
+}
+
+async function loadGroups(){
+  DB_GROUPS = await Api.getUserGroups() || [];
+  renderGroups();
+}
+
+// Only the modules that differ from plain read access are worth showing in a summary row.
+function groupAccessSummary(perms){
+  const edit = PERMISSION_MODULES.filter(m => perms[m] === 'Edit');
+  const none = PERMISSION_MODULES.filter(m => perms[m] === 'None');
+  const parts = [];
+  if(edit.length) parts.push('✎ ' + edit.join(', '));
+  if(none.length) parts.push('⌀ ' + none.join(', '));
+  return parts.length ? parts.join(' · ') : 'View only';
+}
+
+function renderGroups(){
+  const tbody = document.getElementById('group-tbody');
+  if(!tbody) return;
+  if(!DB_GROUPS.length){
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--sub);">No groups yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = DB_GROUPS.map(g => `<tr${g.isActive ? '' : ' style="opacity:.55;"'}>
+    <td><b>${escGate(g.name)}</b>${g.isSystem ? ' <span title="Built-in group" style="font-size:11px;color:var(--sub);">built-in</span>' : ''}</td>
+    <td style="font-size:12px;color:var(--sub);">${escGate(g.description || '')}</td>
+    <td>${g.memberCount}</td>
+    <td style="font-size:12px;">${escGate(groupAccessSummary(g.permissions || {}))}</td>
+    <td><span class="badge b-${g.isActive ? 'active' : 'inactive'}">${g.isActive ? 'Active' : 'Inactive'}</span></td>
+    <td><div class="act-btns">
+      <button class="ic-btn" title="Edit group and members" onclick="openGroup(${g.id})">✏️</button>
+      ${g.isSystem ? '' : `<button class="ic-btn" title="Delete group" onclick="deleteGroup(${g.id})">🗑️</button>`}
+    </div></td>
+  </tr>`).join('');
+}
+
+async function openGroup(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  editId.group = id || null;
+  const isNew = !id;
+  let group = null;
+
+  if(!isNew){
+    try{
+      const detail = await Api.getUserGroup(id);
+      group = detail.group;
+      _groupMemberIds = (detail.members || []).map(m => m.userId);
+    }catch(err){ return toast('Could not open group: '+err.message,'warn'); }
+  }else{
+    _groupMemberIds = [];
+  }
+
+  document.getElementById('group-modal-title').textContent = isNew ? 'Create Group' : `Group — ${group.name}`;
+  document.getElementById('g-name').value = group ? group.name : '';
+  document.getElementById('g-name').disabled = !!(group && group.isSystem);
+  document.getElementById('g-desc').value = group ? (group.description || '') : '';
+  document.getElementById('g-active').value = group ? String(group.isActive) : 'true';
+  document.getElementById('g-active').disabled = !!(group && group.isSystem);
+  document.getElementById('g-system-note').style.display = (group && group.isSystem) ? '' : 'none';
+  document.getElementById('g-member-search').value = '';
+
+  renderUserPermMatrix(group ? group.permissions : {}, 'g-perm-tbody', 'gperm');
+  renderGroupMemberPicker();
+  document.getElementById('modal-group').classList.add('open');
+}
+
+function renderGroupMemberPicker(){
+  const host = document.getElementById('g-members');
+  if(!host) return;
+  const q = (document.getElementById('g-member-search')?.value || '').toLowerCase().trim();
+  // Admins already hold full access, so adding them to a group would change nothing.
+  const people = DB.users.filter(u => u.role !== 'Admin')
+    .filter(u => !q || (u.username||'').toLowerCase().includes(q) || (u.name||'').toLowerCase().includes(q) || (u.flat||'').toLowerCase().includes(q));
+
+  if(!people.length){ host.innerHTML = '<p style="color:var(--sub);font-size:12px;margin:0;">No matching people.</p>'; return; }
+  host.innerHTML = people.map(u => `<label class="check" style="display:flex;align-items:center;gap:8px;padding:3px 0;">
+    <input type="checkbox" value="${u.id}" ${_groupMemberIds.includes(u.id)?'checked':''} onchange="toggleGroupMember(${u.id}, this.checked)">
+    <span>${escGate(u.name || u.username)}${u.flat ? ' · ' + escGate(u.flat) : ''}${u.usesIndividualOverride ? ' <span title="Still on individual permissions, so this group will not apply." style="color:#c05621;">⚠</span>' : ''}</span>
+  </label>`).join('');
+}
+
+function toggleGroupMember(id, on){
+  if(on){ if(!_groupMemberIds.includes(id)) _groupMemberIds.push(id); }
+  else _groupMemberIds = _groupMemberIds.filter(x => x !== id);
+}
+
+async function saveGroup(){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const name = document.getElementById('g-name').value.trim();
+  if(!name) return toast('Group name is required','warn');
+
+  const payload = {
+    name,
+    description: document.getElementById('g-desc').value.trim() || null,
+    isActive: document.getElementById('g-active').value === 'true',
+    permissions: getUserPermPayload('gperm')
+  };
+
+  try{
+    const id = editId.group || (await Api.createUserGroup(payload)).id;
+    if(editId.group) await Api.updateUserGroup(id, payload);
+    await Api.setUserGroupMembers(id, _groupMemberIds);
+    closeModal('group');
+    await Promise.all([loadGroups(), loadUsers()]);
+    renderUsers();
+    toast(editId.group ? 'Group updated' : 'Group created');
+  }catch(err){ toast(err.message || 'Could not save the group','warn'); }
+}
+
+async function deleteGroup(id){
+  if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
+  const g = DB_GROUPS.find(x => x.id === id);
+  if(!g || !confirm(`Delete the group "${g.name}"? Members keep their accounts and lose only what this group granted.`)) return;
+  try{
+    await Api.deleteUserGroup(id);
+    await Promise.all([loadGroups(), loadUsers()]);
+    renderUsers();
+    toast('Group deleted');
+  }catch(err){ toast(err.message || 'Could not delete the group','warn'); }
+}
+
+// ── Group pickers inside the user modal ──
+function renderUserGroupChecks(selectedIds){
+  const host = document.getElementById('u-groups');
+  if(!host) return;
+  const active = DB_GROUPS.filter(g => g.isActive);
+  if(!active.length){
+    host.innerHTML = '<span style="font-size:12px;color:var(--sub);">No groups defined yet — create them on the Groups tab.</span>';
+    return;
+  }
+  host.innerHTML = active.map(g => `<label class="check" style="display:flex;align-items:center;gap:6px;">
+    <input type="checkbox" class="u-group-check" value="${g.id}" ${selectedIds.includes(g.id)?'checked':''} onchange="refreshEffectivePreview()">
+    <span>${escGate(g.name)}</span>
+  </label>`).join('');
+}
+
+function selectedGroupIds(){
+  return Array.from(document.querySelectorAll('.u-group-check:checked')).map(c => +c.value);
+}
+
+// Mirrors the server's rule: most permissive wins, and a module every group marks None ends up None.
+function combineGroupPermissions(ids){
+  const chosen = DB_GROUPS.filter(g => ids.includes(g.id));
+  const rank = l => l === 'Edit' ? 2 : l === 'View' ? 1 : 0;
+  const out = {};
+  PERMISSION_MODULES.forEach(m => {
+    if(!chosen.length){ out[m] = 'View'; return; }
+    const levels = chosen.map(g => (g.permissions && g.permissions[m]) || 'View');
+    out[m] = levels.every(l => l === 'None') ? 'None'
+           : levels.reduce((best, l) => rank(l) > rank(best) ? l : best, 'None');
+  });
+  return out;
+}
+
+function refreshEffectivePreview(){
+  const host = document.getElementById('u-effective');
+  if(!host) return;
+  const role = document.getElementById('u-role')?.value;
+  if(role === 'Admin'){ host.innerHTML = '<b>Full access</b> — Admins bypass module permissions.'; return; }
+  if(role === 'Caretaker'){ host.innerHTML = 'Caretaker — the gate app only; module permissions do not apply.'; return; }
+
+  const usingOverride = document.getElementById('u-override-banner')?.style.display !== 'none' && !_clearOverride;
+  const perms = usingOverride ? getUserPermPayload() : combineGroupPermissions(selectedGroupIds());
+  const label = { Edit: '✎', View: '👁', None: '⌀' };
+  host.innerHTML = PERMISSION_MODULES
+    .map(m => `<span style="display:inline-block;margin-right:10px;">${label[perms[m]] || ''} ${m}</span>`).join('')
+    + (usingOverride ? '<div style="color:#c05621;margin-top:4px;">from individual permissions</div>'
+                     : '<div style="color:var(--sub);margin-top:4px;">inherited from groups</div>');
+}
+
+function clearUserOverride(){
+  _clearOverride = true;
+  document.getElementById('u-override-banner').style.display = 'none';
+  document.getElementById('u-advanced').open = false;
+  refreshEffectivePreview();
+  toast('Will inherit from groups when you save.','info');
 }
 
 async function changeMyPassword(){

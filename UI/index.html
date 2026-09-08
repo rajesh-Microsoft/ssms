@@ -501,13 +501,59 @@
       <div class="form-group"><label>Floor</label><input type="text" id="u-floor"></div>
     </div>
     <div id="u-perm-section" style="margin-top:12px;">
-      <h4 style="font-size:13px;margin:0 0 8px;color:var(--sub);">🔑 Module Permissions</h4>
-      <div class="tbl-wrap"><table><thead><tr><th>Module</th><th>None</th><th>View</th><th>Edit</th></tr></thead>
-      <tbody id="u-perm-tbody"></tbody></table></div>
+      <h4 style="font-size:13px;margin:0 0 8px;color:var(--sub);">� Positions / Groups</h4>
+      <div id="u-groups" style="display:flex;flex-wrap:wrap;gap:10px 18px;margin-bottom:6px;"></div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 10px;">
+        The user inherits the permissions of every group ticked here. One login, however many positions.
+      </p>
+
+      <div id="u-effective-box" style="background:var(--bg2,#f6f7f9);border-radius:6px;padding:8px 10px;margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--sub);margin-bottom:4px;">Effective permissions</div>
+        <div id="u-effective" style="font-size:12px;line-height:1.7;"></div>
+      </div>
+
+      <div id="u-override-banner" style="display:none;background:#fffaf0;border:1px solid #f6ad55;border-radius:6px;padding:8px 10px;margin-bottom:10px;font-size:12px;">
+        ⚠ This account still uses its own individual permissions, so its groups are ignored.
+        <button type="button" class="btn btn-ghost" style="padding:2px 8px;font-size:12px;margin-left:6px;" onclick="clearUserOverride()">Move onto groups</button>
+      </div>
+
+      <details id="u-advanced">
+        <summary style="cursor:pointer;font-size:13px;color:var(--sub);">Advanced: individual permissions (overrides groups)</summary>
+        <div class="tbl-wrap" style="margin-top:8px;"><table><thead><tr><th>Module</th><th>None</th><th>View</th><th>Edit</th></tr></thead>
+        <tbody id="u-perm-tbody"></tbody></table></div>
+      </details>
     </div>
     <div class="form-actions">
       <button class="btn btn-ghost" onclick="closeModal('user')">Cancel</button>
       <button class="btn btn-primary" onclick="saveUser()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Positions / groups: permissions configured once, inherited by every member -->
+<div class="modal-overlay" id="modal-group">
+  <div class="modal modal-wide">
+    <div class="modal-hdr"><h3 id="group-modal-title">Group</h3><button class="modal-close" onclick="closeModal('group')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Group Name *</label><input type="text" id="g-name" maxlength="60" placeholder="e.g. Festival Committee"></div>
+      <div class="form-group"><label>Status</label><select id="g-active"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+      <div class="form-group full"><label>Description</label><input type="text" id="g-desc" maxlength="300"></div>
+    </div>
+    <p id="g-system-note" style="display:none;font-size:12px;color:var(--sub);margin:0 0 8px;">
+      Built-in group: permissions can be changed, but it cannot be renamed or deleted.
+    </p>
+
+    <h4 style="font-size:13px;margin:10px 0 8px;color:var(--sub);">🔑 Permissions</h4>
+    <div class="tbl-wrap"><table><thead><tr><th>Module</th><th>None</th><th>View</th><th>Edit</th></tr></thead>
+    <tbody id="g-perm-tbody"></tbody></table></div>
+
+    <h4 style="font-size:13px;margin:14px 0 8px;color:var(--sub);">👥 Members</h4>
+    <input type="text" id="g-member-search" placeholder="🔍 Filter people..." oninput="renderGroupMemberPicker()" style="width:200px;margin-bottom:6px;">
+    <div id="g-members" style="max-height:220px;overflow:auto;border:1px solid var(--bd,#ddd);border-radius:6px;padding:8px;"></div>
+
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('group')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGroup()">💾 Save</button>
     </div>
   </div>
 </div>
