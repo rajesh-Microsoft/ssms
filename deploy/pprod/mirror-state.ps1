@@ -18,7 +18,14 @@ param(
     [string]$DevVm = '135.235.195.132',
     [string]$DevUser = 'ssmsadmin',
     [string]$KeyPath = "$env:USERPROFILE\ssmsadmin.pem",
-    [string]$MirrorPath = '~/devportal/state/pprod'
+    # Absolute, never "~": under run-command the script runs as root with HOME unset, so a
+    # tilde would put the mirror in /root where the portal container cannot see it.
+    [string]$MirrorPath = '/home/ssmsadmin/devportal/state/pprod',
+    # Matches promote.ps1: some workstations have outbound port 22 to Azure VMs blocked.
+    [ValidateSet('ssh', 'runcommand')][string]$Transport = 'ssh',
+    [string]$DevSub = '35fafe5f-7621-4ee4-8bae-c2accf4fec38',
+    [string]$DevRg = 'ssms-prod-rg',
+    [string]$DevVmName = 'ssms-webserver'
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -68,9 +75,21 @@ EOF_V
 cat > $MirrorPath/DEPLOYED_HISTORY <<'EOF_H'
 $history
 EOF_H
+# run-command writes as root; hand the files back or the portal's owner cannot manage them.
+chown -R ${DevUser}:${DevUser} $MirrorPath 2>/dev/null || true
 echo "mirrored to $MirrorPath"
 "@ -replace "`r", ""
 
-$remote | ssh -i $KeyPath -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$DevUser@$DevVm" 'bash -s'
-if ($LASTEXITCODE -ne 0) { throw "writing the mirror to the dev VM failed (is the JIT window open?)" }
+if ($Transport -eq 'ssh') {
+    $remote | ssh -i $KeyPath -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$DevUser@$DevVm" 'bash -s'
+    if ($LASTEXITCODE -ne 0) { throw "writing the mirror to the dev VM failed (is the JIT window open?)" }
+}
+else {
+    $tmp = New-TemporaryFile
+    [System.IO.File]::WriteAllText($tmp.FullName, "#!/bin/bash`n$remote")
+    $raw = (az vm run-command invoke --subscription $DevSub -g $DevRg -n $DevVmName `
+            --command-id RunShellScript --scripts "@$($tmp.FullName)" -o json 2>&1 | Out-String)
+    Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
+    if ($raw -notmatch 'mirrored to') { throw "writing the mirror to the dev VM failed: $raw" }
+}
 Write-Host 'Portal mirror updated.' -ForegroundColor Green

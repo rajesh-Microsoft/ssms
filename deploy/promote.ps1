@@ -339,7 +339,7 @@ Write-Host "Roll back with:  docker tag $($t.Image):rollback-$stamp $($t.Image) 
 # The hosted portal cannot reach pre-prod, so refresh its mirror here. Best-effort: a
 # dashboard that is briefly out of date must never fail a deployment that has succeeded.
 if ($Environment -eq 'pprod') {
-    try { & (Join-Path $PSScriptRoot 'pprod/mirror-state.ps1') }
+    try { & (Join-Path $PSScriptRoot 'pprod/mirror-state.ps1') -Transport ($Transport ? $Transport : 'ssh') }
     catch { Write-Warning "portal mirror not updated: $_. Run deploy/pprod/mirror-state.ps1 once the JIT window is open." }
 }
 
