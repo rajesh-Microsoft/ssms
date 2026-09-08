@@ -48,14 +48,20 @@ async function apiFetch(path, options = {}){
 
   if(!res.ok){
     let message = `Request failed (${res.status})`;
-    try{
-      const body = await res.json();
-      if(body && body.message) message = body.message;
-      else if(body && body.title) message = body.title;
-      // BadRequest("text") serialises as a bare JSON string, not an object. Without this the
-      // server's actual wording is dropped and the user only sees "Request failed (400)".
-      else if(typeof body === 'string' && body.trim()) message = body;
-    }catch(e){ /* no JSON body */ }
+    // Read as text first: BadRequest("...") comes back as text/plain, so res.json() would
+    // throw and the server's actual wording would be lost behind the status code.
+    const text = await res.text().catch(() => '');
+    if(text){
+      try{
+        const body = JSON.parse(text);
+        if(body && body.message) message = body.message;
+        else if(body && body.title) message = body.title;
+        else if(typeof body === 'string' && body.trim()) message = body.trim();
+      }catch(e){
+        // Not JSON. Use it only if it is a message, not a developer exception page.
+        if(!/^\s*</.test(text)) message = text.trim().slice(0, 300);
+      }
+    }
     const err = new Error(message);
     err.status = res.status;   // lets callers tell "not found yet" apart from a real failure
     throw err;
