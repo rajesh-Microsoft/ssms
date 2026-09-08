@@ -155,10 +155,10 @@ public class UserGroupsController(SmmsDbContext db, AuditService audit) : Contro
         {
             // Inactive accounts resolve to nothing, but the screen still needs to show their setup.
             var user = await db.Users.AsNoTracking().FirstAsync(u => u.Id == userId);
-            return Ok(new EffectiveAccessDto(userId, user.Role, !string.IsNullOrWhiteSpace(user.Permissions),
-                groups, PermissionHelper.Parse(user.Permissions)));
+            return Ok(new EffectiveAccessDto(userId, user.Role, UserGroups.ForOccupancy(user.OccupancyType),
+                groups, PermissionHelper.Parse(null)));
         }
 
-        return Ok(new EffectiveAccessDto(userId, access.Role, access.UsesIndividualOverride, groups, access.Permissions));
+        return Ok(new EffectiveAccessDto(userId, access.Role, access.OccupancyGroup, groups, access.Permissions));
     }
 }

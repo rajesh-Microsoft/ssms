@@ -25,11 +25,11 @@ public record UserGroupUpsertRequest(
 
 public record UserGroupMembersRequest(List<int> UserIds);
 
-/// <summary>What a user may actually do, and where it came from — so an admin can see whether an
-/// account is still on an individual override rather than inheriting from its groups.</summary>
+/// <summary>What a user may actually do, and where it came from — the occupancy baseline plus any
+/// committee positions.</summary>
 public record EffectiveAccessDto(
     int UserId,
     string Role,
-    bool UsesIndividualOverride,
+    string OccupancyGroup,
     IEnumerable<string> Groups,
     Dictionary<string, string> Permissions);

@@ -174,10 +174,12 @@ public class MeController(SmmsDbContext db, AuditService audit, MaintenanceCalcu
 
         // Members may only edit their own contact/profile fields.
         // Flat, Floor, Role and Status are administered by an Admin and are never touched here.
+        // OccupancyType is deliberately NOT taken from the request either: it decides whether the
+        // account inherits Owner or Tenant permissions, so letting a resident declare their own
+        // would let a tenant grant themselves the society's financial screens.
         user.Name = request.Name;
         user.Email = request.Email;
         user.Mobile = request.Mobile;
-        user.OccupancyType = request.OccupancyType;
         user.EmergencyContact = request.EmergencyContact;
         user.ProfilePhoto = request.ProfilePhoto;
         user.FamilyJson = request.FamilyJson;

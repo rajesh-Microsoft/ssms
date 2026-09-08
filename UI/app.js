@@ -257,19 +257,18 @@ async function loadCoreData(){
     await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
     await Promise.all([loadUsers(), loadAuditLogData(), loadLiabilities(), loadIncome(), loadUtilityData()]);
   } else {
-    // Residents get their self-service snapshot (/api/me) plus a READ-ONLY view
-    // of society-wide finances (Dashboard/Collections/Expenses). Members hold
-    // default "View" permission on these modules, so the API allows the reads;
-    // edit/add buttons stay hidden because they require "Edit" (see canEdit()).
-    await Promise.all([loadMe(), loadSettingsData(), loadMembers()]);
-    await Promise.all([loadCollections(), loadExpenses(), loadComplaints()]);
-    await loadUtilityData();
-    // Other Income + Liabilities are shown only if the admin granted this
-    // resident View on those modules (per-user Module Permissions).
-    const extra = [];
-    if(canView('Income')) extra.push(loadIncome());
-    if(canView('Liabilities')) extra.push(loadLiabilities());
-    if(extra.length) await Promise.all(extra);
+    // Residents get their self-service snapshot (/api/me) plus whatever society-wide reads their
+    // occupancy and positions allow. Every society fetch is gated: a tenant has None on these, and
+    // an ungated call would 403 and reject the whole Promise.all, breaking the login sequence.
+    await Promise.all([loadMe(), loadSettingsData()]);
+    const society = [loadComplaints()];
+    if(canView('Members'))     society.push(loadMembers());
+    if(canView('Collections')) society.push(loadCollections());
+    if(canView('Expenses'))    society.push(loadExpenses());
+    if(canView('Income'))      society.push(loadIncome());
+    if(canView('Liabilities')) society.push(loadLiabilities());
+    if(canView('Expenses'))    society.push(loadUtilityData());
+    await Promise.all(society);
   }
 }
 
@@ -2468,10 +2467,14 @@ function renderUsers(){
     const approveBtn = st==='Pending' ? `<button class="ic-btn" onclick="approveUser(${u.id})" title="Approve account">✅</button>` : '';
     let groupCell;
     if(u.role==='Admin') groupCell = '<span style="color:var(--sub);">— full access</span>';
-    else if(u.usesIndividualOverride) groupCell = '<span title="This account still uses its own permissions, so its groups are ignored." style="color:#c05621;">⚠ individual</span>';
     else if((u.groupNames||[]).length) groupCell = escGate(u.groupNames.join(', '));
     else groupCell = '<span style="color:var(--sub);">—</span>';
-    return `<tr><td>${i+1}</td><td>${escGate(u.username)}</td><td>${escGate(u.name || '-')}</td><td>${escGate(u.flat || '-')}</td><td>${escGate(u.role)}</td><td>${escGate(u.occupancyType || '-')}</td><td style="font-size:12px;">${groupCell}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
+    const occ = u.occupancyType
+      ? escGate(u.occupancyType)
+      : (u.role==='Admin' || u.role==='Caretaker')
+        ? '<span style="color:var(--sub);">n/a</span>'
+        : '<span title="Not set, so this account is treated as a Tenant." style="color:#c05621;">⚠ not set</span>';
+    return `<tr><td>${i+1}</td><td>${escGate(u.username)}</td><td>${escGate(u.name || '-')}</td><td>${escGate(u.flat || '-')}</td><td>${escGate(u.role)}</td><td style="font-size:12px;">${occ}</td><td style="font-size:12px;">${groupCell}</td><td><span class="badge b-${badgeClass}">${st}</span></td><td><div class="act-btns">${approveBtn}<button class="ic-btn" onclick="editUser(${u.id})" title="Edit user">✏️</button><button class="ic-btn" onclick="resetUserPassword(${u.id})" title="Reset password">🔑</button><button class="ic-btn" onclick="deleteUser(${u.id})">🗑️</button></div></td></tr>`;
   }).join('');
 }
 function renderUserPermMatrix(perms, tbodyId = 'u-perm-tbody', prefix = 'perm'){
@@ -2521,11 +2524,8 @@ function editUser(id){
   document.getElementById('u-mobile').value = u.mobile || '';
   document.getElementById('u-flat').value = u.flat || '';
   document.getElementById('u-floor').value = u.floor || '';
-  renderUserPermMatrix(u.permissions || {});
+  document.getElementById('u-occupancy').value = u.occupancyType || 'Tenant';
   renderUserGroupChecks(u.groupIds || []);
-  document.getElementById('u-override-banner').style.display = u.usesIndividualOverride ? '' : 'none';
-  document.getElementById('u-advanced').open = !!u.usesIndividualOverride;
-  _clearOverride = false;
   refreshEffectivePreview();
   toggleUserPermRows();
   document.getElementById('modal-user').classList.add('open');
@@ -2535,9 +2535,9 @@ async function saveUser(){
   const n=document.getElementById('u-name').value.trim();
   if(!n)return toast('Enter username','warn');
   const role = document.getElementById('u-role').value;
-  // Caretakers are locked out of every module by the API, so storing a matrix of
-  // "View" against them would only be misleading when someone reads the record later.
-  const permissions = (role==='Admin' || role==='Caretaker') ? undefined : getUserPermPayload();
+  // Occupancy drives the Owner/Tenant baseline, and neither applies to staff or admins.
+  const occupancyType = (role==='Admin' || role==='Caretaker')
+    ? null : document.getElementById('u-occupancy').value;
 
   if(editId.user){
     const payload = {
@@ -2549,9 +2549,7 @@ async function saveUser(){
       floor: document.getElementById('u-floor').value,
       status: document.getElementById('u-status').value,
       groupIds: selectedGroupIds(),
-      clearIndividualPermissions: _clearOverride,
-      // Sending the matrix would re-create the override we are trying to drop.
-      permissions: _clearOverride ? undefined : permissions
+      occupancyType
     };
     try{
       await Api.updateUser(editId.user, payload);
@@ -2572,8 +2570,7 @@ async function saveUser(){
     floor: document.getElementById('u-floor').value,
     status: document.getElementById('u-status').value,
     groupIds: selectedGroupIds(),
-    // New accounts start on groups; the matrix is only sent if the admin opened Advanced.
-    permissions: document.getElementById('u-advanced')?.open ? permissions : undefined
+    occupancyType
   };
   try{
     await Api.createUser(payload);
@@ -2662,11 +2659,8 @@ function openModal(type){
     document.getElementById('u-mobile').value='';
     document.getElementById('u-flat').value='';
     document.getElementById('u-floor').value='';
-    renderUserPermMatrix({});
     renderUserGroupChecks([]);
-    _clearOverride = false;
-    document.getElementById('u-override-banner').style.display = 'none';
-    document.getElementById('u-advanced').open = false;
+    document.getElementById('u-occupancy').value = 'Owner';
     refreshEffectivePreview();
     toggleUserPermRows();
   }
@@ -3969,8 +3963,12 @@ async function saveMyProfile(){
 // USER GROUPS — positions whose permissions members inherit
 // ═══════════════════════════════════════════════
 let DB_GROUPS = [];
-let _clearOverride = false;
 let _groupMemberIds = [];
+
+// Owner and Tenant are not ticked on a user: they follow the Occupancy field, so that field
+// stays the single source of truth and membership can never disagree with it.
+const OCCUPANCY_GROUPS = ['Owner','Tenant'];
+const isOccupancyGroup = (name) => OCCUPANCY_GROUPS.includes(name);
 
 function showAdminSection(section, el){
   document.getElementById('admin-sec-users').style.display  = section==='users'  ? '' : 'none';
@@ -4007,7 +4005,7 @@ function renderGroups(){
   tbody.innerHTML = DB_GROUPS.map(g => `<tr${g.isActive ? '' : ' style="opacity:.55;"'}>
     <td><b>${escGate(g.name)}</b>${g.isSystem ? ' <span title="Built-in group" style="font-size:11px;color:var(--sub);">built-in</span>' : ''}</td>
     <td style="font-size:12px;color:var(--sub);">${escGate(g.description || '')}</td>
-    <td>${g.memberCount}</td>
+    <td>${isOccupancyGroup(g.name) ? '<span title="Applied from each user\'s Occupancy field" style="font-size:12px;color:var(--sub);">by occupancy</span>' : g.memberCount}</td>
     <td style="font-size:12px;">${escGate(groupAccessSummary(g.permissions || {}))}</td>
     <td><span class="badge b-${g.isActive ? 'active' : 'inactive'}">${g.isActive ? 'Active' : 'Inactive'}</span></td>
     <td><div class="act-btns">
@@ -4042,9 +4040,17 @@ async function openGroup(id){
   document.getElementById('g-system-note').style.display = (group && group.isSystem) ? '' : 'none';
   document.getElementById('g-member-search').value = '';
 
-  renderUserPermMatrix(group ? group.permissions : {}, 'g-perm-tbody', 'gperm');
+  renderUserPermMatrix(group ? group.permissions : NO_PERMISSIONS(), 'g-perm-tbody', 'gperm');
   renderGroupMemberPicker();
   document.getElementById('modal-group').classList.add('open');
+}
+
+// A new group starts denying everything, so it grants only what the admin ticks. Defaulting to
+// View would make a narrow group (say a festival committee) hand out the society's accounts too.
+function NO_PERMISSIONS(){
+  const out = {};
+  PERMISSION_MODULES.forEach(m => { out[m] = 'None'; });
+  return out;
 }
 
 function renderGroupMemberPicker(){
@@ -4058,7 +4064,7 @@ function renderGroupMemberPicker(){
   if(!people.length){ host.innerHTML = '<p style="color:var(--sub);font-size:12px;margin:0;">No matching people.</p>'; return; }
   host.innerHTML = people.map(u => `<label class="check" style="display:flex;align-items:center;gap:8px;padding:3px 0;">
     <input type="checkbox" value="${u.id}" ${_groupMemberIds.includes(u.id)?'checked':''} onchange="toggleGroupMember(${u.id}, this.checked)">
-    <span>${escGate(u.name || u.username)}${u.flat ? ' · ' + escGate(u.flat) : ''}${u.usesIndividualOverride ? ' <span title="Still on individual permissions, so this group will not apply." style="color:#c05621;">⚠</span>' : ''}</span>
+    <span>${escGate(u.name || u.username)}${u.flat ? ' · ' + escGate(u.flat) : ''} <span style="color:var(--sub);font-size:11px;">${escGate(u.occupancyType || 'Tenant')}</span></span>
   </label>`).join('');
 }
 
@@ -4106,9 +4112,9 @@ async function deleteGroup(id){
 function renderUserGroupChecks(selectedIds){
   const host = document.getElementById('u-groups');
   if(!host) return;
-  const active = DB_GROUPS.filter(g => g.isActive);
+  const active = DB_GROUPS.filter(g => g.isActive && !isOccupancyGroup(g.name));
   if(!active.length){
-    host.innerHTML = '<span style="font-size:12px;color:var(--sub);">No groups defined yet — create them on the Groups tab.</span>';
+    host.innerHTML = '<span style="font-size:12px;color:var(--sub);">No committee positions defined yet — create them on the Groups tab.</span>';
     return;
   }
   host.innerHTML = active.map(g => `<label class="check" style="display:flex;align-items:center;gap:6px;">
@@ -4121,9 +4127,12 @@ function selectedGroupIds(){
   return Array.from(document.querySelectorAll('.u-group-check:checked')).map(c => +c.value);
 }
 
-// Mirrors the server's rule: most permissive wins, and a module every group marks None ends up None.
-function combineGroupPermissions(ids){
+// Mirrors the server: the occupancy baseline plus any positions, most permissive wins, and a
+// module every contributing group marks None ends up None.
+function combineGroupPermissions(ids, occupancyName){
   const chosen = DB_GROUPS.filter(g => ids.includes(g.id));
+  const occ = DB_GROUPS.find(g => g.name === occupancyName);
+  if(occ) chosen.push(occ);
   const rank = l => l === 'Edit' ? 2 : l === 'View' ? 1 : 0;
   const out = {};
   PERMISSION_MODULES.forEach(m => {
@@ -4142,21 +4151,13 @@ function refreshEffectivePreview(){
   if(role === 'Admin'){ host.innerHTML = '<b>Full access</b> — Admins bypass module permissions.'; return; }
   if(role === 'Caretaker'){ host.innerHTML = 'Caretaker — the gate app only; module permissions do not apply.'; return; }
 
-  const usingOverride = document.getElementById('u-override-banner')?.style.display !== 'none' && !_clearOverride;
-  const perms = usingOverride ? getUserPermPayload() : combineGroupPermissions(selectedGroupIds());
+  const occupancy = document.getElementById('u-occupancy')?.value || 'Tenant';
+  const perms = combineGroupPermissions(selectedGroupIds(), occupancy);
   const label = { Edit: '✎', View: '👁', None: '⌀' };
+  const positions = DB_GROUPS.filter(g => selectedGroupIds().includes(g.id)).map(g => g.name);
   host.innerHTML = PERMISSION_MODULES
     .map(m => `<span style="display:inline-block;margin-right:10px;">${label[perms[m]] || ''} ${m}</span>`).join('')
-    + (usingOverride ? '<div style="color:#c05621;margin-top:4px;">from individual permissions</div>'
-                     : '<div style="color:var(--sub);margin-top:4px;">inherited from groups</div>');
-}
-
-function clearUserOverride(){
-  _clearOverride = true;
-  document.getElementById('u-override-banner').style.display = 'none';
-  document.getElementById('u-advanced').open = false;
-  refreshEffectivePreview();
-  toast('Will inherit from groups when you save.','info');
+    + `<div style="color:var(--sub);margin-top:4px;">from ${escGate(occupancy)}${positions.length ? ' + ' + escGate(positions.join(', ')) : ''}</div>`;
 }
 
 async function changeMyPassword(){

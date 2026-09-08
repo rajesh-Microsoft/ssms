@@ -38,6 +38,21 @@ public static class PermissionModules
     public static readonly string[] ValidLevels = ["None", "View", "Edit"];
 }
 
+/// <summary>Groups whose membership is not stored. A user inherits whichever of these matches
+/// their <c>OccupancyType</c>, so that one field stays the single source of truth and group
+/// membership can never drift from it.</summary>
+public static class UserGroups
+{
+    public const string Owner = "Owner";
+    public const string Tenant = "Tenant";
+
+    /// <summary>Occupancy is what the committee recorded, so an account with none set is treated
+    /// as a tenant: the cautious answer, and the one that keeps a flat's accounts private until
+    /// somebody confirms who lives there.</summary>
+    public static string ForOccupancy(string? occupancyType) =>
+        string.Equals(occupancyType?.Trim(), Owner, StringComparison.OrdinalIgnoreCase) ? Owner : Tenant;
+}
+
 public static class PermissionHelper
 {
     /// <summary>Parses a user's stored Permissions JSON into a module -&gt; level map.

@@ -23,11 +23,18 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
     private static UserDto ToDto(User u, string? name = null,
         IEnumerable<(int Id, string Name)>? groups = null) => new(
         u.Id, u.Username, name, u.Role, u.Email, u.Mobile, u.Flat, u.Floor, u.Status,
-        PermissionHelper.Parse(u.Permissions),
         groups?.Select(g => g.Id) ?? [],
         groups?.Select(g => g.Name) ?? [],
-        !string.IsNullOrWhiteSpace(u.Permissions),
         u.OccupancyType);
+
+    private static readonly HashSet<string> Occupancies =
+        new(StringComparer.OrdinalIgnoreCase) { UserGroups.Owner, UserGroups.Tenant };
+
+    /// <summary>Blank clears it, which the resolver then treats as a tenant.</summary>
+    private static string? NormaliseOccupancy(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null
+        : Occupancies.Contains(value.Trim()) ? (string.Equals(value.Trim(), UserGroups.Owner, StringComparison.OrdinalIgnoreCase) ? UserGroups.Owner : UserGroups.Tenant)
+        : null;
 
     private async Task<List<(int Id, string Name)>> GroupsOfAsync(int userId) =>
         (await db.UserGroupMembers.AsNoTracking()
@@ -110,7 +117,7 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
             Mobile = request.Mobile,
             Flat = request.Flat,
             Floor = request.Floor,
-            Permissions = request.Permissions is null ? null : PermissionHelper.Serialize(request.Permissions),
+            OccupancyType = NormaliseOccupancy(request.OccupancyType),
             MustChangePassword = request.MustChangePassword
         };
         user.PasswordHash = Hasher.HashPassword(user, request.Password);
@@ -148,11 +155,7 @@ public class UsersController(SmmsDbContext db, AuditService audit) : ControllerB
         user.Mobile = request.Mobile;
         user.Flat = request.Flat;
         user.Floor = request.Floor;
-        // Clearing wins over setting: the screen offers "move onto groups", and sending both would
-        // otherwise silently keep the override alive.
-        if (request.ClearIndividualPermissions) user.Permissions = null;
-        else if (request.Permissions is not null)
-            user.Permissions = PermissionHelper.Serialize(request.Permissions);
+        user.OccupancyType = NormaliseOccupancy(request.OccupancyType);
 
         await ApplyGroupsAsync(id, request.GroupIds);
         await db.SaveChangesAsync();

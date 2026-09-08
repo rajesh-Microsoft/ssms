@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace SMMS.Api.Dtos;
 
 public record UserDto(int Id, string Username, string? Name, string Role, string? Email, string? Mobile, string? Flat,
-    string? Floor, string Status, Dictionary<string, string> Permissions,
-    IEnumerable<int> GroupIds, IEnumerable<string> GroupNames, bool UsesIndividualOverride,
+    string? Floor, string Status, IEnumerable<int> GroupIds, IEnumerable<string> GroupNames,
     string? OccupancyType);
 
 public record UserCreateRequest(
@@ -16,9 +15,10 @@ public record UserCreateRequest(
     string? Flat,
     string? Floor,
     string Status = "Active",
-    Dictionary<string, string>? Permissions = null,
     bool MustChangePassword = false,
-    List<int>? GroupIds = null);
+    List<int>? GroupIds = null,
+    /// <summary>"Owner" or "Tenant". Decides the permission baseline, so it is admin-set only.</summary>
+    string? OccupancyType = null);
 
 public record UserUpdateRequest(
     [Required, MaxLength(50)] string Username,
@@ -28,10 +28,8 @@ public record UserUpdateRequest(
     string? Flat,
     string? Floor,
     [Required] string Status,
-    Dictionary<string, string>? Permissions = null,
     List<int>? GroupIds = null,
-    /// <summary>Drops the per-user override so the account inherits from its groups instead.</summary>
-    bool ClearIndividualPermissions = false);
+    string? OccupancyType = null);
 
 public record ResetUserPasswordRequest([Required, MinLength(4)] string NewPassword);
 

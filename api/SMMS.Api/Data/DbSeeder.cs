@@ -105,6 +105,32 @@ public static class DbSeeder
         // name the modules that differ from plain read access.
         var defaults = new (string Name, string Description, Dictionary<string, string> Permissions)[]
         {
+            // Occupancy baselines. Membership is not stored: a user inherits whichever of these
+            // matches their OccupancyType, so the field stays the single source of truth.
+            (UserGroups.Tenant, "Rents a flat. Pays maintenance and raises complaints; the society's accounts are not theirs to see.", new()
+            {
+                [PermissionModules.Collections] = "None",
+                [PermissionModules.Expenses] = "None",
+                [PermissionModules.Income] = "None",
+                [PermissionModules.Liabilities] = "None",
+                [PermissionModules.Budgets] = "None",
+                [PermissionModules.Inventory] = "None",
+                [PermissionModules.Members] = "None",
+                [PermissionModules.Settings] = "None",
+                [PermissionModules.Complaints] = "View"
+            }),
+            (UserGroups.Owner, "Owns a flat. Entitled to see how the society's money is collected and spent, without running it.", new()
+            {
+                [PermissionModules.Collections] = "View",
+                [PermissionModules.Expenses] = "View",
+                [PermissionModules.Income] = "View",
+                [PermissionModules.Liabilities] = "View",
+                [PermissionModules.Budgets] = "View",
+                [PermissionModules.Inventory] = "View",
+                [PermissionModules.Members] = "View",
+                [PermissionModules.Complaints] = "View",
+                [PermissionModules.Settings] = "None"
+            }),
             ("Treasurer", "Handles money: expenses, liabilities, reimbursements and the budget.", new()
             {
                 [PermissionModules.Expenses] = "Edit",
