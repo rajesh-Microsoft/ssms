@@ -65,6 +65,11 @@ th{padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;colo
 td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
 tr:last-child td{border:none;}
 tr:hover td{background:rgba(108,99,255,.04);}
+/* Clickable cell text. The browser's default link blue is unreadable on the dark card, so this
+   follows the same pairing the badges use: --success on light, the lighter #68d391 on dark. */
+.tlink{color:var(--success);text-decoration:none;font-weight:600;cursor:pointer;}
+.tlink:hover{text-decoration:underline;}
+.dark .tlink{color:#68d391;}
 .badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;}
 .b-paid,.b-active{background:#c6f6d5;color:#276749;}
 .b-unpaid,.b-pending{background:#fed7d7;color:#9b2c2c;}

@@ -4259,7 +4259,7 @@ function renderInventorySummary(){
   if(card) card.style.display = low.length ? '' : 'none';
   if(tbody){
     tbody.innerHTML = low.map(i => `<tr>
-      <td><a href="#" onclick="viewInventoryItem(${i.id});return false;">${escHtml(i.name)}</a></td>
+      <td><a href="#" class="tlink" onclick="viewInventoryItem(${i.id});return false;">${escHtml(i.name)}</a></td>
       <td>${escHtml(i.category)}</td>
       <td>${invQty(i.currentStock)} ${escHtml(i.unit)}</td>
       <td>${invQty(i.minimumStockLevel)}</td>
@@ -4287,7 +4287,7 @@ function renderInventoryItems(){
 
   const editable = canEdit('Inventory');
   tbody.innerHTML = rows.map(i => `<tr${i.isActive ? '' : ' style="opacity:.55;"'}>
-    <td><a href="#" onclick="viewInventoryItem(${i.id});return false;">${escHtml(i.name)}</a>${i.isActive ? '' : ' <span style="font-size:11px;color:var(--sub);">(inactive)</span>'}</td>
+    <td><a href="#" class="tlink" onclick="viewInventoryItem(${i.id});return false;">${escHtml(i.name)}</a>${i.isActive ? '' : ' <span style="font-size:11px;color:var(--sub);">(inactive)</span>'}</td>
     <td>${escHtml(i.category)}</td>
     <td>${escHtml(i.unit)}</td>
     <td><b>${invQty(i.currentStock)}</b></td>
@@ -4312,7 +4312,7 @@ function renderInventoryRecent(){
   }
   tbody.innerHTML = rows.map(m => `<tr>
     <td>${mDate(m.movementDate)}</td>
-    <td><a href="#" onclick="viewInventoryItem(${m.itemId});return false;">${escHtml(m.itemName)}</a></td>
+    <td><a href="#" class="tlink" onclick="viewInventoryItem(${m.itemId});return false;">${escHtml(m.itemName)}</a></td>
     <td style="color:${m.quantity < 0 ? '#c53030' : '#276749'};font-weight:600;">${m.quantity > 0 ? '+' : ''}${invQty(m.quantity)}</td>
     <td>${escHtml(m.movementType)}</td>
     <td>${escHtml(m.reason || '')}</td>
