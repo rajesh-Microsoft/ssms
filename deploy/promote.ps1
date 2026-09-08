@@ -50,8 +50,13 @@ $pprodSa = 'smmspprod183143'
 $devSub = '35fafe5f-7621-4ee4-8bae-c2accf4fec38'
 $devRg = 'ssms-prod-rg'
 $devVm = 'ssms-webserver'
-$devSa = 'smmsbackup866121'
-$devSaRg = 'SMMS-BACKUP-RG'
+# Staging only needs to be an HTTPS URL the box can curl, so it does not have to live on the
+# same subscription as the VM. The MCAPS backup account disables shared keys and its data plane
+# rejects tokens from the signed-in tenant, so the pre-prod account carries the archive for
+# every target. The blob is private, read-only, SAS-limited to 30 minutes and deleted after.
+$stageSub = $pprodSub
+$stageRg = $pprodRg
+$stageSa = $pprodSa
 
 $targets = @{
     dev   = @{
@@ -59,8 +64,9 @@ $targets = @{
         Sub       = $devSub
         Rg        = $devRg
         Vm        = $devVm
-        Sa        = $devSa
-        SaRg      = $devSaRg
+        Sa        = $stageSa
+        SaRg      = $stageRg
+        SaSub     = $stageSub
         # Absolute, never "~": run-command executes as root with HOME unset, so a tilde would
         # resolve to /root and the deploy would miss ssmsadmin's tree entirely.
         Root      = '/home/ssmsadmin/smms-dev/SMMS'
@@ -86,6 +92,7 @@ $targets = @{
         Vm        = $pprodVm
         Sa        = $pprodSa
         SaRg      = $pprodRg
+        SaSub     = $stageSub
         Root      = '/opt/smms/app'
         Image     = 'smms-pprod-smms-api'
         Api       = 'smms-pprod-api'
@@ -105,8 +112,9 @@ $targets = @{
         Sub       = $devSub
         Rg        = $devRg
         Vm        = $devVm
-        Sa        = $devSa
-        SaRg      = $devSaRg
+        Sa        = $stageSa
+        SaRg      = $stageRg
+        SaSub     = $stageSub
         Root      = '/home/ssmsadmin/smms/SMMS'
         Image     = 'smms-smms-api'
         Api       = 'smms-api'
@@ -236,7 +244,7 @@ if ($t.Transport -eq 'ssh') {
 else {
     # No scp to this box, so the archive travels through a private container and a
     # short-lived read-only SAS that only ever exists inside the script handed to the agent.
-    $saKey = az storage account keys list -n $($t.Sa) -g $($t.SaRg) --subscription $($t.Sub) --query '[0].value' -o tsv
+    $saKey = az storage account keys list -n $($t.Sa) -g $($t.SaRg) --subscription $($t.SaSub) --query '[0].value' -o tsv
     az storage container create -n stage --account-name $($t.Sa) --account-key $saKey --only-show-errors -o none
     az storage blob upload --account-name $($t.Sa) --account-key $saKey -c stage -n $blob -f $tgz --overwrite --only-show-errors -o none
     $expiry = (Get-Date).ToUniversalTime().AddMinutes(30).ToString('yyyy-MM-ddTHH:mmZ')
