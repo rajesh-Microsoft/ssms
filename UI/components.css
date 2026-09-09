@@ -46,7 +46,8 @@ nav::-webkit-scrollbar-thumb:hover{background:var(--ink-3);}
 }
 .nav-item.active .ic{stroke-width:2;}
 .nbadge{
-  background:var(--brand-solid);font-size:10px;font-weight:var(--fw-semibold);
+  background:var(--brand-solid);color:var(--brand-on,#fff);
+  font-size:10px;font-weight:var(--fw-semibold);
   padding:1px 6px;border-radius:var(--r-full);min-width:18px;text-align:center;
 }
 
@@ -61,7 +62,7 @@ nav::-webkit-scrollbar-thumb:hover{background:var(--ink-3);}
 .btn:hover{opacity:1;}                    /* replaces the blanket opacity fade */
 .btn:active{transform:translateY(.5px);}
 .btn .ic{width:15px;height:15px;}
-.btn-primary{background:var(--brand-solid);color:#fff;box-shadow:var(--sh-xs);}
+.btn-primary{background:var(--brand-solid);color:var(--brand-on,#fff);box-shadow:var(--sh-xs);}
 .btn-primary:hover{background:var(--brand-press);}
 .btn-success{background:var(--ok);color:#fff;}
 .btn-success:hover{filter:brightness(1.08);}

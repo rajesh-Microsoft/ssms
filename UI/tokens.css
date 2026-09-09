@@ -10,14 +10,17 @@
   --n-200:#e4e7ec; --n-300:#d0d5dd; --n-400:#98a2b3; --n-500:#667085;
   --n-600:#475467; --n-700:#344054; --n-800:#1d2939; --n-900:#101828;
 
-  /* ── brand (unchanged hue) ────────────────────────────── */
-  --brand:#6c63ff;            /* identity: logo, active tints, borders */
-  --brand-solid:#5f56f2;      /* fills carrying white text; #6c63ff is only 4.32:1 */
-  --brand-hover:#5b51f0;
-  --brand-press:#4f45db;
-  --brand-text:#544bd8;       /* brand as TEXT on light needs to be darker */
-  --brand-weak:#f0efff;
-  --brand-line:#d9d6ff;
+  /* ── brand ───────────────────────────────────────── */
+  /* applySettings() overwrites --accent at runtime with the society's chosen
+     Primary Color, so the whole ramp is derived from it rather than fixed. */
+  --accent:#4454b5;
+  --brand:var(--accent);
+  --brand-solid:color-mix(in srgb, var(--accent) 92%, #000);   /* carries white text */
+  --brand-hover:color-mix(in srgb, var(--accent) 84%, #000);
+  --brand-press:color-mix(in srgb, var(--accent) 74%, #000);
+  --brand-text:color-mix(in srgb, var(--accent) 84%, #000);    /* brand as text on light */
+  --brand-weak:color-mix(in srgb, var(--accent) 9%, #fff);
+  --brand-line:color-mix(in srgb, var(--accent) 28%, #fff);
 
   /* ── semantics ────────────────────────────────────────── */
   --ok:#067647;   --ok-weak:#ecfdf3;   --ok-line:#abefc6;
@@ -87,7 +90,6 @@
   --text:var(--ink);
   --sub:var(--ink-2);
   --border:var(--line);
-  --accent:var(--brand);
   --success:var(--ok);
   --danger:var(--err);
   --warn-legacy:var(--warn);
@@ -96,12 +98,13 @@
 }
 
 .dark{
-  --brand:#8b83ff;
-  --brand-hover:#9d96ff;
-  --brand-press:#7c74f0;
-  --brand-text:#b3adff;
-  --brand-weak:#211f42;
-  --brand-line:#332f63;
+  --brand:color-mix(in srgb, var(--accent) 76%, #fff);
+  --brand-solid:var(--accent);
+  --brand-hover:color-mix(in srgb, var(--accent) 88%, #fff);
+  --brand-press:var(--accent);
+  --brand-text:color-mix(in srgb, var(--accent) 58%, #fff);
+  --brand-weak:color-mix(in srgb, var(--accent) 24%, #000);
+  --brand-line:color-mix(in srgb, var(--accent) 40%, #000);
 
   --ok:#4ade80;   --ok-weak:#0a2c1c;   --ok-line:#14532d;
   --warn:#fbbf24; --warn-weak:#2e2205; --warn-line:#4a3708;
@@ -142,7 +145,6 @@
   --text:var(--ink);
   --sub:var(--ink-2);
   --border:var(--line);
-  --accent:var(--brand);
   --success:var(--ok);
   --danger:var(--err);
   --shadow:var(--sh-sm);
