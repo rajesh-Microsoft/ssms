@@ -59,10 +59,12 @@
       trigger.setAttribute('aria-expanded', 'false');
       document.removeEventListener('mousedown', onOutside, true);
       window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     }
 
     function onOutside(e) { if (pop && !pop.contains(e.target) && e.target !== trigger) close(); }
+    // Capturing, so it also fires for scrolls inside the list itself; those must not close it.
+    function onScroll(e) { if (pop && pop.contains(e.target)) return; close(); }
 
     function paint(filter) {
       var list = pop.querySelector('.xs-list');
@@ -129,7 +131,7 @@
       trigger.setAttribute('aria-expanded', 'true');
       document.addEventListener('mousedown', onOutside, true);
       window.addEventListener('resize', close);
-      window.addEventListener('scroll', close, true);
+      window.addEventListener('scroll', onScroll, true);
       var s = pop.querySelector('.xs-search input');
       if (s) { s.addEventListener('input', function () { paint(s.value); }); s.focus(); }
     }
@@ -201,9 +203,10 @@
       btn.setAttribute('aria-expanded', 'false');
       document.removeEventListener('mousedown', onOutside, true);
       window.removeEventListener('resize', close);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
     }
     function onOutside(e) { if (pop && !pop.contains(e.target) && e.target !== btn) close(); }
+    function onScroll(e) { if (pop && pop.contains(e.target)) return; close(); }
 
     function limits() {
       return { min: parse(input.getAttribute('min')), max: parse(input.getAttribute('max')) };
@@ -278,7 +281,7 @@
       btn.setAttribute('aria-expanded', 'true');
       document.addEventListener('mousedown', onOutside, true);
       window.addEventListener('resize', close);
-      window.addEventListener('scroll', close, true);
+      window.addEventListener('scroll', onScroll, true);
       pop.focus();
 
       pop.addEventListener('mousedown', function (e) {
