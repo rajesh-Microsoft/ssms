@@ -249,7 +249,9 @@ else {
     az storage blob upload --account-name $($t.Sa) --account-key $saKey -c stage -n $blob -f $tgz --overwrite --only-show-errors -o none
     $expiry = (Get-Date).ToUniversalTime().AddMinutes(30).ToString('yyyy-MM-ddTHH:mmZ')
     $sas = (az storage blob generate-sas --account-name $($t.Sa) --account-key $saKey -c stage -n $blob --permissions r --expiry $expiry --https-only -o tsv).Trim()
-    $fetch = "curl -fsSL 'https://$($t.Sa).blob.core.windows.net/stage/$blob`?$sas' -o /tmp/promote.tgz"
+    # Bounded: an unbounded curl here hangs the guest agent, which then parks the VM in
+    # provisioningState=Updating and rejects every later invocation with Conflict.
+    $fetch = "curl -fsSL --connect-timeout 15 --max-time 300 --retry 2 --retry-delay 5 'https://$($t.Sa).blob.core.windows.net/stage/$blob`?$sas' -o /tmp/promote.tgz"
 }
 Remove-Item $tgz
 
