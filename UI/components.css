@@ -44,6 +44,10 @@ nav::-webkit-scrollbar-thumb:hover{background:var(--ink-3);}
   background:var(--side-active-bg);
   color:var(--side-active-text);font-weight:var(--fw-medium);border-left:none;
 }
+/* Icons carry the society's brand colour; labels stay neutral so the sidebar
+   does not turn into a wall of colour. */
+.nav-item .ni .ic{color:var(--brand-text);}
+.nav-item.active .ni .ic{color:inherit;}
 .nav-item.active .ic{stroke-width:2;}
 .nbadge{
   background:var(--brand-solid);color:var(--brand-on,#fff);

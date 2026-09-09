@@ -98,13 +98,8 @@
 }
 
 .dark{
-  --brand:color-mix(in srgb, var(--accent) 76%, #fff);
-  --brand-solid:var(--accent);
-  --brand-hover:color-mix(in srgb, var(--accent) 88%, #fff);
-  --brand-press:var(--accent);
-  --brand-text:color-mix(in srgb, var(--accent) 58%, #fff);
-  --brand-weak:color-mix(in srgb, var(--accent) 24%, #000);
-  --brand-line:color-mix(in srgb, var(--accent) 40%, #000);
+  /* The brand ramp is not redefined here. brand.js writes it onto <html>, and a
+     .dark rule on <body> would outrank that and discard the measured values. */
 
   --ok:#4ade80;   --ok-weak:#0a2c1c;   --ok-line:#14532d;
   --warn:#fbbf24; --warn-weak:#2e2205; --warn-line:#4a3708;

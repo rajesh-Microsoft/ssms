@@ -59,17 +59,18 @@
 
     var dark = document.body.classList.contains('dark');
     var surface = dark ? [22, 26, 35] : WHITE;
-    // Brand-as-text has to work on the page surface, so it darkens on light and
-    // lightens on dark.
-    var text = ratio(accent, surface) >= AA
+    var weak = mix(accent, dark ? [14, 17, 23] : WHITE, dark ? .82 : .91);
+    // Measured against the tinted background rather than the plain surface: the
+    // tint is the harder of the two, and brand text sits on it (active nav, chips).
+    var text = ratio(accent, weak) >= AA
       ? accent
-      : shiftUntil(accent, dark ? WHITE : BLACK, surface);
+      : shiftUntil(accent, dark ? WHITE : BLACK, weak);
 
     root.style.setProperty('--brand-solid', hex(solid));
     root.style.setProperty('--brand-on', hex(on));
     root.style.setProperty('--brand-press', hex(mix(solid, BLACK, .18)));
     root.style.setProperty('--brand-text', hex(text));
-    root.style.setProperty('--brand-weak', hex(mix(accent, dark ? [14, 17, 23] : WHITE, dark ? .82 : .91)));
+    root.style.setProperty('--brand-weak', hex(weak));
     root.style.setProperty('--brand-line', hex(mix(accent, dark ? [14, 17, 23] : WHITE, dark ? .6 : .72)));
   }
 
