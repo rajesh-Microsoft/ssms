@@ -66,16 +66,8 @@ nav::-webkit-scrollbar-thumb:hover{background:var(--ink-3);}
 .btn:hover{opacity:1;}                    /* replaces the blanket opacity fade */
 .btn:active{transform:translateY(.5px);}
 .btn .ic{width:15px;height:15px;}
-/* Add / Save take the light outlined treatment of the unselected filter pills
-   rather than a solid fill; brand colour is kept on the border and label so the
-   primary action is still findable. */
-.btn-primary{
-  background:var(--surface);color:var(--brand-text);
-  border:1px solid var(--brand-text);border-radius:var(--r-full);
-  box-shadow:none;
-}
-.btn-primary:hover{background:var(--brand-weak);border-color:var(--brand-text);}
-.btn-primary:active{background:var(--brand-tint,var(--brand-weak));}
+.btn-primary{background:var(--brand-solid);color:var(--brand-on,#fff);box-shadow:var(--sh-xs);}
+.btn-primary:hover{background:var(--brand-press);}
 .btn-success{background:var(--ok);color:#fff;}
 .btn-success:hover{filter:brightness(1.08);}
 .btn-danger{background:var(--err);color:#fff;}
@@ -132,7 +124,17 @@ input:disabled,select:disabled,textarea:disabled{background:var(--surface-3);col
 }
 .kpi-icon .ic{width:17px;height:17px;}
 .kpi-lbl{font-size:11px;font-weight:var(--fw-medium);letter-spacing:.02em;color:var(--ink-2);text-transform:none;}
-.kpi-val{font-size:var(--fs-22);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);font-variant-numeric:tabular-nums;}
+.kpi-val{
+  font-size:var(--fs-22);font-weight:var(--fw-semibold);
+  letter-spacing:var(--tracking-tight);font-variant-numeric:tabular-nums;
+  /* Taller without getting wider. The system stack has no width axis, so a
+     vertical scale is the only way to gain height at the same advance width. */
+  display:inline-block;
+  transform:scaleY(1.18);
+  transform-origin:left center;
+  line-height:1.1;
+  margin:4px 0 5px;
+}
 .kpi-sub{font-size:var(--fs-11);color:var(--ink-3);}
 
 /* ── tables ─────────────────────────────────────────────── */
@@ -171,27 +173,6 @@ td:first-child,td strong{color:var(--ink);}
 }
 .ic-btn:hover{background:var(--surface-3);color:var(--ink);}
 
-/* ── theme toggle + pagination: were off the size scale ─── */
-.theme-btn{
-  width:32px;height:32px;border:1px solid var(--line);border-radius:var(--r-md);
-  background:var(--surface);color:var(--ink-2);cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;font-size:14px;
-  transition:background var(--t-fast),border-color var(--t-fast);
-}
-.theme-btn:hover{background:var(--surface-3);border-color:var(--line-strong);}
-
-.pg-btn{
-  min-width:30px;height:30px;padding:0 10px;border-radius:var(--r-full);
-  border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
-  font-size:var(--fs-12);cursor:pointer;
-  transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
-}
-.pg-btn:hover:not(.active){background:var(--surface-3);color:var(--ink);border-color:var(--line-strong);}
-.pg-btn.active{
-  background:var(--brand-solid);color:var(--brand-on,#fff);
-  border-color:var(--brand-solid);font-weight:var(--fw-semibold);
-}
-
 /* ── topbar ─────────────────────────────────────────────── */
 .topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}
 .page-title{font-size:var(--fs-16);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);}
@@ -211,14 +192,11 @@ td:first-child,td strong{color:var(--ink);}
 .pill:hover{border-color:var(--line-strong);color:var(--ink);}
 /* Selection reads as a soft tint, matching the active sidebar item, rather than
    a saturated fill that fights the rest of the page. */
-/* Selected reads as a solid brand fill, the same treatment as .btn-primary and
-   the active pagination button. --brand-on is measured, so the label stays
-   readable whatever colour the society picked. */
 .pill.active{
-  background:var(--brand-solid);color:var(--brand-on,#fff);
-  border-color:var(--brand-solid);font-weight:var(--fw-medium);
+  background:var(--brand-tint,var(--brand-weak));color:var(--brand-text);
+  border-color:var(--brand-text);font-weight:var(--fw-medium);
 }
-.pill.active:hover{background:var(--brand-press);border-color:var(--brand-press);}
+.pill.active:hover{border-color:var(--brand);}
 
 /* ── touch targets on small screens ─────────────────────── */
 @media (max-width:680px){
