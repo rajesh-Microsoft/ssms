@@ -263,6 +263,12 @@ echo "===== ROLLBACK IMAGE ====="
 docker tag $($t.Image) $($t.Image):rollback-$stamp || true
 echo "rollback tag: $($t.Image):rollback-$stamp"
 
+# Retain only the three newest rollback tags. These are ~565MB each and used to accumulate
+# forever; together with the build cache they filled the OS disk and took the box offline.
+docker images --format '{{.Repository}}:{{.Tag}}' $($t.Image) | grep rollback | sort -r | tail -n +4 | xargs -r docker rmi > /dev/null 2>&1 || true
+docker builder prune -af --filter until=168h > /dev/null 2>&1 || true
+echo -n "disk after prune: " ; df -h --output=pcent,avail / | tail -1
+
 echo ""
 echo "===== EXTRACTING $short ====="
 # The local-nuget blobs refuse to be clobbered in place and are byte identical anyway.
