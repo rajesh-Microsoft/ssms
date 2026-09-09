@@ -995,7 +995,7 @@ function editCollection(id){
 
 async function deleteCollection(id){
   if(!canEdit('Collections')) return toast('You do not have edit access to Collections.','warn');
-  if(!confirm('Delete this entry?')) return;
+  if(!await smmsConfirm('Delete this entry?')) return;
   try{
     await Api.deleteCollection(id);
     await loadCollections();
@@ -1164,7 +1164,7 @@ async function viewExpenseAttachment(expenseId, attId){
 }
 
 async function removeExpenseAttachment(expenseId, attId){
-  if(!confirm('Remove this file from the expense?')) return;
+  if(!await smmsConfirm('Remove this file from the expense?', {confirmText:'Remove'})) return;
   try{
     await Api.deleteExpenseAttachment(expenseId, attId);
     await renderExpenseAttachList(expenseId);
@@ -1208,7 +1208,7 @@ function editExpense(id){
 
 async function deleteExpense(id){
   if(!canEdit('Expenses')) return toast('You do not have edit access to Expenses.','warn');
-  if(!confirm('Delete this expense?')) return;
+  if(!await smmsConfirm('Delete this expense?')) return;
   try{
     await Api.deleteExpense(id);
     await loadExpenses();
@@ -1339,7 +1339,7 @@ function editIncome(id){
 
 async function deleteIncome(id){
   if(!canEdit('Income')) return toast('You do not have edit access to Other Income.','warn');
-  if(!confirm('Delete this income record?')) return;
+  if(!await smmsConfirm('Delete this income record?')) return;
   try{
     await Api.deleteIncome(id);
     await loadIncome();
@@ -1527,7 +1527,7 @@ async function deleteLiability(id){
   const warn = l && l.expenseId
     ? `Delete this liability?\n\nThe ${l.category||'expense'} cost of \u20b9${(l.amount||0).toLocaleString('en-IN')} booked with it will be removed too.`
     : 'Delete this liability?';
-  if(!confirm(warn)) return;
+  if(!await smmsConfirm(warn)) return;
   try{
     await Api.deleteLiability(id);
     await Promise.all([loadLiabilities(), loadExpenses()]);
@@ -1754,7 +1754,7 @@ async function showReimbAttachments(claimId){
 }
 
 async function withdrawReimbursement(id){
-  if(!confirm('Withdraw this claim? The committee will no longer see it.')) return;
+  if(!await smmsConfirm('Withdraw this claim? The committee will no longer see it.', {confirmText:'Withdraw'})) return;
   try{
     await Api.withdrawReimbursement(id);
     await loadMyReimbursements(); renderMyReimbursements(); toast('Claim withdrawn.','warn');
@@ -1939,7 +1939,7 @@ function editMember(id){
 
 async function deleteMember(id){
   if(!canEdit('Members')) return toast('You do not have edit access to Members.','warn');
-  if(!confirm('Delete this member?')) return;
+  if(!await smmsConfirm('Delete this member?')) return;
   try{
     await Api.deleteMember(id);
     await loadMembers();
@@ -2275,7 +2275,7 @@ function renderUtilities(){
 }
 
 async function unmarkUtilityBillPaid(id){
-  if(!confirm('Reopen this bill? The expense booked for it will be removed.')) return;
+  if(!await smmsConfirm('Reopen this bill? The expense booked for it will be removed.', {title:'Reopen bill', confirmText:'Reopen', danger:false})) return;
   try{
     await Api.unmarkUtilityBillPaid(id);
     await Promise.all([loadUtilityData(), loadExpenses()]);
@@ -2350,7 +2350,7 @@ async function fetchUtilityNow(id){
 }
 
 async function deleteUtilityConnection(id){
-  if(!confirm('Remove this utility connection? Existing bill history will be retained.')) return;
+  if(!await smmsConfirm('Remove this utility connection? Existing bill history will be retained.', {confirmText:'Remove'})) return;
   try{ await Api.deleteUtilityConnection(id); await loadUtilityData(); renderUtilities(); toast('Utility connection removed'); }
   catch(err){ toast(err.message || 'Delete failed', 'warn'); }
 }
@@ -2607,7 +2607,7 @@ async function resetUserPassword(id){
 async function deleteUser(id){
   if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   if(DB.users.length<=1)return toast('Cannot delete last user','warn');
-  if(!confirm('Delete?'))return;
+  if(!await smmsConfirm('Delete this user account?'))return;
   try{
     await Api.deleteUser(id);
     await loadUsers();
@@ -2864,7 +2864,7 @@ async function doWalletAdjust(){
 }
 async function refundWallet(){
   if(!canEdit('Collections')) return toast('You do not have edit access.','warn');
-  if(!confirm('Refund the full wallet balance? This zeroes the wallet and records a Refund entry.')) return;
+  if(!await smmsConfirm('Refund the full wallet balance? This zeroes the wallet and records a Refund entry.', {title:'Refund wallet', confirmText:'Refund', danger:false})) return;
   try{
     const d=await Api.refundAdvance(walletMemberId,{ note:'Refund on move-out' });
     renderWallet(d);
@@ -2996,7 +2996,7 @@ function editComplaint(id){
 async function deleteComplaint(id){
   const c = DB.complaints.find(x=>String(x.id)===String(id));
   const msg = (c && !canEdit('Complaints')) ? 'Withdraw this complaint?' : 'Delete this complaint?';
-  if(!confirm(msg)) return;
+  if(!await smmsConfirm(msg)) return;
   try{
     await Api.deleteComplaint(id);
     await loadComplaints();
@@ -3630,7 +3630,7 @@ async function renderPaymentsAdmin(){
 }
 
 async function approveProof(id){
-  if(!confirm('Approve this payment? The invoice will be marked Paid.')) return;
+  if(!await smmsConfirm('Approve this payment? The invoice will be marked Paid.', {title:'Approve payment', confirmText:'Approve', danger:false})) return;
   try{ await Api.approvePaymentProof(id); toast('Payment approved ✅'); renderPaymentsAdmin(); }
   catch(err){ toast(err.message,'warn'); }
 }
@@ -3794,13 +3794,13 @@ async function importBankStatement(){
 async function confirmReconMatch(id){
   const sel = document.getElementById('recon-sel-'+id);
   if(!sel || !sel.value) return toast('No match selected.','warn');
-  if(!confirm('Confirm this match? The resident payment will be approved and the invoice marked Paid.')) return;
+  if(!await smmsConfirm('Confirm this match? The resident payment will be approved and the invoice marked Paid.', {title:'Confirm match', confirmText:'Confirm', danger:false})) return;
   try{ await Api.confirmReconMatch(id, parseInt(sel.value,10)); toast('Payment reconciled ✅'); renderPaymentsAdmin(); }
   catch(err){ toast(err.message,'warn'); }
 }
 
 async function ignoreBankTxn(id){
-  if(!confirm('Ignore this bank transaction? It will no longer appear as unmatched.')) return;
+  if(!await smmsConfirm('Ignore this bank transaction? It will no longer appear as unmatched.', {title:'Ignore transaction', confirmText:'Ignore', danger:false})) return;
   try{ await Api.ignoreBankTxn(id); toast('Transaction ignored','info'); renderReconciliation(); }
   catch(err){ toast(err.message,'warn'); }
 }
@@ -4112,7 +4112,7 @@ async function saveGroup(){
 async function deleteGroup(id){
   if(!isAdmin()) return toast('Read-only access — Admin only.','warn');
   const g = DB_GROUPS.find(x => x.id === id);
-  if(!g || !confirm(`Delete the group "${g.name}"? Members keep their accounts and lose only what this group granted.`)) return;
+  if(!g || !await smmsConfirm(`Delete the group "${g.name}"? Members keep their accounts and lose only what this group granted.`, {confirmText:'Delete group'})) return;
   try{
     await Api.deleteUserGroup(id);
     await Promise.all([loadGroups(), loadUsers()]);

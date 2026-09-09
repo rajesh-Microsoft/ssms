@@ -287,7 +287,7 @@ async function saveBudgetSetup(){
 async function deleteBudget(){
   if(!canEdit('Budgets')) return toast('Permission denied', 'warn');
   if(!budState.budget) return;
-  if(!confirm(`Delete the budget for ${MONTHS[budState.budget.month]} ${budState.budget.year}? Booked expenses stay in the ledger.`)) return;
+  if(!await smmsConfirm(`Delete the budget for ${MONTHS[budState.budget.month]} ${budState.budget.year}? Booked expenses stay in the ledger.`)) return;
   try{
     await Api.deleteBudget(budState.budget.id);
     await renderBudget();
@@ -346,7 +346,7 @@ async function saveBudgetItem(){
 
 async function removeBudgetItem(id){
   if(!canEdit('Budgets')) return toast('Permission denied', 'warn');
-  if(!confirm('Remove this expected expense from the plan?')) return;
+  if(!await smmsConfirm('Remove this expected expense from the plan?', {confirmText:'Remove'})) return;
   try{
     await Api.deleteBudgetItem(id);
     await renderBudget();

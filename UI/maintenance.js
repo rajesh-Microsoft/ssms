@@ -267,7 +267,7 @@ async function saveComponent(){
 async function removeComponent(id){
   if(typeof canEdit === 'function' && !canEdit('Settings')) return toast('You do not have edit access to Settings.', 'warn');
   const c = _components.find(x => String(x.id) === String(id));
-  if(!confirm(`Delete component “${c ? c.name : id}”?`)) return;
+  if(!await smmsConfirm(`Delete component “${c ? c.name : id}”?`)) return;
   try{
     await Api.deleteComponent(id);
     await renderMaintenance();
