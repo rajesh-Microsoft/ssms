@@ -50,9 +50,11 @@ nav::-webkit-scrollbar-thumb:hover{background:var(--ink-3);}
 .nav-item.active .ni .ic{color:inherit;}
 .nav-item.active .ic{stroke-width:2;}
 .nbadge{
-  background:var(--brand-solid);color:var(--brand-on,#fff);
+  background:var(--brand-tint,var(--brand-weak));color:var(--brand-text);
+  border:1px solid var(--brand-text);
   font-size:10px;font-weight:var(--fw-semibold);
-  padding:1px 6px;border-radius:var(--r-full);min-width:18px;text-align:center;
+  padding:0 6px;line-height:15px;border-radius:var(--r-full);
+  min-width:20px;text-align:center;
 }
 
 /* ── buttons ────────────────────────────────────────────── */
