@@ -170,6 +170,24 @@ td:first-child,td strong{color:var(--ink);}
 /* ── empty state ────────────────────────────────────────── */
 .empty{padding:40px 20px;color:var(--ink-2);font-size:var(--fs-13);}
 
+/* ── filter pills ───────────────────────────────────────── */
+.pills{gap:6px;margin-bottom:var(--sp-3);}
+.pill{
+  display:inline-flex;align-items:center;height:30px;padding:0 13px;
+  border-radius:var(--r-full);border:1px solid var(--line);
+  background:var(--surface);color:var(--ink-2);
+  font-size:var(--fs-12);line-height:1;
+  transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
+}
+.pill:hover{border-color:var(--line-strong);color:var(--ink);}
+/* Selection reads as a soft tint, matching the active sidebar item, rather than
+   a saturated fill that fights the rest of the page. */
+.pill.active{
+  background:var(--brand-tint,var(--brand-weak));color:var(--brand-text);
+  border-color:var(--brand-text);font-weight:var(--fw-medium);
+}
+.pill.active:hover{border-color:var(--brand);}
+
 /* ── touch targets on small screens ─────────────────────── */
 @media (max-width:680px){
   .btn{height:var(--h-lg);}

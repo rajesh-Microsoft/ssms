@@ -34,6 +34,7 @@
   }
 
   var WHITE = [255, 255, 255], BLACK = [16, 24, 40];
+  var lastKey = '';
 
   // Step towards a target until the pair clears AA, or give up and return the last try.
   function shiftUntil(base, target, against) {
@@ -49,6 +50,13 @@
     var accent = rgb(getComputedStyle(root).getPropertyValue('--accent'));
     if (!accent) return;
 
+    var dark = document.body.classList.contains('dark');
+    // apply() writes to the style attribute it is observing, so without this it
+    // would retrigger itself on every run.
+    var key = accent.join(',') + '|' + dark;
+    if (key === lastKey) return;
+    lastKey = key;
+
     // Fill + its label: keep the society's colour if either white or dark text
     // reads on it; only darken when neither does.
     var solid = accent, on = WHITE;
@@ -57,24 +65,25 @@
       else { solid = shiftUntil(accent, BLACK, WHITE); on = WHITE; }
     }
 
-    var dark = document.body.classList.contains('dark');
-    var surface = dark ? [22, 26, 35] : WHITE;
     var weak = mix(accent, dark ? [14, 17, 23] : WHITE, dark ? .82 : .91);
-    // Measured against the tinted background rather than the plain surface: the
-    // tint is the harder of the two, and brand text sits on it (active nav, chips).
-    var text = ratio(accent, weak) >= AA
+    // A stronger tint for selected states, which need to be spotted at a glance.
+    var tint = mix(accent, dark ? [14, 17, 23] : WHITE, dark ? .70 : .82);
+    // Measured against the strongest tint brand text ever sits on, so it holds
+    // up on the plain surface and on both tints.
+    var text = ratio(accent, tint) >= AA
       ? accent
-      : shiftUntil(accent, dark ? WHITE : BLACK, weak);
+      : shiftUntil(accent, dark ? WHITE : BLACK, tint);
 
     root.style.setProperty('--brand-solid', hex(solid));
     root.style.setProperty('--brand-on', hex(on));
     root.style.setProperty('--brand-press', hex(mix(solid, BLACK, .18)));
     root.style.setProperty('--brand-text', hex(text));
     root.style.setProperty('--brand-weak', hex(weak));
+    root.style.setProperty('--brand-tint', hex(tint));
     root.style.setProperty('--brand-line', hex(mix(accent, dark ? [14, 17, 23] : WHITE, dark ? .6 : .72)));
   }
 
-  window.smmsApplyBrand = apply;
+  window.smmsApplyBrand = function () { lastKey = ''; apply(); };
 
   function init() {
     apply();
