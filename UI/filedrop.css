@@ -1,0 +1,127 @@
+/* Drop-in replacement for the browser's "Choose file" button.
+   Shared by the resident app and the caretaker app, which ship separate bundles. */
+
+.fd {
+  /* The resident app and the caretaker app name their tokens differently. */
+  --fd-accent: var(--accent, var(--brand, #6c63ff));
+  --fd-line: var(--border, var(--line, #e2e8f0));
+  --fd-surface: var(--card, var(--surface, #fff));
+  --fd-ink: var(--text, var(--ink, #2d3748));
+  --fd-sub: var(--sub, var(--muted, #718096));
+  --fd-tint: color-mix(in srgb, var(--fd-accent) 8%, transparent);
+
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 18px 16px;
+  border: 2px dashed var(--fd-line);
+  border-radius: 12px;
+  background: var(--fd-surface);
+  cursor: pointer;
+  transition: border-color .18s, background .18s, box-shadow .18s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fd:hover,
+.fd:focus-visible {
+  border-color: var(--fd-accent);
+  background: var(--fd-tint);
+  outline: none;
+}
+
+.fd:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fd-accent) 30%, transparent);
+}
+
+/* Kept in the DOM so existing code can still read .files and set .value. */
+.fd > input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fd.is-drag {
+  border-color: var(--fd-accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--fd-accent) 14%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fd-accent) 15%, transparent);
+}
+
+.fd-cue {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.fd-ico {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  background: color-mix(in srgb, var(--fd-accent) 12%, transparent);
+  transition: transform .18s;
+}
+
+.fd:hover .fd-ico { transform: translateY(-1px) scale(1.05); }
+.fd.is-drag .fd-ico { transform: scale(1.12); }
+
+.fd-copy { min-width: 0; }
+.fd-title { display: block; font-size: 13px; color: var(--fd-ink); }
+.fd-title b { color: var(--fd-accent); font-weight: 600; }
+.fd-hint { display: block; font-size: 11px; color: var(--fd-sub); margin-top: 2px; }
+
+.fd-files {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fd-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--fd-accent) 11%, transparent);
+  color: var(--fd-ink);
+}
+
+.fd-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 190px;
+}
+
+.fd-size { color: var(--fd-sub); flex: 0 0 auto; }
+
+.fd-x {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 50%;
+  color: var(--fd-sub);
+  pointer-events: auto;
+}
+
+.fd-x:hover { background: var(--danger, #e53e3e); color: #fff; }
+
+/* On the dark card the accent is too dim to read, so lift it as the badges do. */
+.dark .fd { --fd-accent: #8b83ff; background: transparent; }
+.dark .fd-title b { color: #a3bffa; }
+.dark .fd-x:hover { background: #fc8181; color: #1a202c; }
