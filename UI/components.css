@@ -66,8 +66,16 @@ nav::-webkit-scrollbar-thumb:hover{background:var(--ink-3);}
 .btn:hover{opacity:1;}                    /* replaces the blanket opacity fade */
 .btn:active{transform:translateY(.5px);}
 .btn .ic{width:15px;height:15px;}
-.btn-primary{background:var(--brand-solid);color:var(--brand-on,#fff);box-shadow:var(--sh-xs);}
-.btn-primary:hover{background:var(--brand-press);}
+/* Add / Save take the light outlined treatment of the unselected filter pills
+   rather than a solid fill; brand colour is kept on the border and label so the
+   primary action is still findable. */
+.btn-primary{
+  background:var(--surface);color:var(--brand-text);
+  border:1px solid var(--brand-text);border-radius:var(--r-full);
+  box-shadow:none;
+}
+.btn-primary:hover{background:var(--brand-weak);border-color:var(--brand-text);}
+.btn-primary:active{background:var(--brand-tint,var(--brand-weak));}
 .btn-success{background:var(--ok);color:#fff;}
 .btn-success:hover{filter:brightness(1.08);}
 .btn-danger{background:var(--err);color:#fff;}
@@ -173,7 +181,7 @@ td:first-child,td strong{color:var(--ink);}
 .theme-btn:hover{background:var(--surface-3);border-color:var(--line-strong);}
 
 .pg-btn{
-  min-width:30px;height:30px;padding:0 8px;border-radius:var(--r-sm);
+  min-width:30px;height:30px;padding:0 10px;border-radius:var(--r-full);
   border:1px solid var(--line);background:var(--surface);color:var(--ink-2);
   font-size:var(--fs-12);cursor:pointer;
   transition:background var(--t-fast),border-color var(--t-fast),color var(--t-fast);
