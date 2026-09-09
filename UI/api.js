@@ -320,7 +320,8 @@ Api.ignoreBankTxn        = (id) => apiFetch(`/admin/reconciliation/transactions/
 function smmsTenantKey(){
   const h = (location.hostname || '').split('.')[0].toLowerCase();
   if(!h || h === 'www' || h === 'localhost' || /^\d+$/.test(h)) return '';
-  return h;
+  // dev-aadya and pprod-aadya serve the same society as aadya, so they share its logo.
+  return h.replace(/^(dev|pprod|uat)-/, '');
 }
 function applyTenantLogo(){
   const key = smmsTenantKey();
