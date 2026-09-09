@@ -165,7 +165,6 @@ body{font-size:var(--fs-13);line-height:var(--lh);-webkit-font-smoothing:antiali
   }
 }
 
-/* Contrast corrections: these surfaces render white text, which the identity
-   purple cannot carry at AA. Same hue, marginally deeper. */
-.btn-primary,.uav{background:var(--brand-solid);}
-.btn-primary:hover{background:var(--brand-press);opacity:1;}
+/* brand.js measures a fill that can carry its own label, since the society
+   colour is arbitrary and white is not always readable on it. */
+.btn-primary:hover{opacity:1;}
