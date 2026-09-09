@@ -70,6 +70,17 @@
 
   --focus:0 0 0 3px color-mix(in srgb, var(--brand) 30%, transparent);
 
+  /* ── sidebar: follows the theme instead of being permanently dark ── */
+  --side-bg:var(--surface);
+  --side-border:var(--line);
+  --side-text:var(--ink-2);
+  --side-text-strong:var(--ink);
+  --side-dim:var(--ink-2);      /* real text, so not --ink-3: that fails AA in both themes */
+  --side-hover:var(--surface-3);
+  --side-active-bg:var(--brand-weak);
+  --side-active-text:var(--brand-text);
+  --side-scroll:var(--n-300);
+
   /* ── legacy names, re-pointed ─────────────────────────── */
   --bg:var(--canvas);
   --card:var(--surface);
@@ -113,6 +124,16 @@
   --sh-lg:0 12px 32px -8px rgba(0,0,0,.6);
 
   --sidebar:#0d1016;
+
+  --side-bg:var(--surface);
+  --side-border:var(--line);
+  --side-text:var(--ink-2);
+  --side-text-strong:var(--ink);
+  --side-dim:var(--ink-2);
+  --side-hover:var(--surface-3);
+  --side-active-bg:color-mix(in srgb, var(--brand) 22%, transparent);
+  --side-active-text:#fff;
+  --side-scroll:#39414f;
 
   /* Repeated from :root because styles.css re-declares these inside .dark,
      which outranks :root and would otherwise keep the old dark palette. */
