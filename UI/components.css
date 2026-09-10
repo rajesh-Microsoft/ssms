@@ -226,6 +226,16 @@ td:first-child,td strong{color:var(--ink);}
   select,input,textarea{min-height:var(--h-lg);font-size:16px;} /* 16px stops iOS zooming on focus */
 }
 
+/* Tablets are touch devices at desktop widths, so hit areas key off the input
+   type rather than the viewport. */
+@media (pointer:coarse){
+  .btn{min-height:var(--h-lg);}
+  .ic-btn{min-width:40px;min-height:36px;}
+  .pg-btn{min-width:40px;height:40px;}
+  .pill,.chip{min-height:36px;}
+  select,input,textarea{min-height:var(--h-lg);}
+}
+
 /* ── mobile: no page-level horizontal scrolling ─────────── */
 /* .main is a flex item, so without this it cannot shrink below the widest
    table and stretches the whole page instead of scrolling inside the card. */
