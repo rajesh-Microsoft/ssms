@@ -259,6 +259,9 @@ td:first-child,td strong{color:var(--ink);}
 
 @media (max-width:680px){
   html,body{max-width:100%;overflow-x:hidden;}
+  /* hidden makes body a scroll container, which silently kills position:sticky
+     on the topbar. clip trims the same overflow without that side effect. */
+  @supports (overflow-x:clip){ html,body{overflow-x:clip;} }
   .content{padding:12px 10px;}
   .card{padding:12px;}
 
@@ -269,7 +272,21 @@ td:first-child,td strong{color:var(--ink);}
   .search-row input,.search-row select,.search-row .xs,.search-row .xd{min-width:0;width:100%;}
   #topFilters{flex:1 1 100%;display:flex;gap:8px;}
   #topFilters > *{flex:1 1 0;min-width:0;}
-  .topbar{gap:8px;flex-wrap:wrap;}
+
+  /* The bar stays put while the page scrolls, so the current page name and the
+     menu button are always reachable. */
+  .topbar{
+    position:sticky;top:0;z-index:100;
+    gap:8px;flex-wrap:wrap;padding:8px 12px;
+    background:var(--surface);box-shadow:var(--sh-sm);
+  }
+  /* Flattens the wrapper so the theme button joins the title row instead of
+     forcing a third row. */
+  .topbar > div:last-child{display:contents;}
+  .menu-toggle{order:1;}
+  .page-title{order:2;}
+  .theme-btn{order:3;margin-left:auto;}
+  #topFilters{order:4;}
   .page-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
   /* Rows become cards: the heading moves onto each cell as a label. */
