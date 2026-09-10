@@ -146,8 +146,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--surface-3);col
 .kpi-icon{
   width:32px;height:32px;border-radius:var(--r-lg);margin-bottom:10px;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--brand-tint,var(--brand-weak));color:var(--brand-text);font-size:16px;
-  border:1px solid var(--brand-text);
+  background:transparent;color:var(--brand-text);font-size:16px;
 }
 .kpi-icon .ic{width:17px;height:17px;}
 .kpi-lbl{font-size:11px;font-weight:var(--fw-medium);letter-spacing:.02em;color:var(--ink-2);text-transform:none;}
@@ -183,26 +182,20 @@ td:first-child,td strong{color:var(--ink);}
 .dark .b-inactive{background:var(--surface-3);color:var(--ink-2);}
 
 /* ── icon buttons ───────────────────────────────────────── */
-/* Neutral grey on a plain background read as disabled, so row actions now use
-   the same tinted-and-bordered treatment as the sidebar and the active pill. */
+/* Neutral grey read as disabled. The glyph carries the brand colour instead;
+   no chip fill or border, so the icon outline is the whole treatment. */
 .ic-btn{
   min-width:28px;height:28px;padding:0 6px;border-radius:var(--r-sm);
-  background:var(--brand-tint,var(--brand-weak));
+  background:transparent;
   color:var(--brand-text);
-  border:1px solid var(--brand-text);
+  border:none;
   display:inline-flex;align-items:center;justify-content:center;gap:4px;
   font-size:var(--fs-12);line-height:1;text-decoration:none;
-  transition:background var(--t-fast),color var(--t-fast),
-             border-color var(--t-fast),box-shadow var(--t-fast);
+  transition:background var(--t-fast),color var(--t-fast);
 }
-.ic-btn:hover{
-  background:var(--brand-tint,var(--brand-weak));
-  color:var(--brand-text);
-  border-color:var(--brand-text);
-  box-shadow:inset 0 0 0 1px var(--brand-text);
-}
+.ic-btn:hover{background:var(--surface-3);color:var(--brand-text);}
 .ic-btn .ic{width:15px;height:15px;}
-.ic-btn:disabled,.ic-btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;}
+.ic-btn:disabled,.ic-btn[disabled]{opacity:.5;cursor:not-allowed;}
 /* Wraps so a row of actions never overflows a narrow card and gets clipped. */
 .act-btns{gap:6px;flex-wrap:wrap;min-width:0;}
 
