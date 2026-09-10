@@ -203,7 +203,8 @@ td:first-child,td strong{color:var(--ink);}
 }
 .ic-btn .ic{width:15px;height:15px;}
 .ic-btn:disabled,.ic-btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;}
-.act-btns{gap:6px;}
+/* Wraps so a row of actions never overflows a narrow card and gets clipped. */
+.act-btns{gap:6px;flex-wrap:wrap;min-width:0;}
 
 /* ── topbar ─────────────────────────────────────────────── */
 .topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}
@@ -289,7 +290,7 @@ td:first-child,td strong{color:var(--ink);}
   tbody tr:hover td{background:transparent;}
   tbody td{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
-    border:none;padding:5px 0;text-align:right;
+    border:none;padding:5px 0;text-align:right;flex-wrap:wrap;
   }
   tbody td::before{
     content:attr(data-tc-label);
@@ -298,6 +299,7 @@ td:first-child,td strong{color:var(--ink);}
     color:var(--ink-2);text-transform:uppercase;letter-spacing:.02em;
   }
   tbody td:empty,tbody td[data-tc-label=""]{display:none;}
+  tbody td .act-btns{justify-content:flex-end;}
   /* A row index is meaningless once rows are cards. */
   tbody td[data-tc-label="#"]{display:none;}
   tbody tr[data-tc-span] td{display:block;text-align:center;}
