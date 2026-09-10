@@ -264,6 +264,8 @@ td:first-child,td strong{color:var(--ink);}
     color:var(--ink-2);text-transform:uppercase;letter-spacing:.02em;
   }
   tbody td:empty,tbody td[data-tc-label=""]{display:none;}
+  /* A row index is meaningless once rows are cards. */
+  tbody td[data-tc-label="#"]{display:none;}
   tbody tr[data-tc-span] td{display:block;text-align:center;}
   tbody tr[data-tc-span] td::before{content:none;}
   .act-btns{justify-content:flex-end;}
