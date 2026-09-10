@@ -222,3 +222,49 @@ td:first-child,td strong{color:var(--ink);}
   .ic-btn{width:var(--tap);height:36px;}
   select,input,textarea{min-height:var(--h-lg);font-size:16px;} /* 16px stops iOS zooming on focus */
 }
+
+/* ── mobile: no page-level horizontal scrolling ─────────── */
+/* .main is a flex item, so without this it cannot shrink below the widest
+   table and stretches the whole page instead of scrolling inside the card. */
+.main,.content,.tab-content,.card,.tbl-wrap{min-width:0;}
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+@media (max-width:680px){
+  html,body{max-width:100%;overflow-x:hidden;}
+  .content{padding:12px 10px;}
+  .card{padding:12px;}
+
+  /* Filter rows become a stack rather than a row that runs off-screen. */
+  .card-hdr{flex-direction:column;align-items:stretch;gap:10px;}
+  .search-row{width:100%;}
+  .search-row > *{flex:1 1 100%;min-width:0;width:100%;}
+  .search-row input,.search-row select,.search-row .xs,.search-row .xd{min-width:0;width:100%;}
+  #topFilters{flex:1 1 100%;display:flex;gap:8px;}
+  #topFilters > *{flex:1 1 0;min-width:0;}
+  .topbar{gap:8px;flex-wrap:wrap;}
+  .page-title{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* Rows become cards: the heading moves onto each cell as a label. */
+  table,thead,tbody,tr,td{display:block;width:100%;}
+  thead{display:none;}
+  .tbl-wrap{overflow-x:visible;}
+  tbody tr{
+    border:1px solid var(--line);border-radius:var(--r-lg);
+    background:var(--surface);padding:10px 12px;margin-bottom:8px;
+  }
+  tbody tr:hover td{background:transparent;}
+  tbody td{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    border:none;padding:5px 0;text-align:right;
+  }
+  tbody td::before{
+    content:attr(data-tc-label);
+    flex:0 0 auto;text-align:left;
+    font-size:11px;font-weight:var(--fw-semibold);
+    color:var(--ink-2);text-transform:uppercase;letter-spacing:.02em;
+  }
+  tbody td:empty,tbody td[data-tc-label=""]{display:none;}
+  tbody tr[data-tc-span] td{display:block;text-align:center;}
+  tbody tr[data-tc-span] td::before{content:none;}
+  .act-btns{justify-content:flex-end;}
+}
