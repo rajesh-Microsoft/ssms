@@ -301,14 +301,20 @@ echo "--- end allowlist ---"
 
 echo ""
 echo "===== BUILD ====="
-docker compose build smms-api > /tmp/promote-build.log 2>&1 || { echo "BUILD FAILED"; tail -n 30 /tmp/promote-build.log; exit 1; }
-tail -n 6 /tmp/promote-build.log
+# Unique log names: fs.protected_regular blocks even root from reopening a file in the
+# sticky /tmp that another user created, so a fixed name breaks once ssh and run-command
+# have both run here. The redirect then fails and a good build reports BUILD FAILED.
+buildlog=`$(mktemp /tmp/promote-build.XXXXXX.log)
+uplog=`$(mktemp /tmp/promote-up.XXXXXX.log)
+docker compose build smms-api > "`$buildlog" 2>&1 || { echo "BUILD FAILED"; tail -n 30 "`$buildlog"; exit 1; }
+tail -n 6 "`$buildlog"
 echo "--- end build ---"
 
 echo ""
 echo "===== RECREATE API (applies pending migrations to every tenant) ====="
-docker compose up -d --force-recreate smms-api > /tmp/promote-up.log 2>&1 || { echo "UP FAILED"; cat /tmp/promote-up.log; exit 1; }
-cat /tmp/promote-up.log
+docker compose up -d --force-recreate smms-api > "`$uplog" 2>&1 || { echo "UP FAILED"; cat "`$uplog"; exit 1; }
+cat "`$uplog"
+rm -f "`$buildlog" "`$uplog"
 # The UI is bind-mounted, but its nginx conf ships in the archive and needs a reload.
 docker exec $($t.Ui) nginx -s reload 2>/dev/null || true
 
