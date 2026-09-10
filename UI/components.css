@@ -18,6 +18,11 @@
 /* Inline icons sit next to a label, so they need to align with the text. */
 .ic-inline{width:15px;height:15px;vertical-align:-2px;margin-right:2px;}
 h1 .ic-inline,h2 .ic-inline,h3 .ic-inline,h4 .ic-inline{margin-right:6px;}
+/* Brand colour rather than the label's grey, so chrome icons read as active
+   everywhere the way the sidebar ones do. */
+h1 .ic-inline,h2 .ic-inline,h3 .ic-inline,h4 .ic-inline,h5 .ic-inline,
+label .ic-inline,th .ic-inline,.card-hdr .ic-inline,.nav-sec .ic-inline,
+.empty .ic-inline{color:var(--brand-text);}
 
 /* ── sidebar ────────────────────────────────────────────── */
 /* Was permanently dark navy, which clashed with the light content area.
@@ -141,7 +146,8 @@ input:disabled,select:disabled,textarea:disabled{background:var(--surface-3);col
 .kpi-icon{
   width:32px;height:32px;border-radius:var(--r-lg);margin-bottom:10px;
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--brand-weak);color:var(--brand-text);font-size:16px;
+  background:var(--brand-tint,var(--brand-weak));color:var(--brand-text);font-size:16px;
+  border:1px solid var(--brand-text);
 }
 .kpi-icon .ic{width:17px;height:17px;}
 .kpi-lbl{font-size:11px;font-weight:var(--fw-medium);letter-spacing:.02em;color:var(--ink-2);text-transform:none;}
@@ -177,12 +183,27 @@ td:first-child,td strong{color:var(--ink);}
 .dark .b-inactive{background:var(--surface-3);color:var(--ink-2);}
 
 /* ── icon buttons ───────────────────────────────────────── */
+/* Neutral grey on a plain background read as disabled, so row actions now use
+   the same tinted-and-bordered treatment as the sidebar and the active pill. */
 .ic-btn{
-  width:28px;height:28px;border-radius:var(--r-sm);color:var(--ink-2);
-  display:inline-flex;align-items:center;justify-content:center;
-  transition:background var(--t-fast),color var(--t-fast);
+  min-width:28px;height:28px;padding:0 6px;border-radius:var(--r-sm);
+  background:var(--brand-tint,var(--brand-weak));
+  color:var(--brand-text);
+  border:1px solid var(--brand-text);
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  font-size:var(--fs-12);line-height:1;text-decoration:none;
+  transition:background var(--t-fast),color var(--t-fast),
+             border-color var(--t-fast),box-shadow var(--t-fast);
 }
-.ic-btn:hover{background:var(--surface-3);color:var(--ink);}
+.ic-btn:hover{
+  background:var(--brand-tint,var(--brand-weak));
+  color:var(--brand-text);
+  border-color:var(--brand-text);
+  box-shadow:inset 0 0 0 1px var(--brand-text);
+}
+.ic-btn .ic{width:15px;height:15px;}
+.ic-btn:disabled,.ic-btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;}
+.act-btns{gap:6px;}
 
 /* ── topbar ─────────────────────────────────────────────── */
 .topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}
@@ -222,7 +243,7 @@ td:first-child,td strong{color:var(--ink);}
 /* ── touch targets on small screens ─────────────────────── */
 @media (max-width:680px){
   .btn{height:var(--h-lg);}
-  .ic-btn{width:var(--tap);height:36px;}
+  .ic-btn{min-width:var(--tap);height:36px;}
   select,input,textarea{min-height:var(--h-lg);font-size:16px;} /* 16px stops iOS zooming on focus */
 }
 
