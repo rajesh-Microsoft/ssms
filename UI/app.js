@@ -503,17 +503,35 @@ function populateYearDropdown(){
 // ═══════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════
-/* Mobile off-canvas sidebar toggle (see .menu-toggle / .sidebar-backdrop in styles.css) */
-function toggleSidebar(){
-  document.querySelector('.sidebar').classList.toggle('mobile-open');
+function updateSidebarToggle(expanded){
+  document.body.classList.toggle('sidebar-expanded', expanded);
+  const toggle = document.querySelector('.menu-toggle');
+  if(toggle){
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.setAttribute('aria-label', expanded ? 'Collapse navigation' : 'Expand navigation');
+    toggle.title = expanded ? 'Collapse navigation' : 'Expand navigation';
+  }
   const bd = document.getElementById('sidebarBackdrop');
-  if(bd) bd.classList.toggle('show');
+  if(bd) bd.classList.toggle('show', expanded && window.matchMedia('(max-width:768px)').matches);
+}
+function toggleSidebar(){
+  const sidebar = document.querySelector('.sidebar');
+  const expanded = !sidebar.classList.contains('expanded');
+  sidebar.classList.toggle('expanded', expanded);
+  updateSidebarToggle(expanded);
 }
 function closeSidebar(){
-  document.querySelector('.sidebar').classList.remove('mobile-open');
-  const bd = document.getElementById('sidebarBackdrop');
-  if(bd) bd.classList.remove('show');
+  document.querySelector('.sidebar').classList.remove('expanded');
+  updateSidebarToggle(false);
 }
+
+document.querySelectorAll('.nav-item').forEach(item=>{
+  const label = Array.from(item.childNodes).find(node=>node.nodeType===Node.TEXT_NODE && node.textContent.trim())?.textContent.trim();
+  if(label){
+    item.title = label;
+    item.setAttribute('aria-label', label);
+  }
+});
 // --- Lazy partial loader (Option B) -------------------------------------
 // Tabs marked with data-partial="name" have their markup in partials/name.html
 // and are fetched + injected the first time the tab is opened (once only).
@@ -547,7 +565,7 @@ async function showTab(t, el){
   if(el) el.classList.add('active');
   const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',utilities:'Utility Connections',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',importexport:'Export',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',inventory:'Inventory',minventory:'Society Inventory',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
-  closeSidebar();
+  if(window.matchMedia('(max-width:768px)').matches) closeSidebar();
 
   // The shared month/year filter only applies to data-driven tabs; hide it
   // elsewhere (settings, profile, etc.). Members get the same read-only filter

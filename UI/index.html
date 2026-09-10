@@ -39,7 +39,6 @@
     <div class="nav-item admin-only" onclick="showTab('inventory',this)"><span class="ni">📦</span> Inventory <span class="nbadge" id="invBadge" style="display:none;">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
     <div class="nav-item admin-only" onclick="showTab('reimb',this)"><span class="ni">💸</span> Reimbursements <span class="nbadge" id="reimbBadge" style="display:none;">0</span></div>
-    <div class="nav-item admin-only" onclick="showTab('maintenance',this)"><span class="ni">🧮</span> Collections</div>
     <div class="nav-sec admin-only">Management</div>
     <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
     <div class="nav-item admin-only" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
@@ -49,7 +48,7 @@
     <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">&#128228;</span> Export</div>
     <div class="nav-item admin-only" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
-    <div class="nav-item admin-only" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
+    <div class="nav-item admin-only" id="settings-nav" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
     <div class="nav-item admin-only" onclick="showTab('admin',this)"><span class="ni">🔐</span> Admin</div>
 
     <!-- ── MEMBER (resident) navigation ── -->
@@ -87,7 +86,7 @@
 
 <div class="main">
   <div class="topbar">
-    <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+    <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Expand navigation" aria-expanded="false" title="Expand navigation">☰</button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-actions">
       <span id="topFilters" style="display:flex;gap:8px;align-items:center;">

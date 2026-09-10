@@ -13,7 +13,8 @@
   </div>
   <div class="settings-section">
     <h4>💰 Maintenance Settings</h4>
-    <div class="setting-row"><small style="color:#8a94a6;">Maintenance charges are configured per-component (Per Sq Ft, Fixed, Flat Type, etc.) in the <strong>Maintenance</strong> tab. Settings below control the billing schedule only.</small></div>
+    <div class="setting-row"><small style="color:#8a94a6;">Settings below control the billing schedule. Configure recurring and one-time charges under Collection Categories.</small></div>
+    <div class="setting-row"><button class="btn btn-ghost" type="button" onclick="showTab('maintenance',document.getElementById('settings-nav'))">🧮 Manage Collection Categories</button></div>
     <div class="setting-row"><label>Due Date (day of month)</label><input type="number" id="set-dueday" min="1" max="31" value="5"></div>
     <div class="setting-row"><label>Late Fee (₹)</label><input type="number" id="set-latefee" value="100"></div>
     <div class="setting-row"><label>Grace Days</label><input type="number" id="set-gracedays" value="5"></div>
