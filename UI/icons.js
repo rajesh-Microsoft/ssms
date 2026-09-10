@@ -67,7 +67,13 @@
     ledger:'<path d="M5 3h13a1 1 0 0 1 1 1v17H6a1 1 0 0 1-1-1z"/><path d="M9 3v18M12 8h4M12 12h4"/>',
     flask:'<path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7.5 15h9"/>',
     recycle:'<path d="M7 19h10M12 4l3 5M12 4 9 9"/><path d="M5 14l2.5 5M19 14l-2.5 5"/>',
-    file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/>'
+    file:'<path d="M14 3H7a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7z"/><path d="M14 3v4h4"/>',
+    donut:'<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/><path d="M12 3.5v5M20.5 12h-5"/>',
+    pulse:'<path d="M3 12h4l2.5-6 4 12L16 12h5"/>',
+    help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.2 2.4c-.6.2-.7.6-.7 1.1v.5M12 17h.01"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5.5l3.5 2"/>',
+    sparkle:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
+    lifebuoy:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="M5.6 5.6l3.8 3.8M14.6 14.6l3.8 3.8M18.4 5.6l-3.8 3.8M9.4 14.6l-3.8 3.8"/>'
   };
 
   var BY_EMOJI = {
@@ -84,7 +90,9 @@
     '🎨':'palette', '📷':'camera', '🖼':'image', '➕':'plus', '➖':'minus',
     '✖':'close', '❌':'close', '▶':'play', '⏸':'pause', '↩':'undo',
     '🌙':'moon', '☀':'sun', '☰':'menu', '📢':'megaphone', '📒':'ledger',
-    '🧪':'flask', '♻':'recycle', '📄':'file', '📝':'file', '✔':'check', '🔧':'wrench'
+    '🧪':'flask', '♻':'recycle', '📄':'file', '📝':'file', '✔':'check', '🔧':'wrench',
+    '🍩':'donut', '🩺':'pulse', '❓':'help', '⏰':'clock', '⏱':'clock', '🕒':'clock',
+    '✨':'sparkle', '🛟':'lifebuoy', '↗':'trend'
   };
 
   // Emoji that carry meaning through colour or tone rather than shape, plus
