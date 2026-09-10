@@ -28,6 +28,9 @@ nav::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.38);}
 nav::-webkit-scrollbar-track{background:transparent;}
 .nav-sec{display:none;padding:8px 14px 3px;font-size:9px;color:#4a5568;text-transform:uppercase;letter-spacing:1px;}
 .sidebar.expanded .nav-sec{display:block;}
+/* Beats body.role-member .member-only{display:block}, which otherwise leaks the
+   resident section headings into the collapsed icon rail. */
+.sidebar:not(.expanded) .nav-sec{display:none !important;}
 .nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;cursor:pointer;color:#a0aec0;font-size:12px;border-left:3px solid transparent;transition:all .2s;white-space:nowrap;}
 .sidebar:not(.expanded) .nav-item{width:48px;height:40px;margin:1px 8px;padding:0;justify-content:center;font-size:0;gap:0;}
 .sidebar:not(.expanded) .nav-item .nbadge{display:none!important;}
