@@ -200,8 +200,7 @@ td:first-child,td strong{color:var(--ink);}
 .act-btns{gap:6px;flex-wrap:wrap;min-width:0;}
 
 /* ── topbar ─────────────────────────────────────────────── */
-.topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}
-.page-title{font-size:var(--fs-16);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);}
+.topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}.topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.page-title{font-size:var(--fs-16);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);}
 
 /* ── empty state ────────────────────────────────────────── */
 .empty{padding:40px 20px;color:var(--ink-2);font-size:var(--fs-13);}
@@ -282,7 +281,7 @@ td:first-child,td strong{color:var(--ink);}
   }
   /* Flattens the wrapper so the theme button joins the title row instead of
      forcing a third row. */
-  .topbar > div:last-child{display:contents;}
+  .topbar-actions{display:contents;}
   .menu-toggle{order:1;}
   .page-title{order:2;}
   .theme-btn{order:3;margin-left:auto;}
