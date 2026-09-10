@@ -505,11 +505,11 @@ function populateYearDropdown(){
 // ═══════════════════════════════════════════════
 function updateSidebarToggle(expanded){
   document.body.classList.toggle('sidebar-expanded', expanded);
-  const toggle = document.querySelector('.menu-toggle');
-  if(toggle){
-    toggle.setAttribute('aria-expanded', String(expanded));
-    toggle.setAttribute('aria-label', expanded ? 'Collapse navigation' : 'Expand navigation');
-    toggle.title = expanded ? 'Collapse navigation' : 'Expand navigation';
+  const railToggle = document.querySelector('.logo');
+  if(railToggle){
+    railToggle.setAttribute('aria-expanded', String(expanded));
+    railToggle.setAttribute('aria-label', expanded ? 'Collapse navigation' : 'Expand navigation');
+    railToggle.title = expanded ? 'Collapse navigation' : 'Expand navigation';
   }
   const bd = document.getElementById('sidebarBackdrop');
   if(bd) bd.classList.toggle('show', expanded && window.matchMedia('(max-width:768px)').matches);

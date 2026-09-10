@@ -19,13 +19,14 @@
 <body class="logged-out">
 
 <div class="sidebar">
-  <div class="logo">
+  <button class="logo" type="button" onclick="toggleSidebar()" aria-label="Expand navigation" aria-expanded="false" title="Expand navigation">
+    <span class="logo-burger" aria-hidden="true">☰</span>
     <img id="sidebarLogo" class="sidebar-logo-img" alt="Society logo" style="display:none;">
-    <div class="logo-fallback" id="logoFallback">
-      <div class="logo-icon" id="logoIcon">🏢</div>
-      <div class="logo-text">SMMS<span id="societyLogoSub">Society Maintenance Portal</span></div>
-    </div>
-  </div>
+    <span class="logo-fallback" id="logoFallback">
+      <span class="logo-icon" id="logoIcon">🏢</span>
+      <span class="logo-text">SMMS<span id="societyLogoSub">Society Maintenance Portal</span></span>
+    </span>
+  </button>
   <nav>
     <div class="nav-sec admin-only">Main</div>
     <div class="nav-item admin-only active" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Dashboard</div>
@@ -86,7 +87,6 @@
 
 <div class="main">
   <div class="topbar">
-    <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Expand navigation" aria-expanded="false" title="Expand navigation">☰</button>
     <div class="page-title" id="pageTitle">Dashboard</div>
     <div class="topbar-actions">
       <span id="topFilters" style="display:flex;gap:8px;align-items:center;">
