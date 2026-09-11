@@ -14,7 +14,7 @@
   display:inline-flex;align-items:center;justify-content:center;
   width:20px;height:20px;font-size:0;    /* hides any unmapped emoji glyph box */
 }
-.nav-item .ni .ic{width:17px;height:17px;}
+.nav-item .ni .ic{width:18px;height:18px;stroke-width:1.9;}
 /* Inline icons sit next to a label, so they need to align with the text. */
 .ic-inline{width:15px;height:15px;vertical-align:-2px;margin-right:2px;}
 h1 .ic-inline,h2 .ic-inline,h3 .ic-inline,h4 .ic-inline{margin-right:6px;}
@@ -200,7 +200,9 @@ td:first-child,td strong{color:var(--ink);}
 .act-btns{gap:6px;flex-wrap:wrap;min-width:0;}
 
 /* ── topbar ─────────────────────────────────────────────── */
-.topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}.topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.page-title{font-size:var(--fs-16);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);}
+.topbar{box-shadow:none;border-bottom:1px solid var(--line);padding:10px 20px;}.topbar-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+/* Same brand colour as the sidebar icons, so the page title reads as part of the nav. */
+.page-title{font-size:var(--fs-16);font-weight:var(--fw-semibold);letter-spacing:var(--tracking-tight);color:var(--brand-text);}
 
 /* ── empty state ────────────────────────────────────────── */
 .empty{padding:40px 20px;color:var(--ink-2);font-size:var(--fs-13);}

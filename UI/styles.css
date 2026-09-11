@@ -39,9 +39,13 @@ nav::-webkit-scrollbar-track{background:transparent;}
 .nav-item .ni{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
 .nbadge{margin-left:auto;background:#e53e3e;color:#fff;font-size:9px;padding:1px 5px;border-radius:10px;}
 .sidebar-foot{padding:10px 14px;border-top:1px solid rgba(255,255,255,.07);}
-.sidebar:not(.expanded) .sidebar-foot{padding:10px 16px;}
-.sidebar:not(.expanded) .uinfo>div:nth-child(2),.sidebar:not(.expanded) .uinfo .ic-btn{display:none;}
+.sidebar:not(.expanded) .sidebar-foot{padding:10px 8px;}
+/* Collapsed rail: avatar and name give way to Logout so it stays tappable without expanding. */
+.sidebar:not(.expanded) .uinfo>div{display:none;}
+.sidebar:not(.expanded) .uinfo{justify-content:center;}
+.sidebar:not(.expanded) .uinfo-logout{width:48px;height:40px;margin:0;font-size:17px;}
 .uinfo{display:flex;align-items:center;gap:8px;}
+.uinfo-logout{margin-left:auto;display:flex;align-items:center;justify-content:center;}
 .uav{width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0;}
 .uname{color:#fff;font-size:11px;font-weight:600;}
 .urole{color:#718096;font-size:9px;}
@@ -340,6 +344,8 @@ body.lp{display:block;min-height:auto;}
   .content{padding:14px 12px;}
   .topbar{padding:10px 12px;}
   .kpi-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+   .qa-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+   .qa-tile{padding:14px;}
   .chart-row{grid-template-columns:1fr;}
   .settings-grid{grid-template-columns:1fr;}
   .report-grid{grid-template-columns:1fr;}
@@ -350,6 +356,9 @@ body.lp{display:block;min-height:auto;}
   .page-title{font-size:14px;}
   .modal{padding:16px;}
   .card{padding:12px;}
+}
+@media (max-width:320px){
+   .qa-grid{grid-template-columns:1fr;}
 }
 
 /* ============================================================

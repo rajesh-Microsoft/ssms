@@ -29,56 +29,55 @@
   </button>
   <nav>
     <div class="nav-sec admin-only">Main</div>
-    <div class="nav-item admin-only active" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Dashboard</div>
+    <div class="nav-item admin-only active" onclick="showTab('dashboard',this)"><span class="ni" data-icon="dashboard">📊</span> Dashboard</div>
     <div class="nav-sec admin-only">Finance</div>
-    <div class="nav-item admin-only" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
-    <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
-    <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
-    <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
-    <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
-    <div class="nav-item admin-only" onclick="showTab('utilities',this)"><span class="ni">⚡</span> Utility Connections</div>
-    <div class="nav-item admin-only" onclick="showTab('inventory',this)"><span class="ni">📦</span> Inventory <span class="nbadge" id="invBadge" style="display:none;">0</span></div>
-    <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
-    <div class="nav-item admin-only" onclick="showTab('reimb',this)"><span class="ni">💸</span> Reimbursements <span class="nbadge" id="reimbBadge" style="display:none;">0</span></div>
+    <div class="nav-item admin-only" onclick="showTab('collections',this)"><span class="ni" data-icon="handCoins">💰</span> Collections</div>
+    <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni" data-icon="card">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
+    <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni" data-icon="receipt">🧾</span> Expenses</div>
+    <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni" data-icon="circleDollar">💵</span> Other Income</div>
+    <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni" data-icon="chartCombined">📈</span> Budget Planner</div>
+    <div class="nav-item admin-only" onclick="showTab('utilities',this)"><span class="ni" data-icon="plugZap">⚡</span> Utility Connections</div>
+    <div class="nav-item admin-only" onclick="showTab('inventory',this)"><span class="ni" data-icon="package">📦</span> Inventory <span class="nbadge" id="invBadge" style="display:none;">0</span></div>
+    <div class="nav-item admin-only" onclick="showTab('liabilities',this)"><span class="ni" data-icon="landmark">🏦</span> Liabilities</div>
+    <div class="nav-item admin-only" onclick="showTab('reimb',this)"><span class="ni" data-icon="undo">💸</span> Reimbursements <span class="nbadge" id="reimbBadge" style="display:none;">0</span></div>
     <div class="nav-sec admin-only">Management</div>
-    <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni">👥</span> Members</div>
-    <div class="nav-item admin-only" onclick="showTab('complaints',this)"><span class="ni">🛠️</span> Complaints</div>
-    <div class="nav-item admin-only" onclick="showTab('gatelog',this)"><span class="ni">🚪</span> Gate Log</div>
-    <div class="nav-item admin-only" onclick="showTab('reports',this)"><span class="ni">📋</span> Reports</div>
+    <div class="nav-item admin-only" onclick="showTab('members',this)"><span class="ni" data-icon="usersRound">👥</span> Members</div>
+    <div class="nav-item admin-only" onclick="showTab('complaints',this)"><span class="ni" data-icon="msgWarn">🛠️</span> Complaints</div>
+    <div class="nav-item admin-only" onclick="showTab('gatelog',this)"><span class="ni" data-icon="doorOpen">🚪</span> Gate Log</div>
+    <div class="nav-item admin-only" onclick="showTab('reports',this)"><span class="ni" data-icon="fileChart">📋</span> Reports</div>
     <div class="nav-sec admin-only">System</div>
-    <div class="nav-item admin-only" onclick="showTab('importexport',this)"><span class="ni">&#128228;</span> Export</div>
-    <div class="nav-item admin-only" onclick="showTab('notifications',this)"><span class="ni">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
-    <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni">📜</span> Audit Log</div>
-    <div class="nav-item admin-only" id="settings-nav" onclick="showTab('settings',this)"><span class="ni">⚙️</span> Settings</div>
-    <div class="nav-item admin-only" onclick="showTab('admin',this)"><span class="ni">🔐</span> Admin</div>
+    <div class="nav-item admin-only" onclick="showTab('notifications',this)"><span class="ni" data-icon="bell">🔔</span> Notifications <span class="nbadge" id="notifBadge">0</span></div>
+    <div class="nav-item admin-only" onclick="showTab('auditlog',this)"><span class="ni" data-icon="fileClock">📜</span> Audit Log</div>
+    <div class="nav-item admin-only" id="settings-nav" onclick="showTab('settings',this)"><span class="ni" data-icon="gear">⚙️</span> Settings</div>
+    <div class="nav-item admin-only" onclick="showTab('admin',this)"><span class="ni" data-icon="shield">🔐</span> Admin</div>
 
     <!-- ── MEMBER (resident) navigation ── -->
     <div class="nav-sec member-only">My Society</div>
-    <div class="nav-item member-only" id="mnav-dash" onclick="showTab('mdash',this)"><span class="ni">📊</span> Dashboard</div>
-    <div class="nav-item member-only" onclick="showTab('mpay',this)"><span class="ni">💰</span> My Payments</div>
-    <div class="nav-item member-only" onclick="showTab('mreceipts',this)"><span class="ni">🧾</span> Receipts</div>
-    <div class="nav-item member-only" onclick="showTab('mreimb',this)"><span class="ni">💸</span> Reimbursements</div>
+    <div class="nav-item member-only" id="mnav-dash" onclick="showTab('mdash',this)"><span class="ni" data-icon="dashboard">📊</span> Dashboard</div>
+    <div class="nav-item member-only" onclick="showTab('mpay',this)"><span class="ni" data-icon="card">💰</span> My Payments</div>
+    <div class="nav-item member-only" onclick="showTab('mreceipts',this)"><span class="ni" data-icon="receiptText">🧾</span> Receipts</div>
+    <div class="nav-item member-only" onclick="showTab('mreimb',this)"><span class="ni" data-icon="undo">💸</span> Reimbursements</div>
     <div class="nav-sec member-only">Society (read-only)</div>
-    <div class="nav-item member-only" data-perm-view="Collections" onclick="showTab('dashboard',this)"><span class="ni">📊</span> Overview</div>
-    <div class="nav-item member-only" data-perm-view="Collections" onclick="showTab('collections',this)"><span class="ni">💰</span> Collections</div>
-    <div class="nav-item member-only" data-perm-view="Expenses" onclick="showTab('expenses',this)"><span class="ni">🧾</span> Expenses</div>
-    <div class="nav-item member-only" data-perm-view="Income" onclick="showTab('income',this)"><span class="ni">💵</span> Other Income</div>
-    <div class="nav-item member-only" data-perm-view="Budgets" onclick="showTab('budget',this)"><span class="ni">📈</span> Budget Planner</div>
-    <div class="nav-item member-only" data-perm-view="Liabilities" onclick="showTab('liabilities',this)"><span class="ni">🏦</span> Liabilities</div>
-    <div class="nav-item member-only" data-perm-view="Inventory" onclick="showTab('minventory',this)"><span class="ni">📦</span> Inventory</div>
-    <div class="nav-item member-only" data-perm="Inventory" onclick="showTab('inventory',this)"><span class="ni">📦</span> Manage Inventory</div>
+    <div class="nav-item member-only" data-perm-view="Collections" onclick="showTab('dashboard',this)"><span class="ni" data-icon="gauge">📊</span> Overview</div>
+    <div class="nav-item member-only" data-perm-view="Collections" onclick="showTab('collections',this)"><span class="ni" data-icon="handCoins">💰</span> Collections</div>
+    <div class="nav-item member-only" data-perm-view="Expenses" onclick="showTab('expenses',this)"><span class="ni" data-icon="receipt">🧾</span> Expenses</div>
+    <div class="nav-item member-only" data-perm-view="Income" onclick="showTab('income',this)"><span class="ni" data-icon="circleDollar">💵</span> Other Income</div>
+    <div class="nav-item member-only" data-perm-view="Budgets" onclick="showTab('budget',this)"><span class="ni" data-icon="chartCombined">📈</span> Budget Planner</div>
+    <div class="nav-item member-only" data-perm-view="Liabilities" onclick="showTab('liabilities',this)"><span class="ni" data-icon="landmark">🏦</span> Liabilities</div>
+    <div class="nav-item member-only" data-perm-view="Inventory" onclick="showTab('minventory',this)"><span class="ni" data-icon="package">📦</span> Inventory</div>
+    <div class="nav-item member-only" data-perm="Inventory" onclick="showTab('inventory',this)"><span class="ni" data-icon="package">📦</span> Manage Inventory</div>
     <div class="nav-sec member-only">Support</div>
-    <div class="nav-item member-only" onclick="showTab('mcomplaints',this)"><span class="ni">🛠️</span> Complaints</div>
-    <div class="nav-item member-only" onclick="showTab('mgate',this)"><span class="ni">🚪</span> My Gate <span class="nbadge" id="mGateBadge" style="display:none;">0</span></div>
-    <div class="nav-item member-only" onclick="showTab('mnotices',this)"><span class="ni">🔔</span> Notices <span class="nbadge" id="mNotifBadge">0</span></div>
+    <div class="nav-item member-only" onclick="showTab('mcomplaints',this)"><span class="ni" data-icon="msgWarn">🛠️</span> Complaints</div>
+    <div class="nav-item member-only" onclick="showTab('mgate',this)"><span class="ni" data-icon="doorOpen">🚪</span> My Gate <span class="nbadge" id="mGateBadge" style="display:none;">0</span></div>
+    <div class="nav-item member-only" onclick="showTab('mnotices',this)"><span class="ni" data-icon="bell">🔔</span> Notices <span class="nbadge" id="mNotifBadge">0</span></div>
     <div class="nav-sec member-only">Account</div>
-    <div class="nav-item member-only" onclick="showTab('mhome',this)"><span class="ni">🏠</span> My Home</div>
+    <div class="nav-item member-only" onclick="showTab('mhome',this)"><span class="ni" data-icon="home">🏠</span> My Home</div>
   </nav>
   <div class="sidebar-foot">
     <div class="uinfo">
       <div class="uav" id="sbUav">A</div>
       <div><div class="uname" id="sbUname">Admin</div><div class="urole" id="sbUrole">Administrator</div></div>
-      <button class="ic-btn" style="margin-left:auto;" onclick="logout()" title="Logout">🚪</button>
+      <button class="ic-btn uinfo-logout" data-icon="logout" onclick="logout()" title="Logout" aria-label="Logout">🚪</button>
     </div>
   </div>
 </div>
@@ -141,9 +140,6 @@
 
     <!-- REPORTS (lazy-loaded from partials/reports.html) -->
     <div id="tab-reports" class="tab-content" data-partial="reports"></div>
-
-    <!-- EXPORT (lazy-loaded from partials/importexport.html) -->
-    <div id="tab-importexport" class="tab-content" data-partial="importexport"></div>
 
     <!-- NOTIFICATIONS (lazy-loaded from partials/notifications.html) -->
     <div id="tab-notifications" class="tab-content" data-partial="notifications"></div>
