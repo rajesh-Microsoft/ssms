@@ -343,6 +343,14 @@ function getMonth(r){
   return MONTH_NUM[name] || 0;
 }
 function getYear(r)  { return +fld(r,'year','Year') || 0; }
+// Shared by every widget that shows a payment status, so "Paid" can never be read
+// against the wrong billing period.
+function periodLabel(r){
+  const m = MONTHS[getMonth(r)] || fld(r,'month','Month') || '';
+  const y = getYear(r);
+  const label = (m.toString().slice(0,3) + (y ? ' '+y : '')).trim();
+  return label || '—';
+}
 function getStatus(r){ return fld(r,'status','Paid','Status').toString().trim(); }
 function getAmt(r)   { return Number(fld(r,'amount','Amount')) || 0; }
 function getMemberId(r){ return String(fld(r,'memberId','MemberId','member_id','id','Id') || '').trim(); }
@@ -756,12 +764,19 @@ function renderDashboard(){
         memberName: fld(c,'memberName','MemberName','name','Name'),
         flat: fld(c,'flat','Flat'),
         floor: fld(c,'floor','Floor'),
-        months: [],
+        periods: [],
         due: 0
       };
     }
-    pendingMap[memberId].months.push((MONTHS[getMonth(c)] || fld(c,'month','Month') || '').slice(0,3));
+    pendingMap[memberId].periods.push({ m: getMonth(c), y: getYear(c), raw: fld(c,'month','Month') });
     pendingMap[memberId].due += getAmt(c);
+  });
+
+  // Oldest first, and each period carries its year: without it a Sep 2025 arrear
+  // is indistinguishable from an unpaid Sep 2026.
+  Object.values(pendingMap).forEach(p=>{
+    p.periods.sort((a,b)=> (a.y-b.y) || (a.m-b.m));
+    p.months = p.periods.map(x=> ((MONTHS[x.m] || x.raw || '').toString().slice(0,3) + (x.y ? " '"+String(x.y).slice(-2) : '')).trim());
   });
 
   const pendingMembers = Object.values(pendingMap);
@@ -802,8 +817,8 @@ function renderDashboard(){
 
   document.getElementById('dash-col-tbody').innerHTML = [...DB.collections].reverse().slice(0,6).map(c=>{
     const st=getStatus(c)||'Unknown'; const stk=st.toLowerCase();
-    return `<tr><td>${fld(c,'memberName','MemberName','name','Name')}</td><td>${fld(c,'flat','Flat')}</td><td>₹${getAmt(c).toLocaleString('en-IN')}</td><td><span class="badge b-${stk}">${st}</span></td></tr>`;
-  }).join('') || '<tr><td colspan="4" class="empty">No data</td></tr>';
+    return `<tr><td>${fld(c,'memberName','MemberName','name','Name')}</td><td>${fld(c,'flat','Flat')}</td><td>${periodLabel(c)}</td><td>₹${getAmt(c).toLocaleString('en-IN')}</td><td><span class="badge b-${stk}">${st}</span></td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="empty">No data</td></tr>';
 
   document.getElementById('dash-pend-count').textContent = pendingMembers.length+' pending';
   document.getElementById('dash-pend-tbody').innerHTML = pendingMembers.map(m=>`<tr><td>${m.memberName}</td><td>${m.flat}</td><td>Floor ${m.floor}</td><td>${m.months.join(', ')}</td><td><span class="badge b-unpaid">₹${m.due.toLocaleString('en-IN')}</span></td></tr>`).join('')
