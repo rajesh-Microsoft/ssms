@@ -815,10 +815,16 @@ function renderDashboard(){
       : ((rs.awaitingSettlement||0) ? '₹'+(rs.awaitingSettlementValue||0).toLocaleString('en-IN')+' to repay' : 'Nothing outstanding'));
   }
 
-  document.getElementById('dash-col-tbody').innerHTML = [...DB.collections].reverse().slice(0,6).map(c=>{
+  const now = new Date();
+  const currentMonthCollections = DB.collections
+    .filter(c => getMonth(c) === now.getMonth()+1
+      && getYear(c) === now.getFullYear()
+      && getStatus(c).toLowerCase() === 'paid')
+    .slice(0,6);
+  document.getElementById('dash-col-tbody').innerHTML = currentMonthCollections.map(c=>{
     const st=getStatus(c)||'Unknown'; const stk=st.toLowerCase();
     return `<tr><td>${fld(c,'memberName','MemberName','name','Name')}</td><td>${fld(c,'flat','Flat')}</td><td>${periodLabel(c)}</td><td>₹${getAmt(c).toLocaleString('en-IN')}</td><td><span class="badge b-${stk}">${st}</span></td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="empty">No data</td></tr>';
+  }).join('') || `<tr><td colspan="5" class="empty">No collections for ${MONTHS[now.getMonth()+1]} ${now.getFullYear()}</td></tr>`;
 
   document.getElementById('dash-pend-count').textContent = pendingMembers.length+' pending';
   document.getElementById('dash-pend-tbody').innerHTML = pendingMembers.map(m=>`<tr><td>${m.memberName}</td><td>${m.flat}</td><td>Floor ${m.floor}</td><td>${m.months.join(', ')}</td><td><span class="badge b-unpaid">₹${m.due.toLocaleString('en-IN')}</span></td></tr>`).join('')
