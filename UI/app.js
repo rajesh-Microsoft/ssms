@@ -571,7 +571,7 @@ async function showTab(t, el){
   document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   if(el) el.classList.add('active');
-  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',utilities:'Utility Connections',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',inventory:'Inventory',minventory:'Society Inventory',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
+  const titles = {dashboard:'Dashboard',collections:'Collections',expenses:'Expenses',income:'Other Income',budget:'Budget Planner',utilities:'Utility Connections',members:'Members',complaints:'Complaints',gatelog:'Gate Log',reports:'Reports & Analytics',notifications:'Notifications',auditlog:'Audit Log',settings:'Settings',maintenance:'Collection Categories',admin:'Admin Panel',payments:'Payment Verifications',liabilities:'Society Liabilities',reimb:'Reimbursement Requests',inventory:'Inventory',minventory:'Society Inventory',staff:'Staff Salary',mdash:'Dashboard',mpay:'My Payments',mreceipts:'Receipts',mreimb:'My Reimbursements',mcomplaints:'My Complaints',mgate:'My Gate',mnotices:'Notices',mhome:'My Home'};
   document.getElementById('pageTitle').textContent = titles[t] || t;
   if(window.matchMedia('(max-width:768px)').matches) closeSidebar();
 
@@ -622,7 +622,7 @@ async function showTab(t, el){
     try{ await loadMemberInventory(); }catch(err){ toast('Failed to load society inventory: '+err.message,'warn'); }
   }
 
-  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, reimb:renderReimbursements, mreimb:renderMyReimbursements, budget:(typeof renderBudget==='function'?renderBudget:null), utilities:renderUtilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
+  const renders = {dashboard:renderDashboard, collections:renderCollections, expenses:renderExpenses, income:renderIncome, members:renderMembers, complaints:renderComplaints, reports:renderReports, notifications:renderNotifications, auditlog:renderAudit, settings:loadSettingsUI, maintenance:(typeof renderMaintenance==='function'?renderMaintenance:null), admin:renderUsers, payments:renderPaymentsAdmin, liabilities:renderLiabilities, reimb:renderReimbursements, mreimb:renderMyReimbursements, budget:(typeof renderBudget==='function'?renderBudget:null), staff:(typeof renderStaff==='function'?renderStaff:null), utilities:renderUtilities, mdash:renderMemberDashboard, mpay:renderMemberPayments, mreceipts:renderMemberReceipts, mcomplaints:renderMemberComplaints, mnotices:renderMemberNotices, mhome:renderMemberHome};
   if(renders[t]) renders[t]();
 }
 
@@ -834,6 +834,7 @@ function renderDashboard(){
   buildPieChart();
   updateNotifBadge();
   renderUpcomingUtilityBills();
+  if(typeof renderDashStaff==='function') renderDashStaff();
 }
 
 function utilityEsc(value){ return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1673,6 +1674,7 @@ function renderReimbursements(){
       ? `<button class="ic-btn" title="View the bill / screenshot" onclick="showReimbAttachments(${r.id})">📎 ${r.attachmentCount}</button>`
       : '<span style="font-size:11px;color:var(--sub);" title="Nothing attached">—</span>';
     const note = r.reviewNote ? `<div style="font-size:11px;color:var(--sub);">${escGate(r.reviewNote)}</div>` : '';
+    const salary = r.salaryDeduction ? `<div style="font-size:11px;color:#2b6cb0;" title="Deducted from this person's salary when the claim was approved">↘ Salary: ${escGate(r.salaryDeduction)}</div>` : '';
     return `<tr>
       <td>${r.id}</td>
       <td>${escGate(r.memberName)}</td>
@@ -1683,7 +1685,7 @@ function renderReimbursements(){
       <td>\u20b9${(r.amount||0).toLocaleString('en-IN')}</td>
       <td>${escGate(r.transactionReference||'—')}</td>
       <td>${evidence}</td>
-      <td>${reimbBadge(r.displayStatus)}${note}</td>
+      <td>${reimbBadge(r.displayStatus)}${note}${salary}</td>
       <td>${acts}</td>
     </tr>`;
   }).join('');
@@ -1803,6 +1805,7 @@ async function withdrawReimbursement(id){
 // Approval is where the category is decided, because the member is guessing and the reviewer
 // is the one who owns the books. Whatever is chosen here is what the expense is filed under.
 let approveReimbId = null;
+let approveReimbStaff = [];
 async function approveReimbursement(id){
   const r = (DB.reimbursements||[]).find(x=>x.id===id); if(!r) return;
   approveReimbId = id;
@@ -1812,18 +1815,57 @@ async function approveReimbursement(id){
   fillCategorySelect(document.getElementById('ra-cat'), r.category);
   document.getElementById('ra-note').textContent =
     `Claimed as "${r.category}". Approving books ₹${(r.amount||0).toLocaleString('en-IN')} as an expense dated ${mDate(r.expenseDate)} under the category you choose, and records that the society owes ${r.memberName} the money.`;
+
+  // Salary deduction is offered only when there is someone on the payroll. Reading staff needs
+  // Expenses view; a reviewer without it simply does not get the option.
+  approveReimbStaff = [];
+  if(canView('Expenses')){
+    try{ approveReimbStaff = (await Api.getStaff() || []).filter(s => s.isActive); }catch(e){ approveReimbStaff = []; }
+  }
+  document.getElementById('ra-salary-wrap').style.display = approveReimbStaff.length ? '' : 'none';
+  document.getElementById('ra-staff').innerHTML = approveReimbStaff
+    .map(s => `<option value="${s.id}">${escHtml(s.name)} — ${escHtml(s.role)}</option>`).join('');
+  document.getElementById('ra-deduct').checked = false;
+  reimbSalaryAutoTick();
   openModal('rappr');
+}
+
+/** Pre-ticks the deduction when the reviewer's category reads like pay for a staff member. Only a
+ *  suggestion: the member's category is a guess, and the box is what the server acts on. */
+function reimbSalaryAutoTick(){
+  if(!approveReimbStaff.length) return;
+  const cat = (document.getElementById('ra-cat').value || '').toLowerCase();
+  const roles = approveReimbStaff.map(s => (s.role || '').toLowerCase()).filter(Boolean);
+  document.getElementById('ra-deduct').checked = /salary|wage/.test(cat) || roles.some(r => cat.includes(r));
+  reimbSalaryHint();
+}
+
+function reimbSalaryHint(){
+  const on = document.getElementById('ra-deduct').checked;
+  document.getElementById('ra-staff-row').style.display = on && approveReimbStaff.length > 1 ? '' : 'none';
+  const staff = approveReimbStaff.find(s => String(s.id) === document.getElementById('ra-staff').value) || approveReimbStaff[0];
+  const r = (DB.reimbursements||[]).find(x=>x.id===approveReimbId);
+  const el = document.getElementById('ra-salary-hint');
+  if(!staff || !r){ el.textContent = ''; return; }
+  const amt = '₹' + (r.amount||0).toLocaleString('en-IN');
+  el.innerHTML = on
+    ? `✔ ${r.memberName} paid ${escHtml(staff.name)} on the society's behalf, so <b>${amt} will be deducted</b> from ${escHtml(staff.name)}'s next unpaid salary. No second expense is booked.`
+    : `Tick this only if ${r.memberName} paid a staff member directly (e.g. an advance) and it should come off their salary.`;
+  el.style.color = on ? '#2b6cb0' : 'var(--sub)';
 }
 
 async function confirmApproveReimbursement(){
   const category = document.getElementById('ra-cat').value;
   if(!category) return toast('Choose a category to book this under.','warn');
+  const deduct = approveReimbStaff.length && document.getElementById('ra-deduct').checked;
+  const staffId = deduct ? (+document.getElementById('ra-staff').value || approveReimbStaff[0].id) : null;
   try{
-    await Api.approveReimbursement(approveReimbId, category);
+    await Api.approveReimbursement(approveReimbId, category, staffId);
     closeModal('rappr');
     await Promise.all([loadReimbursements(), loadLiabilities(), loadExpenses()]);
     renderReimbursements(); renderDashboard();
-    toast(`Approved and booked under ${category}.`);
+    const who = staffId ? approveReimbStaff.find(s => s.id === staffId) : null;
+    toast(`Approved and booked under ${category}.` + (who ? ` Deducted from ${who.name}'s salary.` : ''));
   }catch(e){ toast(e.message || 'Could not approve the claim.','warn'); }
 }
 

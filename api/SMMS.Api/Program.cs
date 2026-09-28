@@ -121,6 +121,7 @@ builder.Services.AddScoped<SMMS.Api.Services.Billing.MaintenanceCalculationServi
 builder.Services.AddScoped<SMMS.Api.Services.Billing.OneTimeChargeService>();
 builder.Services.AddScoped<SMMS.Api.Services.Billing.AdvanceService>();
 builder.Services.AddScoped<SMMS.Api.Services.SocietyLiabilityService>();
+builder.Services.AddScoped<SMMS.Api.Services.StaffSalaryService>();
 
 builder.Services.Configure<UtilityIntegrationOptions>(builder.Configuration.GetSection("Utilities"));
 builder.Services.AddSingleton<TGSPDCLHtmlParser>();

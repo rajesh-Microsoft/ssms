@@ -34,6 +34,7 @@
     <div class="nav-item admin-only" onclick="showTab('collections',this)"><span class="ni" data-icon="handCoins">💰</span> Collections</div>
     <div class="nav-item admin-only" onclick="showTab('payments',this)"><span class="ni" data-icon="card">✅</span> Payments <span class="nbadge" id="payBadge">0</span></div>
     <div class="nav-item admin-only" onclick="showTab('expenses',this)"><span class="ni" data-icon="receipt">🧾</span> Expenses</div>
+    <div class="nav-item admin-only" id="nav-staff" onclick="showTab('staff',this)"><span class="ni" data-icon="wallet">🛡️</span> Staff Salary</div>
     <div class="nav-item admin-only" onclick="showTab('income',this)"><span class="ni" data-icon="circleDollar">💵</span> Other Income</div>
     <div class="nav-item admin-only" onclick="showTab('budget',this)"><span class="ni" data-icon="chartCombined">📈</span> Budget Planner</div>
     <div class="nav-item admin-only" onclick="showTab('utilities',this)"><span class="ni" data-icon="plugZap">⚡</span> Utility Connections</div>
@@ -66,6 +67,7 @@
     <div class="nav-item member-only" data-perm-view="Liabilities" onclick="showTab('liabilities',this)"><span class="ni" data-icon="landmark">🏦</span> Liabilities</div>
     <div class="nav-item member-only" data-perm-view="Inventory" onclick="showTab('minventory',this)"><span class="ni" data-icon="package">📦</span> Inventory</div>
     <div class="nav-item member-only" data-perm="Inventory" onclick="showTab('inventory',this)"><span class="ni" data-icon="package">📦</span> Manage Inventory</div>
+    <div class="nav-item member-only" data-perm="Expenses" onclick="showTab('staff',this)"><span class="ni" data-icon="wallet">🛡️</span> Staff Salary</div>
     <div class="nav-sec member-only">Support</div>
     <div class="nav-item member-only" onclick="showTab('mcomplaints',this)"><span class="ni" data-icon="msgWarn">🛠️</span> Complaints</div>
     <div class="nav-item member-only" onclick="showTab('mgate',this)"><span class="ni" data-icon="doorOpen">🚪</span> My Gate <span class="nbadge" id="mGateBadge" style="display:none;">0</span></div>
@@ -179,6 +181,9 @@
 
     <div id="tab-inventory" class="tab-content" data-partial="inventory"></div>
     <div id="tab-minventory" class="tab-content" data-partial="minventory"></div>
+
+    <!-- STAFF SALARY (lazy-loaded from partials/staff.html) -->
+    <div id="tab-staff" class="tab-content" data-partial="staff"></div>
 
     <!-- NOTICES (lazy-loaded from partials/mnotices.html) -->
     <div id="tab-mnotices" class="tab-content" data-partial="mnotices"></div>
@@ -388,7 +393,12 @@
     <div class="modal-hdr"><h3>Approve reimbursement</h3><button class="modal-close" onclick="closeModal('rappr')">✕</button></div>
     <p id="ra-info" style="color:var(--sub);font-size:13px;margin:0 0 6px;padding:0 4px;"></p>
     <div class="form-grid">
-      <div class="form-group full"><label>Book this cost under *</label><select id="ra-cat"></select></div>
+      <div class="form-group full"><label>Book this cost under *</label><select id="ra-cat" onchange="reimbSalaryAutoTick()"></select></div>
+      <div class="form-group full" id="ra-salary-wrap" style="display:none;">
+        <label class="check"><input type="checkbox" id="ra-deduct" onchange="reimbSalaryHint()"> <b>Deduct from staff salary</b></label>
+        <div id="ra-staff-row" style="display:none;margin-top:6px;"><select id="ra-staff" onchange="reimbSalaryHint()"></select></div>
+        <p id="ra-salary-hint" style="font-size:12px;margin:4px 0 0;"></p>
+      </div>
       <div class="form-group full"><p id="ra-note" style="margin:0;font-size:12px;color:var(--sub);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;"></p></div>
     </div>
     <div class="form-actions">
@@ -617,6 +627,91 @@
   </div>
 </div>
 
+<!-- Staff salary: setup (Admin only) -->
+<div class="modal-overlay" id="modal-staff">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="staff-modal-title">Set up Watchman</h3><button class="modal-close" onclick="closeModal('staff')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Name *</label><input type="text" id="staff-name" maxlength="100" placeholder="e.g. Ramesh"></div>
+      <div class="form-group"><label>Role *</label>
+        <input type="text" id="staff-role" list="staff-role-list" maxlength="40">
+        <datalist id="staff-role-list"><option>Watchman</option><option>Cleaner</option><option>Gardener</option></datalist>
+      </div>
+      <div class="form-group"><label>Monthly Salary (₹) *</label><input type="number" id="staff-salary" min="0" step="1" placeholder="10000"></div>
+      <div class="form-group"><label title="Leave up to this many days a month is paid. Only the days beyond it are deducted.">Paid Leave per Month (days) ⓘ</label><input type="number" id="staff-leavedays" min="0" max="31" step="1"></div>
+      <div class="form-group"><label>Salary Paid On</label><select id="staff-payday"></select></div>
+      <div class="form-group"><label title="Every salary and advance is recorded under this expense category.">Expense Category ⓘ</label><select id="staff-cat"></select></div>
+      <div class="form-group"><label title="Days before this in the first month are not paid.">Joining Date * ⓘ</label><input type="date" id="staff-join"></div>
+      <div class="form-group"><label title="Set when the person leaves. Days after it are not paid.">Leaving Date ⓘ</label><input type="date" id="staff-leave"></div>
+      <div class="form-group"><label>Mobile</label><input type="tel" id="staff-mobile" maxlength="20"></div>
+      <div class="form-group"><label>Status</label><select id="staff-active"><option value="true">Active</option><option value="false">Inactive</option></select></div>
+      <div class="form-group full"><label>Notes</label><input type="text" id="staff-notes" maxlength="300"></div>
+    </div>
+    <p style="font-size:12px;color:var(--sub);margin:4px 0 0;">Unpaid leave is deducted at monthly salary ÷ days in that month. A change here applies to unpaid months only; paid months keep the salary they were paid at.</p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('staff')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStaffSetup()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staff salary: payment during the month -->
+<div class="modal-overlay" id="modal-stfpay">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="stfpay-title">Payment</h3><button class="modal-close" onclick="closeModal('stfpay')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Type *</label><select id="stfpay-type" onchange="stfPayTypeChanged()"></select></div>
+      <div class="form-group"><label>Amount (₹) *</label><input type="number" id="stfpay-amount" min="0" step="0.01" oninput="stfPayHint()"></div>
+      <div class="form-group"><label>Date *</label><input type="date" id="stfpay-date"></div>
+      <div class="form-group"><label>Payment Mode</label><select id="stfpay-mode"><option>Cash</option><option>UPI</option><option>Cheque</option><option>NEFT</option></select></div>
+      <div class="form-group full"><label>Notes</label><input type="text" id="stfpay-notes" maxlength="300" placeholder="e.g. Jio recharge, festival advance"></div>
+      <div class="form-group full">
+        <label class="check"><input type="checkbox" id="stfpay-deduct" onchange="stfPayHint()"> <b>Adjust against salary</b></label>
+        <p id="stfpay-hint" style="font-size:12px;margin:4px 0 0;"></p>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--sub);margin:4px 0 0;">This is also saved as an expense, so do not enter it again on the Expenses tab.</p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('stfpay')">Cancel</button>
+      <button class="btn btn-primary" id="stfpay-save" onclick="saveStaffPayment()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staff salary: breakdown, and the Pay confirmation -->
+<div class="modal-overlay" id="modal-salary">
+  <div class="modal">
+    <div class="modal-hdr"><h3 id="salary-title">Salary</h3><button class="modal-close" onclick="closeModal('salary')">✕</button></div>
+    <div id="salary-body"></div>
+    <div id="salary-pay-form" style="display:none;margin-top:12px;">
+      <div class="form-grid">
+        <div class="form-group"><label>Paid On</label><input type="date" id="salary-paidon"></div>
+        <div class="form-group"><label>Payment Mode</label><select id="salary-mode"><option>Cash</option><option>UPI</option><option>Cheque</option><option>NEFT</option></select></div>
+        <div class="form-group full"><label>Notes</label><input type="text" id="salary-notes" maxlength="300"></div>
+      </div>
+      <p id="salary-pay-note" style="font-size:12px;color:var(--sub);margin:4px 0 0;"></p>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('salary')">Close</button>
+      <button class="btn btn-primary" id="salary-pay-btn" style="display:none;" onclick="confirmPaySalary()">💵 Pay</button>
+    </div>
+  </div>
+</div>
+
+<!-- Staff salary: reverse a paid month (Admin only) -->
+<div class="modal-overlay" id="modal-salrev">
+  <div class="modal">
+    <div class="modal-hdr"><h3>↩ Reverse Salary</h3><button class="modal-close" onclick="closeModal('salrev')">✕</button></div>
+    <p id="salrev-context" style="font-size:13px;margin:0 0 8px;"></p>
+    <p style="font-size:12px;color:var(--sub);margin:0 0 10px;">Use this when the salary was recorded wrongly. The original stays in the history, its expense entry is withdrawn, and the advances become available again so the month can be corrected and paid.</p>
+    <div class="form-group full"><label>Reason *</label><input type="text" id="salrev-reason" maxlength="300" placeholder="e.g. Leave on 12-Sep was not marked"></div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeModal('salrev')">Cancel</button>
+      <button class="btn btn-danger" onclick="saveReverseSalary()">↩ Reverse</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- Pay Online (QR + proof upload) -->
@@ -687,5 +782,6 @@
 <script src="filedrop.js"></script>
 <script src="maintenance.js"></script>
 <script src="budget.js"></script>
+<script src="staff.js"></script>
 </body>
 </html>

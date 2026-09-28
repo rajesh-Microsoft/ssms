@@ -26,6 +26,7 @@ namespace SMMS.Api.Controllers;
 public class ReimbursementsController(
     SmmsDbContext db,
     SocietyLiabilityService liabilities,
+    StaffSalaryService salaries,
     IFileStorage storage,
     AuditService audit) : ControllerBase
 {
@@ -177,10 +178,29 @@ public class ReimbursementsController(
 
         // Pending first: this list is a work queue, not an archive.
         var rows = await q.ToListAsync();
-        return Ok(rows
+        var dtos = rows
             .OrderBy(r => r.Status == ReimbursementStatus.Pending ? 0 : 1)
             .ThenByDescending(r => r.Id)
-            .Select(ToDto));
+            .Select(ToDto)
+            .ToList();
+        return Ok(await WithSalaryDeductionAsync(dtos));
+    }
+
+    private async Task<ReimbursementDto> WithSalaryDeductionAsync(ReimbursementDto dto) =>
+        (await WithSalaryDeductionAsync([dto]))[0];
+
+    /// <summary>Names whose salary each claim was deducted from, looked up from the salary side
+    /// so the claim never stores a second copy of that link.</summary>
+    private async Task<List<ReimbursementDto>> WithSalaryDeductionAsync(List<ReimbursementDto> dtos)
+    {
+        var ids = dtos.Where(d => d.Status == nameof(ReimbursementStatus.Approved)).Select(d => d.Id).ToList();
+        if (ids.Count == 0) return dtos;
+        var links = await db.StaffPayments.AsNoTracking()
+            .Where(p => p.ReimbursementId != null && ids.Contains(p.ReimbursementId.Value))
+            .Select(p => new { Id = p.ReimbursementId!.Value, p.Staff!.Name, p.Staff.Role })
+            .ToListAsync();
+        var map = links.ToDictionary(l => l.Id, l => $"{l.Name} ({l.Role})");
+        return dtos.Select(d => map.TryGetValue(d.Id, out var who) ? d with { SalaryDeduction = who } : d).ToList();
     }
 
     [HttpGet("summary")]
@@ -224,6 +244,16 @@ public class ReimbursementsController(
         var member = await db.Members.FirstOrDefaultAsync(m => m.Id == request.MemberId);
         if (member is null) return BadRequest(new { message = "The member on this claim no longer exists." });
 
+        // Only the reviewer's explicit choice deducts from a salary. The category alone never
+        // does: members guess it, and the reviewer may be correcting it in this same request.
+        Staff? staff = null;
+        if (req?.DeductFromStaffId is int staffId)
+        {
+            staff = await db.StaffMembers.FirstOrDefaultAsync(s => s.Id == staffId);
+            if (staff is null) return BadRequest(new { message = "That staff member does not exist." });
+            if (await salaries.CannotDeductReimbursementAsync(staff) is { } why) return BadRequest(new { message = why });
+        }
+
         // The reviewer's category wins: whatever they choose here is what the books will show.
         var claimed = request.Category;
         var category = string.IsNullOrWhiteSpace(req?.Category) ? request.Category : req!.Category!.Trim();
@@ -243,14 +273,32 @@ public class ReimbursementsController(
         request.ReviewedOn = DateTime.UtcNow;
         request.ReviewNote = null;
 
+        StaffPayment? deduction = null;
+        if (staff is not null)
+        {
+            // The expense the liability just booked is the cash record; the deduction points at it
+            // instead of booking the same money twice.
+            var claimExpense = db.ChangeTracker.Entries<Expense>()
+                .Select(e => e.Entity)
+                .First(e => ReferenceEquals(e.FundedByLiability, liability));
+            deduction = salaries.QueueReimbursementDeduction(staff, request, member, claimExpense);
+        }
+
+        // One commit: the liability, its expense and any salary deduction exist together or not at all.
         await db.SaveChangesAsync();
 
         await audit.LogAsync("Reimbursements", "Approve",
             $"Approved claim #{id} for {member.Flat}: {request.Amount:0.00} ({category}). " +
             (recategorised ? $"Recategorised from '{claimed}'. " : "") +
-            $"Liability #{liability.Id} raised and the cost booked to {request.ExpenseDate:MMM yyyy}.");
+            $"Liability #{liability.Id} raised and the cost booked to {request.ExpenseDate:MMM yyyy}." +
+            (staff is null ? "" : $" Deducted from {staff.Name}'s salary."));
 
-        return Ok(ToDto(await Query().FirstAsync(r => r.Id == id)));
+        if (deduction is not null)
+            await audit.LogAsync("Staff", "PaymentAdd",
+                $"{StaffSalaryService.ReimbursementCategory} {deduction.Amount:0.##} to {staff!.Name} on {deduction.Date:dd-MMM-yyyy}, " +
+                $"paid by {member.Name} (claim #{id}), to be deducted from salary (expense #{deduction.ExpenseId}, payment #{deduction.Id})");
+
+        return Ok(await WithSalaryDeductionAsync(ToDto(await Query().FirstAsync(r => r.Id == id))));
     }
 
     [HttpPost("{id:int}/reject")]

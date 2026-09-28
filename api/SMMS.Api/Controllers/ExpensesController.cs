@@ -24,6 +24,13 @@ public class ExpensesController(SmmsDbContext db, IFileStorage storage, AuditSer
     private const string LiabilityOwned =
         "This cost was funded by a contributor and belongs to its liability. Edit or remove it from the Liabilities screen.";
 
+    private const string StaffOwned =
+        "This is a staff salary or advance. Edit or remove it from the Staff Salary screen so the salary stays correct.";
+
+    private async Task<bool> IsStaffOwnedAsync(int expenseId) =>
+        await db.StaffPayments.AnyAsync(p => p.ExpenseId == expenseId)
+        || await db.SalarySettlements.AnyAsync(s => s.ExpenseId == expenseId);
+
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ExpenseDto>>> GetAll([FromQuery] int? year, [FromQuery] int? month)
     {
@@ -72,6 +79,7 @@ public class ExpensesController(SmmsDbContext db, IFileStorage storage, AuditSer
         var expense = await db.Expenses.FindAsync(id);
         if (expense is null) return NotFound();
         if (expense.FundedByLiabilityId is not null) return BadRequest(LiabilityOwned);
+        if (await IsStaffOwnedAsync(id)) return BadRequest(StaffOwned);
 
         expense.ExpenseDate = request.ExpenseDate;
         expense.Category = request.Category;
@@ -94,6 +102,7 @@ public class ExpensesController(SmmsDbContext db, IFileStorage storage, AuditSer
         var expense = await db.Expenses.FindAsync(id);
         if (expense is null) return NotFound();
         if (expense.FundedByLiabilityId is not null) return BadRequest(LiabilityOwned);
+        if (await IsStaffOwnedAsync(id)) return BadRequest(StaffOwned);
 
         db.Expenses.Remove(expense);
         await db.SaveChangesAsync();

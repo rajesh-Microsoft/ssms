@@ -28,9 +28,12 @@ public record ReimbursementSettleRequest(
 
 /// <summary>Approval, optionally correcting the category. Members pick from the society's list but
 /// still guess; the category chosen here is the one the expense is booked under, so the reviewer
-/// gets the final say.</summary>
+/// gets the final say. <paramref name="DeductFromStaffId"/> is the reviewer's decision, never
+/// inferred from the category: set it when the member paid a staff member on the society's behalf
+/// and that money should come off the staff member's salary.</summary>
 public record ReimbursementApproveRequest(
-    [MaxLength(60)] string? Category);
+    [MaxLength(60)] string? Category,
+    int? DeductFromStaffId = null);
 
 /// <summary>A claim as shown to members and reviewers. Settlement figures are read from the linked
 /// liability rather than stored here, so they cannot disagree with the ledger.</summary>
@@ -59,7 +62,9 @@ public record ReimbursementDto(
     string? SettlementReference,
     /// <summary>Pending | NeedsInfo | Rejected | Approved | PartiallySettled | Settled — the
     /// approval state until approved, the money's state afterwards.</summary>
-    string DisplayStatus);
+    string DisplayStatus,
+    /// <summary>"Ramesh (Watchman)" when the reviewer deducted this claim from a salary.</summary>
+    string? SalaryDeduction = null);
 
 /// <summary>Counts for the admin queue badge and the dashboard widget.</summary>
 public record ReimbursementSummaryDto(

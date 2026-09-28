@@ -344,3 +344,49 @@ td:first-child,td strong{color:var(--ink);}
   .pg-btn{min-width:40px;height:40px;font-size:var(--fs-13);}
   .pager,.pg{gap:6px;flex-wrap:wrap;}
 }
+
+/* ── Staff attendance calendar ─────────────────────────────── */
+.att-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;}
+.att-cal .att-wd{font-size:11px;color:var(--ink-3);text-align:center;padding:2px 0;}
+.att-day{min-height:40px;border:1px solid var(--ok-line);background:var(--ok-weak);color:var(--ok);
+  border-radius:var(--r-sm);font-size:13px;font-weight:600;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;cursor:pointer;padding:2px;font-family:inherit;}
+.att-day small{font-size:9px;font-weight:600;line-height:1.1;}
+.att-day.att-leave{background:var(--warn-weak);color:var(--warn);border-color:var(--warn-line);}
+.att-day.att-unpaid{background:var(--err-weak);color:var(--err);border-color:var(--err-line);}
+.att-day.att-off{background:var(--surface-2);color:var(--ink-3);border-color:var(--line);cursor:default;}
+.att-day.att-today{box-shadow:inset 0 0 0 2px var(--brand);}
+.att-day:disabled{cursor:default;}
+.att-day:not(:disabled):hover{filter:brightness(.96);}
+/* The custom select hides the native one absolutely; its 120px search-row minimum would poke past the card edge. */
+#stf-main .search-row select{min-width:0;}
+.att-legend{display:flex;gap:12px;font-size:12px;color:var(--ink-2);margin:-4px 0 8px;flex-wrap:wrap;}
+.att-dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid;}
+.att-dot.att-present{background:var(--ok-weak);border-color:var(--ok-line);}
+.att-dot.att-leave{background:var(--warn-weak);border-color:var(--warn-line);}
+.att-dot.att-unpaid{background:var(--err-weak);border-color:var(--err-line);}
+
+/* Salary breakdown: label left, amount right, like a pay slip. */
+.sal-slip{width:100%;border-collapse:collapse;font-size:13px;}
+.sal-slip td{padding:5px 2px;border:0;}
+.sal-slip td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;}
+.sal-slip .sal-sec td,.sal-slip .sal-sec td:last-child{text-align:left;padding-top:10px;font-size:11px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line);}
+.sal-slip .sal-minus td:last-child{color:var(--err);}
+.sal-slip .sal-muted td{color:var(--ink-3);font-size:12px;}
+.sal-slip .sal-net td{border-top:2px solid var(--line-strong);padding-top:8px;font-size:16px;font-weight:700;}
+
+@media (max-width:680px){
+  /* A pay slip is already two columns, so it stays a table instead of becoming cards. */
+  table.sal-slip{display:table;}
+  table.sal-slip tbody{display:table-row-group;}
+  table.sal-slip tbody tr{display:table-row;border:0;border-radius:0;background:transparent;padding:0;margin:0;}
+  table.sal-slip tbody td{display:table-cell;width:auto;padding:5px 2px;text-align:left;}
+  table.sal-slip tbody td:last-child{text-align:right;}
+  table.sal-slip tbody td::before{content:none;}
+  table.sal-slip tbody tr.sal-sec td{text-align:left;}
+  table.sal-slip tbody td:empty{display:table-cell;}
+  /* Month navigation stays on one line: ‹ September 2026 ›. */
+  #stf-main .search-row > .btn,#stf-main .search-row > strong{flex:1 1 auto;width:auto;}
+  #stf-main .search-row > button[title="Previous month"],#stf-main .search-row > button[title="Next month"]{flex:0 0 44px;}
+  .att-day{min-height:36px;}
+}

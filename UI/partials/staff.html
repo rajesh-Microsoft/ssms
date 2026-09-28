@@ -1,0 +1,80 @@
+<!-- No staff yet -->
+<div class="card" id="stf-empty" style="display:none;text-align:center;padding:32px 16px;">
+  <div style="font-size:40px;">🛡️</div>
+  <h3 style="margin:8px 0 4px;">No watchman set up yet</h3>
+  <p style="color:var(--sub);margin:0 0 14px;">Add the watchman's monthly salary and paid-leave allowance. SMMS then works out what to pay each month.</p>
+  <button class="btn btn-primary admin-only" onclick="openStaffSetup(true)">＋ Set up watchman</button>
+  <p class="member-only" style="color:var(--sub);font-size:12px;">Ask an Admin to set up the watchman.</p>
+</div>
+
+<div id="stf-main" style="display:none;">
+  <div class="card">
+    <div class="card-hdr">
+      <h3 id="stf-title">Watchman</h3>
+      <div class="search-row">
+        <span id="stf-picker-wrap" style="display:none;"><select id="stf-picker" onchange="staffPick(this.value)" title="Staff member"></select></span>
+        <button class="btn btn-ghost" onclick="staffShiftMonth(-1)" title="Previous month" aria-label="Previous month">‹</button>
+        <strong id="stf-period" style="min-width:120px;text-align:center;"></strong>
+        <button class="btn btn-ghost" onclick="staffShiftMonth(1)" title="Next month" aria-label="Next month">›</button>
+        <button class="btn btn-ghost admin-only" onclick="openStaffSetup(false)">✏️ Setup</button>
+        <button class="btn btn-ghost admin-only" onclick="openStaffSetup(true)" title="Add another staff member">＋ Staff</button>
+      </div>
+    </div>
+    <div id="stf-profile" style="font-size:12px;color:var(--sub);margin:-4px 0 10px;"></div>
+    <div id="stf-tiles" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;">
+    <div class="card" style="margin:0;">
+      <div class="card-hdr">
+        <h3>Salary <span id="stf-status"></span></h3>
+        <div class="search-row">
+          <button class="btn btn-ghost" onclick="openSalaryDetails()">🔍 View Details</button>
+          <button class="btn btn-primary admin-only" id="stf-pay-btn" onclick="openSalaryDetails('pay')">💵 Pay Salary</button>
+          <button class="btn btn-ghost admin-only" id="stf-rev-btn" onclick="openReverseSalary()" style="display:none;">↩ Reverse</button>
+        </div>
+      </div>
+      <div id="stf-breakdown"></div>
+      <p id="stf-blocked" style="display:none;font-size:12px;color:#c05621;margin:8px 0 0;"></p>
+    </div>
+
+    <div class="card" style="margin:0;">
+      <div class="card-hdr">
+        <h3>Attendance</h3>
+        <span id="stf-att-counts" style="font-size:12px;color:var(--sub);"></span>
+      </div>
+      <div class="att-legend">
+        <span><i class="att-dot att-present"></i>Present</span>
+        <span><i class="att-dot att-leave"></i>Leave</span>
+        <span><i class="att-dot att-unpaid"></i>Unpaid</span>
+      </div>
+      <div id="stf-cal" class="att-cal"></div>
+      <p id="stf-att-hint" style="font-size:12px;color:var(--sub);margin:8px 0 0;"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      <h3>Payments this month</h3>
+      <div class="search-row">
+        <button class="btn btn-primary" data-perm="Expenses" onclick="openStaffPayment()">＋ Add Payment</button>
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--sub);margin:-4px 0 8px;">Advances, mobile recharges and other money handed over during the month. Each one is also saved as an expense.</p>
+    <div class="tbl-wrap">
+      <table><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Mode</th><th>Salary</th><th>Notes</th><th>Actions</th></tr></thead>
+      <tbody id="stf-pay-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr">
+      <h3>Salary History</h3>
+      <div class="search-row"><select id="stf-hist-year" onchange="loadStaffHistory()"></select></div>
+    </div>
+    <div class="tbl-wrap">
+      <table><thead><tr><th>Month</th><th>Gross</th><th>Present</th><th>Paid Leave</th><th>Unpaid</th><th>Leave Deduction</th><th>Adjustments</th><th>Net Paid</th><th>Status</th><th>Paid On</th></tr></thead>
+      <tbody id="stf-hist-tbody"></tbody></table>
+    </div>
+  </div>
+</div>

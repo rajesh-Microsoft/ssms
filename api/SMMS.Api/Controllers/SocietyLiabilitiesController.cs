@@ -138,12 +138,25 @@ public class SocietyLiabilitiesController(SmmsDbContext db, SocietyLiabilityServ
 
         // The cost row exists only because this liability does, so it goes with it.
         var expense = await db.Expenses.FirstOrDefaultAsync(e => e.FundedByLiabilityId == id);
+
+        // So does a salary deduction made from its claim, unless a paid salary already relied on it:
+        // deleting then would leave that salary short with no record of why.
+        var deduction = expense is null ? null
+            : await db.StaffPayments.Include(p => p.Staff).Include(p => p.Settlement)
+                .FirstOrDefaultAsync(p => p.ExpenseId == expense.Id);
+        if (deduction?.Settlement is { } paid)
+            return BadRequest($"This amount was deducted from {deduction.Staff!.Name}'s " +
+                              $"{StaffSalaryService.PeriodLabel(paid.Year, paid.Month)} salary, which is already paid. " +
+                              "Reverse that salary on the Staff Salary screen first.");
+
         if (expense is not null) db.Expenses.Remove(expense);
+        if (deduction is not null) db.StaffPayments.Remove(deduction);
 
         db.SocietyLiabilities.Remove(liability);
         await db.SaveChangesAsync();
         await audit.LogAsync("Liabilities", "Delete",
-            $"Deleted liability #{id}" + (expense is null ? "" : $" and its {expense.Category} cost of {expense.Amount}"));
+            $"Deleted liability #{id}" + (expense is null ? "" : $" and its {expense.Category} cost of {expense.Amount}") +
+            (deduction is null ? "" : $", and removed the salary deduction from {deduction.Staff!.Name}"));
         return NoContent();
     }
 }

@@ -195,6 +195,23 @@ const Api = {
   inventoryStockOut: (payload) => apiFetch('/inventory/stock-out', { method: 'POST', body: JSON.stringify(payload) }),
   inventoryAdjust: (payload) => apiFetch('/inventory/adjust', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // Staff salary (watchman). Setup, pay and reverse are Admin-only server-side; the rest follows Expenses.
+  getStaff: () => apiFetch('/staff'),
+  createStaff: (payload) => apiFetch('/staff', { method: 'POST', body: JSON.stringify(payload) }),
+  updateStaff: (id, payload) => apiFetch(`/staff/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  getStaffAttendance: (id, year, month) => apiFetch(`/staff/${id}/attendance?year=${year}&month=${month}`),
+  setStaffAttendance: (id, date, status) => apiFetch(`/staff/${id}/attendance`, { method: 'PUT', body: JSON.stringify({ date, status }) }),
+  getStaffPayments: (id, year, month) => apiFetch(`/staff/${id}/payments?year=${year}&month=${month}`),
+  createStaffPayment: (id, payload) => apiFetch(`/staff/${id}/payments`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateStaffPayment: (paymentId, payload) => apiFetch(`/staff/payments/${paymentId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  deleteStaffPayment: (paymentId) => apiFetch(`/staff/payments/${paymentId}`, { method: 'DELETE' }),
+  getStaffSalary: (id, year, month) => apiFetch(`/staff/${id}/salary?year=${year}&month=${month}`),
+  getSalarySettlement: (settlementId) => apiFetch(`/staff/salary/${settlementId}`),
+  getSalaryHistory: (id, year) => apiFetch(`/staff/${id}/salary/history${year ? `?year=${year}` : ''}`),
+  paySalary: (id, payload) => apiFetch(`/staff/${id}/salary/pay`, { method: 'POST', body: JSON.stringify(payload) }),
+  reverseSalary: (settlementId, reason) => apiFetch(`/staff/salary/${settlementId}/reverse`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getStaffSummary: () => apiFetch('/staff/summary'),
+
   // Utility integrations. Connection mutations are Admin-only server-side; bills are read-only for members.
   getUtilityProviders: () => apiFetch('/utilities/providers'),
   getUtilityConnections: () => apiFetch('/utilities/connections'),
@@ -223,7 +240,7 @@ const Api = {
   createReimbursement: (payload) => apiFetch('/reimbursements', { method: 'POST', body: JSON.stringify(payload) }),
   updateReimbursement: (id, payload) => apiFetch(`/reimbursements/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
   withdrawReimbursement: (id) => apiFetch(`/reimbursements/${id}`, { method: 'DELETE' }),
-  approveReimbursement: (id, category) => apiFetch(`/reimbursements/${id}/approve`, { method: 'POST', body: JSON.stringify({ category: category || null }) }),
+  approveReimbursement: (id, category, deductFromStaffId) => apiFetch(`/reimbursements/${id}/approve`, { method: 'POST', body: JSON.stringify({ category: category || null, deductFromStaffId: deductFromStaffId || null }) }),
   settleReimbursement: (id, payload) => apiFetch(`/reimbursements/${id}/settle`, { method: 'POST', body: JSON.stringify(payload) }),
   rejectReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
   requestInfoReimbursement: (id, note) => apiFetch(`/reimbursements/${id}/request-info`, { method: 'POST', body: JSON.stringify({ note }) }),

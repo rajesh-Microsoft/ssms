@@ -39,6 +39,11 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<UserGroup> UserGroups => Set<UserGroup>();
     public DbSet<UserGroupMember> UserGroupMembers => Set<UserGroupMember>();
+    public DbSet<Staff> StaffMembers => Set<Staff>();
+    public DbSet<StaffAttendance> StaffAttendance => Set<StaffAttendance>();
+    public DbSet<StaffPayment> StaffPayments => Set<StaffPayment>();
+    public DbSet<SalarySettlement> SalarySettlements => Set<SalarySettlement>();
+    public DbSet<SalarySettlementLine> SalarySettlementLines => Set<SalarySettlementLine>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -398,11 +403,90 @@ public class SmmsDbContext(DbContextOptions<SmmsDbContext> options) : DbContext(
             .HasForeignKey(i => i.ChecklistId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // ── Staff salary ──
+
+        modelBuilder.Entity<StaffAttendance>()
+            .Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
+
+        modelBuilder.Entity<StaffAttendance>()
+            .HasOne(a => a.Staff)
+            .WithMany()
+            .HasForeignKey(a => a.StaffId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // One mark per person per day, so two quick taps cannot leave rival rows.
+        modelBuilder.Entity<StaffAttendance>()
+            .HasIndex(a => new { a.StaffId, a.Date })
+            .IsUnique();
+
+        modelBuilder.Entity<StaffPayment>()
+            .HasOne(p => p.Staff)
+            .WithMany()
+            .HasForeignKey(p => p.StaffId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict, like the other expense links: the cash record can never be orphaned.
+        modelBuilder.Entity<StaffPayment>()
+            .HasOne(p => p.Expense)
+            .WithMany()
+            .HasForeignKey(p => p.ExpenseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StaffPayment>()
+            .HasOne(p => p.Settlement)
+            .WithMany()
+            .HasForeignKey(p => p.SettlementId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<StaffPayment>()
+            .HasIndex(p => new { p.StaffId, p.Date });
+
+        modelBuilder.Entity<StaffPayment>()
+            .HasOne(p => p.Reimbursement)
+            .WithMany()
+            .HasForeignKey(p => p.ReimbursementId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // A claim is deducted from salary at most once, whatever the application code does.
+        modelBuilder.Entity<StaffPayment>()
+            .HasIndex(p => p.ReimbursementId)
+            .IsUnique()
+            .HasFilter("[ReimbursementId] IS NOT NULL");
+
+        modelBuilder.Entity<SalarySettlement>()
+            .Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+
+        modelBuilder.Entity<SalarySettlement>()
+            .HasOne(s => s.Staff)
+            .WithMany()
+            .HasForeignKey(s => s.StaffId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<SalarySettlement>()
+            .HasOne(s => s.Expense)
+            .WithMany()
+            .HasForeignKey(s => s.ExpenseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // The duplicate-payment guard. Filtered so a reversed month can be paid again, while two
+        // admins pressing Pay at the same moment still cannot both succeed.
+        modelBuilder.Entity<SalarySettlement>()
+            .HasIndex(s => new { s.StaffId, s.Year, s.Month })
+            .IsUnique()
+            .HasFilter("[Status] = 'Paid'");
+
+        modelBuilder.Entity<SalarySettlementLine>()
+            .HasOne(l => l.Settlement)
+            .WithMany(s => s.Lines)
+            .HasForeignKey(l => l.SettlementId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Soft delete: hide logically-deleted rows from every query automatically.
         modelBuilder.Entity<Expense>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Complaint>().HasQueryFilter(c => !c.IsDeleted);
         modelBuilder.Entity<SocietyLiability>().HasQueryFilter(l => !l.IsDeleted);
         modelBuilder.Entity<SocietyIncome>().HasQueryFilter(i => !i.IsDeleted);
         modelBuilder.Entity<ReimbursementRequest>().HasQueryFilter(r => !r.IsDeleted);
+        modelBuilder.Entity<StaffPayment>().HasQueryFilter(p => !p.IsDeleted);
     }
 }

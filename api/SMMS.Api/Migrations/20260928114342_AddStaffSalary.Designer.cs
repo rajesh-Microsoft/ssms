@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SMMS.Api.Data;
 
@@ -11,9 +12,11 @@ using SMMS.Api.Data;
 namespace SMMS.Api.Migrations
 {
     [DbContext(typeof(SmmsDbContext))]
-    partial class SmmsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928114342_AddStaffSalary")]
+    partial class AddStaffSalary
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1923,9 +1926,6 @@ namespace SMMS.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
-                    b.Property<int?>("ReimbursementId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("SettlementId")
                         .HasColumnType("int");
 
@@ -1935,10 +1935,6 @@ namespace SMMS.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ExpenseId");
-
-                    b.HasIndex("ReimbursementId")
-                        .IsUnique()
-                        .HasFilter("[ReimbursementId] IS NOT NULL");
 
                     b.HasIndex("SettlementId");
 
@@ -2656,11 +2652,6 @@ namespace SMMS.Api.Migrations
                         .HasForeignKey("ExpenseId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("SMMS.Api.Models.ReimbursementRequest", "Reimbursement")
-                        .WithMany()
-                        .HasForeignKey("ReimbursementId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("SMMS.Api.Models.SalarySettlement", "Settlement")
                         .WithMany()
                         .HasForeignKey("SettlementId")
@@ -2673,8 +2664,6 @@ namespace SMMS.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Expense");
-
-                    b.Navigation("Reimbursement");
 
                     b.Navigation("Settlement");
 

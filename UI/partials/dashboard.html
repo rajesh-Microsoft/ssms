@@ -18,6 +18,10 @@
   <div class="card-hdr"><h3>Upcoming Utility Bills</h3><button class="btn btn-ghost admin-only" onclick="showTab('utilities')">Manage</button></div>
   <div class="tbl-wrap"><table><thead><tr><th>Utility</th><th>Consumer Number</th><th>Amount</th><th>Due Date</th><th>Status</th><th></th></tr></thead><tbody id="dash-utility-bills"></tbody></table></div>
 </div>
+<div class="card" id="dash-staff-card" style="display:none;">
+  <div class="card-hdr"><h3>Staff Salaries</h3><button class="btn btn-ghost" onclick="showTab('staff', document.getElementById('nav-staff'))">Open</button></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Month</th><th>Amount</th><th>Status</th></tr></thead><tbody id="dash-staff-tbody"></tbody></table></div>
+</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
   <div class="card">
     <div class="card-hdr"><h3>Recent Collections</h3></div>
