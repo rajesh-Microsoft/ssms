@@ -92,6 +92,8 @@ services:
       # Same opt-in rule as Razorpay: empty means no society can pay via PhonePe.
       PhonePe__AllowedSocieties: ${PHONEPE_ALLOWED_SOCIETIES:-}
 
+      Utilities__Providers__TGSPDCL__ApiKey: ${TGSPDCL_API_KEY:-}
+
     # Payment screenshots and caretaker photos live on disk. Without this volume every
     # deploy recreates the container and takes the evidence with it.
     volumes:

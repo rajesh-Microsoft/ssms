@@ -124,7 +124,7 @@ builder.Services.AddScoped<SMMS.Api.Services.SocietyLiabilityService>();
 builder.Services.AddScoped<SMMS.Api.Services.StaffSalaryService>();
 
 builder.Services.Configure<UtilityIntegrationOptions>(builder.Configuration.GetSection("Utilities"));
-builder.Services.AddSingleton<TGSPDCLHtmlParser>();
+builder.Services.AddSingleton<TGSPDCLJsonParser>();
 builder.Services.AddHttpClient<TGSPDCLProvider>((sp, client) =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<UtilityIntegrationOptions>>().Value;

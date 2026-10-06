@@ -70,6 +70,9 @@ services:
       PhonePe__WebhookUsername: ${PHONEPE_WEBHOOK_USERNAME:-}
       PhonePe__WebhookPassword: ${PHONEPE_WEBHOOK_PASSWORD:-}
       PhonePe__AllowedSocieties: ${PHONEPE_ALLOWED_SOCIETIES:-}
+
+      Utilities__Providers__TGSPDCL__ApiKey: ${TGSPDCL_API_KEY:-}
+
     # Payment screenshots and caretaker photos live on disk, so they need a volume to
     # survive the container being recreated on every deploy.
     volumes:
